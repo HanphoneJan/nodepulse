@@ -1,7 +1,7 @@
 BIN := nodepulse
-VERSION ?= dev
+VERSION ?= 0.3.0
 LDFLAGS := -s -w -X main.version=$(VERSION)
-UI_TAGS ?= webkit2_41
+UI_TAGS ?= production,webkit2_41
 ADDR ?= 127.0.0.1:8099
 
 .PHONY: build gui run web test race vet fmt deb appimage clean

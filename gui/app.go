@@ -3,15 +3,25 @@ package main
 import (
 	"context"
 	"fmt"
+	"io"
+	"net/http"
+	"os"
+	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/HanphoneJan/nodepulse/internal/clash"
 	"github.com/HanphoneJan/nodepulse/internal/config"
+	"github.com/HanphoneJan/nodepulse/internal/daemon"
+	"github.com/HanphoneJan/nodepulse/internal/discover"
 	"github.com/HanphoneJan/nodepulse/internal/export"
+	"github.com/HanphoneJan/nodepulse/internal/optimize"
 	"github.com/HanphoneJan/nodepulse/internal/score"
+	"github.com/HanphoneJan/nodepulse/internal/settings"
 	"github.com/HanphoneJan/nodepulse/internal/sidecar"
+	"github.com/HanphoneJan/nodepulse/internal/store"
 	"github.com/HanphoneJan/nodepulse/internal/subscription"
 	"github.com/HanphoneJan/nodepulse/internal/tester"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
@@ -21,9 +31,14 @@ const defaultTestURL = "https://www.gstatic.com/generate_204"
 
 // App is the Wails binding surface.
 type App struct {
-	ctx            context.Context
+	ctx context.Context
+
+	mu             sync.Mutex
 	lastResults    []score.Result
 	lastConfigPath string
+
+	daemonCancel  context.CancelFunc
+	daemonRunning bool
 }
 
 // NewApp creates the binding object.
@@ -37,7 +52,217 @@ func (a *App) startup(ctx context.Context) {
 
 // Version returns the GUI version.
 func (a *App) Version() string {
-	return "0.2.0"
+	return "0.3.0"
+}
+
+// BootstrapResult is what the GUI needs on first paint.
+type BootstrapResult struct {
+	Controllers   []discover.Controller `json:"controllers"`
+	Mihomo        string                `json:"mihomo,omitempty"`
+	Subscriptions []string              `json:"subscriptions"`
+	Settings      settings.Settings     `json:"settings"`
+	MihomoError   string                `json:"mihomo_error,omitempty"`
+}
+
+// Bootstrap auto-detects the environment and returns the saved settings.
+func (a *App) Bootstrap() (BootstrapResult, error) {
+	s, err := settings.Load("")
+	if err != nil {
+		return BootstrapResult{}, err
+	}
+	ctx, cancel := context.WithTimeout(a.ctx, 5*time.Second)
+	defer cancel()
+	controllers := discover.Controllers(ctx)
+	if s.API == "" && len(controllers) > 0 {
+		s.API = controllers[0].URL
+	}
+	mihomo, mihomoErr := discover.MihomoBinary()
+	if s.MihomoPath == "" && mihomoErr == nil {
+		s.MihomoPath = mihomo
+	}
+	if s.ConfigPath == "" {
+		if files := discover.SubscriptionFiles(); len(files) > 0 {
+			s.ConfigPath = files[0]
+		}
+	}
+	out := BootstrapResult{
+		Controllers:   controllers,
+		Mihomo:        mihomo,
+		Subscriptions: discover.SubscriptionFiles(),
+		Settings:      s,
+	}
+	if mihomoErr != nil {
+		out.MihomoError = mihomoErr.Error()
+	}
+	return out, nil
+}
+
+// Settings returns the saved settings.
+func (a *App) Settings() (settings.Settings, error) {
+	return settings.Load("")
+}
+
+// SaveSettings persists the settings.
+func (a *App) SaveSettings(s settings.Settings) error {
+	return settings.Save("", s)
+}
+
+// Detect re-runs environment detection.
+func (a *App) Detect() (BootstrapResult, error) {
+	return a.Bootstrap()
+}
+
+// OneClick tests nodes and optionally switches to the best one.
+func (a *App) OneClick(api, secret, group, configPath, mihomoPath string, rounds int, doSwitch bool) (*optimize.Result, error) {
+	req := optimize.Request{
+		API:         api,
+		Secret:      secret,
+		Group:       group,
+		ConfigPath:  configPath,
+		MihomoPath:  mihomoPath,
+		URL:         defaultTestURL,
+		Rounds:      rounds,
+		Concurrency: 8,
+		TimeoutMs:   5000,
+		Switch:      doSwitch,
+	}
+	res, err := optimize.Run(a.ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	a.mu.Lock()
+	a.lastResults = res.Results
+	a.lastConfigPath = configPath
+	a.mu.Unlock()
+
+	// Persist whatever worked so the next launch is one click away.
+	s, _ := settings.Load("")
+	if api != "" {
+		s.API = api
+		s.Secret = secret
+	}
+	if group != "" {
+		s.Group = group
+	}
+	if configPath != "" {
+		s.ConfigPath = configPath
+	}
+	if mihomoPath != "" {
+		s.MihomoPath = mihomoPath
+	}
+	if rounds > 0 {
+		s.Rounds = rounds
+	}
+	_ = settings.Save("", s)
+	return res, nil
+}
+
+// ImportSubscription downloads a subscription URL and saves it as YAML.
+func (a *App) ImportSubscription(rawURL string) (string, error) {
+	rawURL = strings.TrimSpace(rawURL)
+	if rawURL == "" {
+		return "", fmt.Errorf("请填写订阅 URL")
+	}
+	client := &http.Client{Timeout: 45 * time.Second}
+	resp, err := client.Get(rawURL)
+	if err != nil {
+		return "", fmt.Errorf("下载订阅失败: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return "", fmt.Errorf("下载订阅失败: HTTP %d", resp.StatusCode)
+	}
+	data, err := io.ReadAll(io.LimitReader(resp.Body, 10<<20))
+	if err != nil {
+		return "", err
+	}
+	if _, err := subscription.LoadReader(strings.NewReader(string(data))); err != nil {
+		return "", fmt.Errorf("订阅内容无法解析: %w", err)
+	}
+
+	dir := filepath.Join(filepath.Dir(settings.DefaultPath()), "subscriptions")
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return "", err
+	}
+	name := fmt.Sprintf("sub-%s.yaml", time.Now().Format("20060102-150405"))
+	path := filepath.Join(dir, name)
+	if err := os.WriteFile(path, data, 0o600); err != nil {
+		return "", err
+	}
+	s, _ := settings.Load("")
+	s.ConfigPath = path
+	_ = settings.Save("", s)
+	return path, nil
+}
+
+// StartDaemon starts the background auto-switch loop.
+func (a *App) StartDaemon(api, secret, group string, intervalSec, rounds int, margin float64, confirm int, minSuccess float64) error {
+	if api == "" {
+		return fmt.Errorf("自动优化需要先连接 Clash 控制口")
+	}
+	a.mu.Lock()
+	if a.daemonRunning {
+		a.mu.Unlock()
+		return fmt.Errorf("后台自动优化已经在运行")
+	}
+	ctx, cancel := context.WithCancel(a.ctx)
+	a.daemonCancel = cancel
+	a.daemonRunning = true
+	a.mu.Unlock()
+
+	st, err := store.New(store.DefaultPath())
+	if err != nil {
+		a.mu.Lock()
+		a.daemonRunning = false
+		a.mu.Unlock()
+		cancel()
+		return err
+	}
+	d := daemon.New(clash.New(api, secret), daemon.Options{
+		Group:       group,
+		Interval:    time.Duration(intervalSec) * time.Second,
+		Rounds:      rounds,
+		Concurrency: 8,
+		TestURL:     defaultTestURL,
+		Timeout:     5 * time.Second,
+		Margin:      margin,
+		Confirm:     confirm,
+		MinSuccess:  minSuccess,
+		Store:       st,
+		OnEvent: func(e store.Event) {
+			if a.ctx != nil {
+				runtime.EventsEmit(a.ctx, "nodepulse:daemon", e)
+			}
+		},
+	})
+	go func() {
+		_ = d.Run(ctx)
+		a.mu.Lock()
+		a.daemonRunning = false
+		a.daemonCancel = nil
+		a.mu.Unlock()
+	}()
+	return nil
+}
+
+// StopDaemon stops the background loop.
+func (a *App) StopDaemon() error {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.daemonCancel == nil {
+		return nil
+	}
+	a.daemonCancel()
+	a.daemonCancel = nil
+	a.daemonRunning = false
+	return nil
+}
+
+// DaemonStatus reports whether the background loop is running.
+func (a *App) DaemonStatus() bool {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return a.daemonRunning
 }
 
 // GroupView is a controller group shown in the UI.
@@ -70,8 +295,7 @@ func (a *App) Status(api, secret string) ([]GroupView, error) {
 	return out, nil
 }
 
-// Test runs a stability test, either through an existing controller or a
-// temporary mihomo sidecar. Results are ranked and kept for Export.
+// Test runs a stability test via controller or sidecar.
 func (a *App) Test(api, secret, configPath, mihomoPath, testURL string, rounds, concurrency, timeoutMs int) ([]score.Result, error) {
 	if rounds <= 0 {
 		rounds = 5
@@ -151,8 +375,10 @@ func (a *App) Test(api, secret, configPath, mihomoPath, testURL string, rounds, 
 	})
 	results := t.Test(a.ctx, nodes)
 	ranked := score.Rank(results)
+	a.mu.Lock()
 	a.lastResults = ranked
 	a.lastConfigPath = configPath
+	a.mu.Unlock()
 	return ranked, nil
 }
 
@@ -168,10 +394,14 @@ func (a *App) Switch(api, secret, group, node string) error {
 
 // Export writes a filtered Clash config from the last test.
 func (a *App) Export(out string, minSuccess float64) (string, error) {
-	if len(a.lastResults) == 0 {
+	a.mu.Lock()
+	results := append([]score.Result(nil), a.lastResults...)
+	configPath := a.lastConfigPath
+	a.mu.Unlock()
+	if len(results) == 0 {
 		return "", fmt.Errorf("请先测试一次")
 	}
-	if a.lastConfigPath == "" {
+	if configPath == "" {
 		return "", fmt.Errorf("当前结果不是从订阅配置测试的，无法导出")
 	}
 	if out == "" {
@@ -180,11 +410,11 @@ func (a *App) Export(out string, minSuccess float64) (string, error) {
 	if minSuccess <= 0 {
 		minSuccess = 0.8
 	}
-	cfg, err := subscription.Load(a.lastConfigPath)
+	cfg, err := subscription.Load(configPath)
 	if err != nil {
 		return "", err
 	}
-	sel, err := export.Stable(cfg, a.lastResults, export.Options{MinSuccess: minSuccess, TestURL: defaultTestURL})
+	sel, err := export.Stable(cfg, results, export.Options{MinSuccess: minSuccess, TestURL: defaultTestURL})
 	if err != nil {
 		return "", err
 	}

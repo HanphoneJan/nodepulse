@@ -69,11 +69,18 @@ go test -race ./...
 ## GUI
 
 ```bash
-make gui          # 需要 libgtk-3-dev、libwebkit2gtk-4.1-dev
+make run          # 构建并启动
+make gui          # 只构建
 ./bin/nodepulse-gui
 ```
 
-GUI 与 CLI 共用核心；绑定代码在 `gui/app.go`，前端在 `gui/frontend/dist`。
+GUI 使用 Wails 生产构建标签 `production,webkit2_41`；如果手动构建，别忘了标签：
+
+```bash
+cd gui && go build -tags production,webkit2_41 -o ../bin/nodepulse-gui .
+```
+
+GUI 与 CLI 共用核心；绑定代码在 `gui/app.go`，前端在 `gui/frontend/dist`。首次启动会自动检测控制口、mihomo 和订阅文件。
 
 ## MCP
 

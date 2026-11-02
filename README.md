@@ -55,6 +55,29 @@ make web
 # 等价于 ./bin/nodepulse serve --addr 127.0.0.1:8099
 ```
 
+### GUI 一键使用
+
+```bash
+make run    # 构建并启动桌面版（带托盘）
+```
+
+打开后按 4 步走：
+
+1. **连接客户端**：自动检测 FlClash / Clash Verge / Mihomo Party 的本地控制口，点一下即可；
+2. **选择订阅**：自动列出本机订阅文件，或直接粘贴订阅 URL 导入；
+3. **一键优化**：多轮测速后自动切换到最稳节点；
+4. **后台自动优化**：按间隔持续测速，节点变差时自动切换并回滚。
+
+高级设置里保留了控制口、secret、Selector 组、mihomo 路径、并发/超时等手动项。
+
+本地 Web UI：
+
+```bash
+make web    # http://127.0.0.1:8099
+```
+
+### CLI 使用
+
 ### 1. 准备订阅配置
 
 NodePulse 直接读取 Clash / mihomo 格式的 YAML（FlClash、Clash Verge 导出的配置都可以）：
