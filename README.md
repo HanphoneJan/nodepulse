@@ -55,6 +55,17 @@ make web
 # 等价于 ./bin/nodepulse serve --addr 127.0.0.1:8099
 ```
 
+### 前端资源
+
+GUI 与本地 Web UI 共用 `internal/uiassets/dist` 下同一套离线资源：Preact 10 + htm 渲染，CSS 按 token / base / layout / components / views / responsive 分层，Material Symbols 图标由 manifest 生成。文档见 [`docs/ui.md`](docs/ui.md)。
+
+```bash
+make icons     # 重新生成 dist/icons.svg 与 favicon.svg
+make ui-check  # 检查图标引用、远程资源和许可证
+```
+
+新增前端依赖时必须本地固定版本，并同步 `THIRD_PARTY_NOTICES.md`、`packaging/nfpm.yaml` 和 AppImage 许可证复制。
+
 ### GUI 一键使用
 
 ```bash

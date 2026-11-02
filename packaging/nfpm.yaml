@@ -30,3 +30,13 @@ contents:
     dst: /usr/share/doc/nodepulse/LICENSE
   - src: THIRD_PARTY_NOTICES.md
     dst: /usr/share/doc/nodepulse/THIRD_PARTY_NOTICES.md
+  - src: internal/uiassets/dist/material-color-utilities.LICENSE.txt
+    dst: /usr/share/doc/nodepulse/third-party/material-color-utilities-LICENSE.txt
+  - src: internal/uiassets/dist/vendor/LICENSES/preact-LICENSE.txt
+    dst: /usr/share/doc/nodepulse/third-party/preact-LICENSE.txt
+  - src: internal/uiassets/dist/vendor/LICENSES/htm-LICENSE.txt
+    dst: /usr/share/doc/nodepulse/third-party/htm-LICENSE.txt
+  - src: internal/uiassets/dist/vendor/LICENSES/floating-ui-LICENSE.txt
+    dst: /usr/share/doc/nodepulse/third-party/floating-ui-LICENSE.txt
+  - src: internal/uiassets/dist/icons.LICENSE.txt
+    dst: /usr/share/doc/nodepulse/third-party/material-symbols-LICENSE.txt

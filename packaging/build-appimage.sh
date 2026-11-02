@@ -10,7 +10,8 @@ OUT="$ROOT/dist/NodePulse-${VERSION}-x86_64.AppImage"
 
 rm -rf "$APPDIR"
 mkdir -p "$APPDIR/usr/bin" "$APPDIR/usr/share/applications" \
-  "$APPDIR/usr/share/icons/hicolor/scalable/apps"
+  "$APPDIR/usr/share/icons/hicolor/scalable/apps" \
+  "$APPDIR/usr/share/doc/nodepulse/third-party"
 
 cp "$ROOT/bin/nodepulse" "$APPDIR/usr/bin/"
 cp "$ROOT/bin/nodepulse-gui" "$APPDIR/usr/bin/"
@@ -18,6 +19,18 @@ cp "$ROOT/packaging/nodepulse.desktop" "$APPDIR/usr/share/applications/"
 cp "$ROOT/packaging/nodepulse.svg" "$APPDIR/usr/share/icons/hicolor/scalable/apps/"
 cp "$ROOT/packaging/nodepulse.desktop" "$APPDIR/nodepulse.desktop"
 cp "$ROOT/packaging/nodepulse.svg" "$APPDIR/nodepulse.svg"
+cp "$ROOT/LICENSE" "$APPDIR/usr/share/doc/nodepulse/LICENSE"
+cp "$ROOT/THIRD_PARTY_NOTICES.md" "$APPDIR/usr/share/doc/nodepulse/THIRD_PARTY_NOTICES.md"
+cp "$ROOT/internal/uiassets/dist/material-color-utilities.LICENSE.txt" \
+  "$APPDIR/usr/share/doc/nodepulse/third-party/material-color-utilities-LICENSE.txt"
+cp "$ROOT/internal/uiassets/dist/vendor/LICENSES/preact-LICENSE.txt" \
+  "$APPDIR/usr/share/doc/nodepulse/third-party/preact-LICENSE.txt"
+cp "$ROOT/internal/uiassets/dist/vendor/LICENSES/htm-LICENSE.txt" \
+  "$APPDIR/usr/share/doc/nodepulse/third-party/htm-LICENSE.txt"
+cp "$ROOT/internal/uiassets/dist/vendor/LICENSES/floating-ui-LICENSE.txt" \
+  "$APPDIR/usr/share/doc/nodepulse/third-party/floating-ui-LICENSE.txt"
+cp "$ROOT/internal/uiassets/dist/icons.LICENSE.txt" \
+  "$APPDIR/usr/share/doc/nodepulse/third-party/material-symbols-LICENSE.txt"
 
 cat > "$APPDIR/AppRun" <<'EOF'
 #!/usr/bin/env bash
