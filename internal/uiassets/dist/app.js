@@ -341,7 +341,19 @@ function switchView(name) {
   const meta = viewMeta[name] || ["", ""];
   $("viewTitle").textContent = meta[0];
   $("viewSub").textContent = meta[1];
+  const content = $("content");
+  if (content) content.scrollTop = 0;
+  $("topbar")?.classList.remove("scrolled");
   if (name === "nodes") renderNodesList();
+}
+
+function bindScroll() {
+  const content = $("content");
+  const topbar = $("topbar");
+  if (!content || !topbar) return;
+  const update = () => topbar.classList.toggle("scrolled", content.scrollTop > 4);
+  content.addEventListener("scroll", update, { passive: true });
+  update();
 }
 
 const THEME_KEY = "nodepulse.theme";
@@ -428,6 +440,7 @@ async function init() {
   }
   initTheme();
   wire();
+  bindScroll();
   try { $("version").textContent = "v" + await App().Version(); } catch (_) {}
   try { state.daemon = await App().DaemonStatus(); } catch (_) {}
   $("daemonToggle").checked = state.daemon;

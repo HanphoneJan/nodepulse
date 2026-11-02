@@ -35,7 +35,6 @@
 
   <div class="app">
     <aside class="rail">
-      <div class="brand" title="NodePulse">N</div>
       <nav class="rail-nav">
         <button class="rail-item active" data-view="dashboard"><svg class="icon"><use href="#i-dashboard"/></svg><span>仪表盘</span></button>
         <button class="rail-item" data-view="nodes"><svg class="icon"><use href="#i-list"/></svg><span>节点</span></button>
@@ -48,7 +47,7 @@
     </aside>
 
     <main class="main">
-      <header class="topbar">
+      <header class="topbar" id="topbar">
         <div>
           <h1 id="viewTitle">仪表盘</h1>
           <p id="viewSub" class="muted">找到最稳的节点，自动保持连接质量</p>
@@ -59,6 +58,7 @@
         </div>
       </header>
 
+      <div class="content" id="content">
       <section id="view-dashboard" class="view active">
         <div class="hero md-card">
           <div class="hero-main">
@@ -188,6 +188,7 @@
           <div id="history" class="history"><p class="muted">暂无事件。</p></div>
         </div>
       </section>
+      </div>
     </main>
   </div>
 
