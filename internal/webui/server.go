@@ -2,15 +2,14 @@ package webui
 
 import (
 	"context"
-	"embed"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
-	"io/fs"
 	"net/http"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/HanphoneJan/nodepulse/internal/clash"
@@ -20,10 +19,8 @@ import (
 	"github.com/HanphoneJan/nodepulse/internal/store"
 	"github.com/HanphoneJan/nodepulse/internal/subscription"
 	"github.com/HanphoneJan/nodepulse/internal/tester"
+	"github.com/HanphoneJan/nodepulse/internal/uiassets"
 )
-
-//go:embed all:dist
-var assets embed.FS
 
 // Options configures the local web UI.
 type Options struct {
@@ -40,6 +37,12 @@ type Options struct {
 type Server struct {
 	opts Options
 	mux  *http.ServeMux
+
+	mu             sync.Mutex
+	lastResults    []score.Result
+	lastConfigPath string
+	daemonCancel   context.CancelFunc
+	daemonRunning  bool
 }
 
 // New creates a server with defaults.
@@ -55,13 +58,20 @@ func New(opts Options) *Server {
 	}
 	s := &Server{opts: opts, mux: http.NewServeMux()}
 
-	sub, _ := fs.Sub(assets, "dist")
-	s.mux.Handle("/", http.FileServer(http.FS(sub)))
+	s.mux.Handle("/", http.FileServer(http.FS(uiassets.Dist())))
 	s.mux.HandleFunc("/api/results", s.handleResults)
 	s.mux.HandleFunc("/api/history", s.handleHistory)
 	s.mux.HandleFunc("/api/status", s.handleStatus)
 	s.mux.HandleFunc("/api/test", s.handleTest)
 	s.mux.HandleFunc("/api/switch", s.handleSwitch)
+	s.mux.HandleFunc("/api/bootstrap", s.handleBootstrap)
+	s.mux.HandleFunc("/api/settings", s.handleSettings)
+	s.mux.HandleFunc("/api/oneclick", s.handleOneClick)
+	s.mux.HandleFunc("/api/import", s.handleImport)
+	s.mux.HandleFunc("/api/export", s.handleExport)
+	s.mux.HandleFunc("/api/daemon/start", s.handleDaemonStart)
+	s.mux.HandleFunc("/api/daemon/stop", s.handleDaemonStop)
+	s.mux.HandleFunc("/api/daemon/status", s.handleDaemonStatus)
 	return s
 }
 
@@ -188,6 +198,10 @@ func (s *Server) handleTest(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadGateway, err.Error())
 		return
 	}
+	s.mu.Lock()
+	s.lastResults = results
+	s.lastConfigPath = req.ConfigPath
+	s.mu.Unlock()
 	writeJSON(w, results)
 }
 

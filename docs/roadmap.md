@@ -39,7 +39,8 @@ nodepulse export -f testdata/subscription.yaml -i results.json -o stable.yaml
 
 ## Phase 3 · GUI + 打包（已实现，托盘/本地 Web UI 后续）
 
-- [x] Wails 应用：连接/状态、订阅测速、结果表、切换、导出
+- [x] Wails 应用：Material Design 3 导航栏、仪表盘、节点、设置、历史
+- [x] 明暗双主题与共享 UI 资源（GUI / Web UI 同一套）
 - [x] 一键优化流程：自动检测控制口、订阅 URL 导入、自动切换到最优节点
 - [x] 托盘菜单（打开面板 / 退出）
 - [x] 本地 Web UI（`nodepulse serve`，与 GUI 共用同一套核心）

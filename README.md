@@ -26,7 +26,7 @@ NodePulse 解决的是“**哪个节点真的稳**”，而不是“哪个节点
 - 稳定性评分与排序；
 - 导出只包含稳定节点的 Clash 配置，或 v2rayN 可导入的 base64 订阅；
 - 守护进程：定时测试 + 滞后阈值 + 自动切换 + 失败回滚；
-- Wails 桌面 GUI；
+- Wails 桌面 GUI（Material Design 3，明暗主题、导航栏、一键优化）；
 - MCP server（通用 agent 入口）与 dsh 插件；
 - v2rayA 适配（状态 / 切换）。
 
@@ -217,6 +217,7 @@ score = 0.5 * success + 0.3 * latencyScore + 0.2 * stabilityScore
 
 - [架构](docs/architecture.md)
 - [设计：测试协议与评分](docs/design.md)
+- [UI 设计：Material Design 3](docs/ui.md)
 - [路线图](docs/roadmap.md)
 - [客户端适配矩阵](docs/adapter-matrix.md)
 - [开发与发布](docs/development.md)

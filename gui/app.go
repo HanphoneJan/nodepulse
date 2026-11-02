@@ -122,7 +122,7 @@ func (a *App) OneClick(api, secret, group, configPath, mihomoPath string, rounds
 		MihomoPath:  mihomoPath,
 		URL:         defaultTestURL,
 		Rounds:      rounds,
-		Concurrency: 8,
+		Concurrency: 12,
 		TimeoutMs:   5000,
 		Switch:      doSwitch,
 	}
@@ -222,7 +222,7 @@ func (a *App) StartDaemon(api, secret, group string, intervalSec, rounds int, ma
 		Group:       group,
 		Interval:    time.Duration(intervalSec) * time.Second,
 		Rounds:      rounds,
-		Concurrency: 8,
+		Concurrency: 12,
 		TestURL:     defaultTestURL,
 		Timeout:     5 * time.Second,
 		Margin:      margin,
