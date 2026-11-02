@@ -70,25 +70,14 @@ then switch
 
 ## 5. 导出格式
 
-`export` 生成最小可用 Clash 配置：
+`export` 默认生成可日用的完整 Clash 配置：
 
-```yaml
-mixed-port: 7890
-allow-lan: false
-mode: rule
-log-level: info
-proxies:
-  - { ...原始节点参数... }
-proxy-groups:
-  - name: Auto
-    type: url-test
-    url: https://www.gstatic.com/generate_204
-    interval: 300
-    tolerance: 50
-    proxies: [节点A, 节点B, ...]
-rules:
-  - MATCH,Auto
-```
+- 保留原 `rules`、`proxy-groups`、`dns`、`tun`、`rule-providers` 等字段；
+- `proxies` 只保留通过阈值的节点；
+- 每个组的成员过滤为稳定节点或仍存在的子组；组为空时回退 `DIRECT`；
+- 追加 `NodePulse`（url-test）组，方便直接选择；
+- 清理 `external-controller` 和 `secret`，避免导入后覆盖客户端控制口；
+- `--minimal` 才会生成只含 `NodePulse` + `MATCH,NodePulse` 的最小配置。
 
 节点参数原样保留（包括 Reality、WS、Hysteria2 等字段），避免导出后不可用。
 
@@ -98,6 +87,7 @@ rules:
 {
   "generated_at": "2026-11-03T00:00:00+08:00",
   "url": "https://www.gstatic.com/generate_204",
+  "config_path": "/home/me/subscription.yaml",
   "rounds": 10,
   "results": [
     {

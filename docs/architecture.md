@@ -93,11 +93,11 @@ Clash REST API 客户端：
 
 ### `internal/export`
 
-生成只包含稳定节点的配置：
+生成可日用配置：
 
-- 保留原始节点参数；
-- 生成 `url-test` 自动组；
-- 输出 `rules: [MATCH,Auto]`。
+- 默认保留原 rules / proxy-groups / DNS / TUN / rule-providers；
+- 过滤组内未通过阈值的节点，追加 `NodePulse` url-test 组；
+- `--minimal` 才输出只含节点和 `MATCH,NodePulse` 的最小配置。
 
 ### `internal/cli`
 

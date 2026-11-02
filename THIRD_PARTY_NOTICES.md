@@ -61,7 +61,7 @@ shifting.
   `internal/uiassets/dist/favicon.svg`,
   `internal/uiassets/icons/src/rounded/*.svg`
 - Upstream: <https://github.com/google/material-design-icons>
-- Modification: a pinned subset of 22 icons, normalised into a single SVG
+- Modification: a pinned subset of 21 icons, normalised into a single SVG
   sprite by `internal/uiassets/genicons`; no runtime font or CDN is used.
 - License text: `internal/uiassets/dist/icons.LICENSE.txt`
 

@@ -95,9 +95,10 @@ system-ui, -apple-system, "Segoe UI", "Noto Sans SC", "PingFang SC", "Microsoft 
 ## 顶部操作栏
 
 - 自定义 Material 3 Top App Bar，保留 Wails 原生窗口边框；
+- 右侧有**环境快速切换**按钮（swap 图标 + 当前环境名），菜单位于屏幕内并支持滚动；每项显示环境名、客户端 host、订阅文件名；底部“管理环境…”进入设置；
 - Top App Bar 属于 Scaffold，固定在内容区上方，内容在下方独立滚动；
 - 高度 72px（移动 56/52px），标题 24/32；
-- 右侧：主题循环按钮、连接状态 chip、版本号；版本来自 `internal/version`。
+- 右侧：环境切换、主题循环按钮、连接状态 chip、版本号；版本来自 `internal/version`。
 
 ## 导航栏
 
@@ -146,10 +147,18 @@ system-ui, -apple-system, "Segoe UI", "Noto Sans SC", "PingFang SC", "Microsoft 
 - 全局焦点环使用 inset 2px primary（filled 按钮用 standoff 2px），不再出现外扩双线框；
 - 文本输入、下拉、节点行都有可见焦点；
 - 节点行可用键盘选择；分段用原生 radio；开关用原生 checkbox；
-- 所有交互控件在触摸设备下至少 44px；
+- 紧凑控件视觉尺寸 32–40px，触摸设备通过 44px 命中区/容器补偿；主要按钮、输入、导航 ≥44px；
 - `prefers-reduced-motion: reduce` 关闭 spinner/评分环/菜单动效；
 - 对比度：正文与次要文本在明暗主题均 ≥4.5:1；placeholder ≥4.5:1；焦点环 ≥3:1；
 - 状态不只靠颜色：chip 有文字、推荐行有图标 + `sr-only` 文本、错误有文案。
+
+## 环境（客户端 + 订阅）
+
+- 一个**环境** = 控制口 + secret + 订阅配置 + Selector 组 + mihomo 路径 + 测试 URL / 轮次 / 并发 / 超时；
+- 顶栏按钮和设置页“环境”卡片都可以一键切换；切换会立即刷新控制口状态；
+- 设置页可重命名当前环境、保存当前设置到环境、新建环境（复制当前）和删除环境；至少保留一个；
+- 环境保存在 `settings.json` 的 `profiles` / `active_profile`，顶层字段始终是当前环境，兼容旧调用方与旧配置文件；
+- 新环境默认命名为“环境 N”，可立即重命名。
 
 ## 交互
 
@@ -158,6 +167,7 @@ system-ui, -apple-system, "Segoe UI", "Noto Sans SC", "PingFang SC", "Microsoft 
 - **强度**：快速 3 轮 / 标准 5 轮 / 精确 10 轮；
 - **自动优化**：M3 Switch；右侧说明连续确认、失败回滚、滞后阈值；
 - **订阅导入**：URL 下载 → 保存快照 → 刷新订阅列表；
+- **导出**：默认保留原 rules / proxy-groups / DNS / TUN / rule-providers，过滤组内失效节点并追加 `NodePulse` url-test 组；CLI `--minimal` 可回到最小配置；Web 导出写到 `~/.local/share/nodepulse/exports/`；
 - **错误**：Snackbar + 就地错误；表单字段不依赖 Snackbar 作为唯一提示；
 - **主题**：顶栏按钮循环三态；设置页分段控件。
 

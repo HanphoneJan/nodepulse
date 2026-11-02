@@ -24,7 +24,8 @@ NodePulse 解决的是“**哪个节点真的稳**”，而不是“哪个节点
 - 也支持直接连接已有的 Clash REST 控制口（FlClash / Clash Verge / Mihomo Party / sing-box）；
 - 多轮真实代理请求，统计成功率、P50、P90、最大值、抖动；
 - 稳定性评分与排序；
-- 导出只包含稳定节点的 Clash 配置，或 v2rayN 可导入的 base64 订阅；
+- 环境（客户端 + 订阅 + Selector 组 + 测速参数）快速切换；
+- 导出默认保留原规则、分组、DNS/TUN，只过滤失效节点；也支持最小配置与 v2rayN base64 订阅；
 - 守护进程：定时测试 + 滞后阈值 + 自动切换 + 失败回滚；
 - Wails 桌面 GUI（Material Design 3，可配置 seed 色、明暗主题、导航栏、一键优化）；
 - MCP server（通用 agent 入口）与 dsh 插件；
@@ -140,7 +141,7 @@ nodepulse export \
   --max-jitter 250
 ```
 
-把 `stable.yaml` 导入客户端即可，里面只保留通过阈值的节点，并自动生成一个 `Auto`（url-test）组。
+默认会保留原配置的 rules、proxy-groups、DNS、TUN 和 rule-providers，只过滤组内未通过阈值的节点，并追加一个 `NodePulse`（url-test）组；加 `--minimal` 可回到只含节点的最小配置。
 
 导出 v2rayN / 通用 base64 订阅：
 
