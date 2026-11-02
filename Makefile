@@ -1,10 +1,10 @@
 BIN := nodepulse
 VERSION ?= 0.3.0
-LDFLAGS := -s -w -X main.version=$(VERSION)
+LDFLAGS := -s -w -X github.com/HanphoneJan/nodepulse/internal/version.Version=$(VERSION)
 UI_TAGS ?= production,webkit2_41
 ADDR ?= 127.0.0.1:8099
 
-.PHONY: build gui run web test race vet fmt deb appimage clean
+.PHONY: build gui run web test race vet fmt icons ui-check deb appimage clean
 
 build:
 	mkdir -p bin
@@ -12,7 +12,13 @@ build:
 
 gui:
 	mkdir -p bin
-	cd gui && go build -tags $(UI_TAGS) -o ../bin/nodepulse-gui .
+	cd gui && go build -tags $(UI_TAGS) -ldflags "$(LDFLAGS)" -o ../bin/nodepulse-gui .
+
+icons:
+	go run ./internal/uiassets/genicons
+
+ui-check:
+	go test ./internal/uiassets/...
 
 run: gui
 	./bin/nodepulse-gui

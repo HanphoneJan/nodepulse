@@ -4,10 +4,9 @@ import (
 	"os"
 
 	"github.com/HanphoneJan/nodepulse/internal/cli"
+	"github.com/HanphoneJan/nodepulse/internal/version"
 )
 
-var version = "dev"
-
 func main() {
-	os.Exit(cli.Run(os.Args[1:], version))
+	os.Exit(cli.Run(os.Args[1:], version.Version))
 }

@@ -8,7 +8,7 @@ import (
 //go:embed all:dist
 var embedded embed.FS
 
-// Dist returns the static UI assets (index.html, app.js, style.css).
+// Dist returns the static UI assets (index.html, app.js, css/ and js/).
 func Dist() fs.FS {
 	sub, err := fs.Sub(embedded, "dist")
 	if err != nil {

@@ -1,0 +1,62 @@
+/* View-level layout only; component styling lives in 03-components.css. */
+
+.nodes-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  min-width: 0;
+}
+.nodes-title { min-width: 0; }
+.nodes-tools {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  flex: 1 1 auto;
+  justify-content: flex-end;
+}
+.nodes-tools .search { flex: 1 1 220px; max-width: var(--search-max-w); }
+.nodes-selection {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-top: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-block);
+  font-size: var(--text-sm);
+  color: var(--color-fg-muted);
+}
+.nodes-selection strong { color: var(--color-fg); font-weight: var(--weight-medium); }
+.nodes-empty { margin-top: var(--space-2); }
+
+.sub-path {
+  margin: var(--space-2) 0 0;
+  color: var(--color-fg-muted);
+  font-size: var(--text-xs);
+}
+
+.settings-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-4);
+}
+.groups-block { margin-top: var(--space-2); }
+
+@media (min-width: 900px) {
+  .hero {
+    grid-template-columns: minmax(0, 1fr) var(--hero-side-w);
+    gap: var(--hero-gap);
+  }
+  .hero-side { justify-content: flex-end; }
+  .appearance-row {
+    grid-template-columns: minmax(0, 1.4fr) minmax(280px, 1fr);
+    align-items: start;
+  }
+  .text-field-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .text-field-grid .span-2 { grid-column: span 2; }
+  .grid-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}

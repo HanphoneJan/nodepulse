@@ -24,6 +24,7 @@ import (
 	"github.com/HanphoneJan/nodepulse/internal/store"
 	"github.com/HanphoneJan/nodepulse/internal/subscription"
 	"github.com/HanphoneJan/nodepulse/internal/tester"
+	"github.com/HanphoneJan/nodepulse/internal/version"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
@@ -52,7 +53,24 @@ func (a *App) startup(ctx context.Context) {
 
 // Version returns the GUI version.
 func (a *App) Version() string {
-	return "0.3.0"
+	return version.Version
+}
+
+// Results returns the last ranked results held by this GUI process.
+func (a *App) Results() []score.Result {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	return append([]score.Result(nil), a.lastResults...)
+}
+
+// History returns the most recent daemon events so the UI can show them after
+// a restart instead of starting from an empty list.
+func (a *App) History() ([]store.Event, error) {
+	st, err := store.New(store.DefaultPath())
+	if err != nil {
+		return nil, err
+	}
+	return st.Recent(50)
 }
 
 // BootstrapResult is what the GUI needs on first paint.
@@ -113,17 +131,17 @@ func (a *App) Detect() (BootstrapResult, error) {
 }
 
 // OneClick tests nodes and optionally switches to the best one.
-func (a *App) OneClick(api, secret, group, configPath, mihomoPath string, rounds int, doSwitch bool) (*optimize.Result, error) {
+func (a *App) OneClick(api, secret, group, configPath, mihomoPath, testURL string, rounds, concurrency, timeoutMs int, doSwitch bool) (*optimize.Result, error) {
 	req := optimize.Request{
 		API:         api,
 		Secret:      secret,
 		Group:       group,
 		ConfigPath:  configPath,
 		MihomoPath:  mihomoPath,
-		URL:         defaultTestURL,
+		URL:         testURL,
 		Rounds:      rounds,
-		Concurrency: 12,
-		TimeoutMs:   5000,
+		Concurrency: concurrency,
+		TimeoutMs:   timeoutMs,
 		Switch:      doSwitch,
 	}
 	res, err := optimize.Run(a.ctx, req)

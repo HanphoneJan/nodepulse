@@ -1,0 +1,357 @@
+/* NodePulse design tokens.
+   1. primitive scales
+   2. M3 role fallbacks (js/theme.js overrides these)
+   3. semantic roles
+   4. component tokens
+   Component CSS must not use raw hex or arbitrary spacing values. */
+
+:root {
+  /* spacing: 4px baseline */
+  --space-0: 0;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-14: 56px;
+  --space-hairline: 2px;
+  --space-icon-gap: 6px;
+
+  /* radius */
+  --radius-xs: 4px;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 24px;
+  --radius-pill: 999px;
+  --radius-circle: 50%;
+  --radius-field-top: 12px 12px 0 0;
+  --radius-indicator: 0 3px 3px 0;
+
+  /* type */
+  --font-sans: system-ui, -apple-system, "Segoe UI", "Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+  --text-2xs: .625rem;
+  --text-label: .78125rem;
+  --text-xs: .6875rem;
+  --text-sm: .75rem;
+  --text-md: .8125rem;
+  --text-base: .875rem;
+  --text-lg: 1rem;
+  --text-xl: 1.25rem;
+  --text-2xl: 1.5rem;
+  --text-hero: 1.625rem;
+  --leading-14: 14px;
+  --leading-16: 16px;
+  --leading-18: 18px;
+  --leading-20: 20px;
+  --leading-24: 24px;
+  --leading-28: 28px;
+  --leading-32: 32px;
+  --leading-36: 36px;
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+  --weight-bold: 700;
+  --tracking-label: .4px;
+
+  /* motion */
+  --dur-1: 120ms;
+  --dur-2: 180ms;
+  --dur-3: 240ms;
+  --dur-4: 320ms;
+  --dur-5: 450ms;
+  --ease-standard: cubic-bezier(.2, 0, 0, 1);
+  --ease-emphasized: cubic-bezier(.05, .7, .1, 1);
+
+  /* layers */
+  --z-base: 0;
+  --z-sticky: 10;
+  --z-dock: 40;
+  --z-snackbar: 50;
+  --z-menu: 60;
+  --z-dialog: 70;
+  --z-tooltip: 80;
+
+  /* state layers (fallbacks; upgraded to colour-mix below) */
+  --state-hover: rgba(228, 226, 230, .04);
+  --state-pressed: rgba(228, 226, 230, .06);
+  --state-focus: rgba(228, 226, 230, .10);
+  --state-selected: rgba(228, 226, 230, .08);
+  --state-drag: rgba(228, 226, 230, .16);
+  --state-disabled-container: rgba(228, 226, 230, .12);
+  --state-disabled-content: rgba(228, 226, 230, .38);
+  --state-hover-alpha: 4%;
+  --state-pressed-alpha: 6%;
+  --state-focus-alpha: 10%;
+  --state-selected-alpha: 8%;
+  --state-hover-opacity: .04;
+  --state-pressed-opacity: .06;
+  --state-focus-opacity: .10;
+
+  /* focus */
+  --focus-ring-width: 2px;
+  --focus-offset-inset: -2px;
+  --focus-offset-standoff: 2px;
+
+  /* safe area */
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+
+  /* M3 dark fallbacks */
+  --md-primary: #b2c5ff;
+  --md-on-primary: #002b72;
+  --md-primary-container: #0040a1;
+  --md-on-primary-container: #dae2ff;
+  --md-secondary: #c0c6dd;
+  --md-on-secondary: #2a3042;
+  --md-secondary-container: #404659;
+  --md-on-secondary-container: #dce2f9;
+  --md-tertiary: #c6c4dd;
+  --md-on-tertiary: #2f2f45;
+  --md-tertiary-container: #45455c;
+  --md-on-tertiary-container: #e2e0f9;
+  --md-error: #ffb4ab;
+  --md-on-error: #690005;
+  --md-error-container: #93000a;
+  --md-on-error-container: #ffdad6;
+  --md-surface: #1b1b1f;
+  --md-surface-dim: #131316;
+  --md-surface-bright: #39393c;
+  --md-surface-container-lowest: #0d0e11;
+  --md-surface-container-low: #1b1b1f;
+  --md-surface-container: #1f1f23;
+  --md-surface-container-high: #292a2d;
+  --md-surface-container-highest: #343438;
+  --md-on-surface: #e4e2e6;
+  --md-on-surface-variant: #c5c6d0;
+  --md-outline: #8f909a;
+  --md-outline-variant: #45464f;
+  --md-inverse-surface: #e4e2e6;
+  --md-inverse-on-surface: #303034;
+  --md-inverse-primary: #0856cf;
+  --md-success: #6dd58c;
+  --md-warning: #fdd663;
+
+  /* semantic dark */
+  --color-bg-page: var(--md-surface-dim);
+  --color-bg-card: var(--md-surface-container);
+  --color-bg-block: var(--md-surface-container-high);
+  --color-bg-inset: var(--md-surface-container-highest);
+  --color-bg-menu: var(--md-surface-container-high);
+  --color-bg-rail: var(--color-bg-page);
+  --color-bg-dock: var(--color-bg-page);
+
+  --color-fg: var(--md-on-surface);
+  --color-fg-muted: var(--md-on-surface-variant);
+  --color-fg-placeholder: #b4b5bf;
+  --color-fg-disabled: var(--state-disabled-content);
+
+  --color-border: var(--md-outline-variant);
+  --color-border-strong: var(--md-outline);
+  --color-border-subtle: rgba(69, 70, 79, .72);
+  --color-focus: var(--md-primary);
+
+  --color-action: var(--md-primary);
+  --color-on-action: var(--md-on-primary);
+  --color-tonal: var(--md-secondary-container);
+  --color-on-tonal: var(--md-on-secondary-container);
+  --color-success: var(--md-success);
+  --color-warning: var(--md-warning);
+  --color-error: var(--md-error);
+  --color-on-error: var(--md-on-error);
+
+  --color-bg-snackbar: var(--md-inverse-surface);
+  --color-fg-snackbar: var(--md-inverse-on-surface);
+  --color-bg-snackbar-error: var(--md-error-container);
+  --color-fg-snackbar-error: var(--md-on-error-container);
+
+  --elev-1: 0 1px 2px rgba(0, 0, 0, .5), 0 10px 28px -6px rgba(0, 0, 0, .55);
+  --elev-2: 0 2px 6px rgba(0, 0, 0, .5), 0 32px 64px -12px rgba(0, 0, 0, .7);
+  --elev-best: inset 3px 0 0 var(--color-success);
+
+  /* component tokens */
+  --rail-w: 72px;
+  --rail-item: 56px;
+  --rail-icon: 24px;
+  --rail-gap: 4px;
+  --rail-pad-x: 8px;
+  --rail-pad-y: 12px;
+  --rail-indicator-w: 3px;
+  --rail-indicator-h: 16px;
+  --rail-radius: 16px;
+
+  --topbar-min-h: 72px;
+  --topbar-min-h-sm: 56px;
+  --topbar-min-h-xs: 52px;
+  --topbar-pad-y: 12px;
+  --content-max: 1120px;
+  --content-pad-x: 24px;
+  --content-gap: 16px;
+
+  --card-radius: 16px;
+  --card-pad: 20px;
+  --card-pad-mobile: 16px;
+
+  --hero-pad: 24px;
+  --hero-gap: 24px;
+  --hero-side-w: 216px;
+  --hero-ring: 104px;
+  --hero-ring-sm: 88px;
+  --hero-ring-xs: 80px;
+
+  --btn-h-sm: 36px;
+  --btn-h-md: 40px;
+  --btn-h-lg: 48px;
+  --target-touch: 44px;
+  --btn-pad-x-sm: 14px;
+  --btn-pad-x: 20px;
+  --btn-pad-x-lg: 24px;
+  --btn-icon-sm: 16px;
+  --btn-icon: 18px;
+  --btn-icon-lg: 20px;
+  --icon-xs: 14px;
+  --icon-sm: 16px;
+  --icon-md: 18px;
+  --icon-lg: 22px;
+  --icon-xl: 32px;
+  --dot-size: 6px;
+  --seed-dot-size: 12px;
+  --seg-pad: 3px;
+  --field-h-xs: 34px;
+  --select-menu-max-h: 280px;
+  --select-inline-w: 124px;
+  --spinner-size: 15px;
+  --icon-button-size: 40px;
+  --select-strength-w: 132px;
+
+  --field-h: 56px;
+  --field-h-compact: 40px;
+  --field-pad-x: 14px;
+
+  --select-h: 40px;
+  --select-option-h: 36px;
+  --select-menu-max-w: 380px;
+  --status-chip-h: 28px;
+
+  --chip-h: 32px;
+  --chip-pad-x: 12px;
+  --seed-size: 32px;
+  --seed-hit: 44px;
+  --seed-gap: 12px;
+  --seed-custom-h: 36px;
+
+  --seg-h: 40px;
+  --seg-btn-h: 32px;
+
+  --switch-w: 52px;
+  --switch-h: 32px;
+  --switch-thumb: 24px;
+
+  --search-h: 40px;
+
+  --table-row-h: 40px;
+  --table-head-h: 28px;
+  --table-gap: 8px;
+  --table-pad-x: 10px;
+  --table-cols-nodes: 32px minmax(0, 1.7fr) 92px 58px 62px 62px 58px 56px;
+  --table-cols-nodes-md: 28px minmax(0, 1.6fr) 58px 62px 62px 56px;
+  --table-cols-nodes-sm: 24px minmax(0, 1.5fr) 52px 58px 52px;
+  --table-cols-groups: 32px minmax(0, 1.45fr) 88px minmax(0, 1.1fr);
+
+  --history-cols: 64px 72px minmax(0, 1fr);
+  --history-cols-sm: 52px 52px minmax(0, 1fr);
+  --dock-h: 68px;
+  --dock-item-h: 56px;
+  --dock-item-min-w: 64px;
+  --dock-icon: 24px;
+
+  --snackbar-bottom: 24px;
+  --snackbar-max: 560px;
+  --snackbar-min-h: 48px;
+  --search-max-w: 320px;
+  --group-rank-w: 32px;
+  --group-type-w: 88px;
+}
+
+html[data-theme="light"] {
+  /* M3 light fallbacks */
+  --md-primary: #0856cf;
+  --md-on-primary: #ffffff;
+  --md-primary-container: #dae2ff;
+  --md-on-primary-container: #001847;
+  --md-secondary: #585e71;
+  --md-on-secondary: #ffffff;
+  --md-secondary-container: #dce2f9;
+  --md-on-secondary-container: #151b2c;
+  --md-tertiary: #585d71;
+  --md-on-tertiary: #ffffff;
+  --md-tertiary-container: #dce2f8;
+  --md-on-tertiary-container: #151b2c;
+  --md-error: #ba1a1a;
+  --md-on-error: #ffffff;
+  --md-error-container: #ffdad6;
+  --md-on-error-container: #410002;
+  --md-surface: #fefbff;
+  --md-surface-dim: #dbd9dd;
+  --md-surface-bright: #fbf8fd;
+  --md-surface-container-lowest: #ffffff;
+  --md-surface-container-low: #f5f3f7;
+  --md-surface-container: #efedf1;
+  --md-surface-container-high: #e9e7ec;
+  --md-surface-container-highest: #e4e2e6;
+  --md-on-surface: #1b1b1f;
+  --md-on-surface-variant: #45464f;
+  --md-outline: #757780;
+  --md-outline-variant: #c5c6d0;
+  --md-inverse-surface: #303034;
+  --md-inverse-on-surface: #f3eff4;
+  --md-inverse-primary: #b2c5ff;
+  --md-success: #146c2e;
+  --md-warning: #7a5f00;
+
+  /* semantic light: cards sit above the page (FlClash) */
+  --color-bg-page: var(--md-surface-container);
+  --color-bg-card: var(--md-surface-bright);
+  --color-bg-block: var(--md-surface-container);
+  --color-bg-inset: var(--md-surface-container-highest);
+  --color-bg-menu: var(--md-surface-container-lowest);
+  --color-bg-rail: var(--color-bg-page);
+  --color-bg-dock: var(--color-bg-page);
+
+  --color-fg-placeholder: #5f6069;
+  --color-border-subtle: rgba(197, 198, 208, .72);
+
+  --elev-1:
+    0 .5px 1px rgba(0, 0, 0, .05),
+    0 2px 6px rgba(0, 0, 0, .04),
+    0 12px 32px -6px rgba(0, 0, 0, .09);
+  --elev-2:
+    0 1px 3px rgba(0, 0, 0, .06),
+    0 10px 24px rgba(0, 0, 0, .08),
+    0 32px 64px -12px rgba(0, 0, 0, .22);
+
+  --state-hover: rgba(27, 27, 31, .04);
+  --state-pressed: rgba(27, 27, 31, .06);
+  --state-focus: rgba(27, 27, 31, .10);
+  --state-selected: rgba(27, 27, 31, .08);
+  --state-drag: rgba(27, 27, 31, .16);
+  --state-disabled-container: rgba(27, 27, 31, .12);
+  --state-disabled-content: rgba(27, 27, 31, .38);
+}
+
+@supports (color: color-mix(in srgb, red, blue)) {
+  :root {
+    --state-hover: color-mix(in srgb, var(--md-on-surface) var(--state-hover-alpha), transparent);
+    --state-pressed: color-mix(in srgb, var(--md-on-surface) var(--state-pressed-alpha), transparent);
+    --state-focus: color-mix(in srgb, var(--md-on-surface) var(--state-focus-alpha), transparent);
+    --state-selected: color-mix(in srgb, var(--md-on-surface) var(--state-selected-alpha), transparent);
+    --state-disabled-container: color-mix(in srgb, var(--md-on-surface) 12%, transparent);
+    --state-disabled-content: color-mix(in srgb, var(--md-on-surface) 38%, transparent);
+    --state-drag: color-mix(in srgb, var(--md-on-surface) 16%, transparent);
+    --color-fg-placeholder: color-mix(in srgb, var(--md-on-surface-variant) 85%, transparent);
+    --color-border-subtle: color-mix(in srgb, var(--md-outline-variant) 72%, transparent);
+  }
+}

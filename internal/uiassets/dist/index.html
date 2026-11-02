@@ -3,225 +3,44 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="color-scheme" content="dark light" />
+  <meta name="theme-color" content="#0b57d0" />
   <title>NodePulse</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="css/00-tokens.css" />
+  <link rel="stylesheet" href="css/01-base.css" />
+  <link rel="stylesheet" href="css/02-layout.css" />
+  <link rel="stylesheet" href="css/03-components.css" />
+  <link rel="stylesheet" href="css/04-views.css" />
+  <link rel="stylesheet" href="css/05-responsive.css" />
   <script>
     (function () {
-      var mode = localStorage.getItem("nodepulse.themeMode.v2") || "system";
+      var key = "nodepulse.themeMode.v2";
+      var mode = "system";
+      try { mode = localStorage.getItem(key) || "system"; } catch (_) {}
+      if (mode !== "system" && mode !== "light" && mode !== "dark") mode = "system";
       var light = window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches;
       var dark = mode === "dark" || (mode === "system" && !light);
       document.documentElement.dataset.theme = dark ? "dark" : "light";
       document.documentElement.dataset.themeMode = mode;
+      try {
+        var seed = localStorage.getItem("nodepulse.seed.v1");
+        if (seed) document.documentElement.dataset.seed = seed;
+        var cached = localStorage.getItem("nodepulse.seedCss.v1");
+        if (cached) {
+          var style = document.createElement("style");
+          style.id = "seed-theme-cache";
+          style.textContent = cached;
+          document.head.appendChild(style);
+        }
+      } catch (_) {}
     })();
   </script>
-  <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <svg class="sprite" aria-hidden="true">
-    <symbol id="i-dashboard" viewBox="0 0 24 24"><path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"/></symbol>
-    <symbol id="i-list" viewBox="0 0 24 24"><path d="M4 6h16v2H4zm0 5h16v2H4zm0 5h16v2H4z"/></symbol>
-    <symbol id="i-settings" viewBox="0 0 24 24"><path d="M3 17v2h6v-2H3zM3 5v2h10V5H3zm10 16v-2h8v-2h-8v-2h-2v6h2zM7 9v2H3v2h4v2h2V9H7zm14 4v-2H11v2h10zm-6-4h2V7h4V5h-4V3h-2v6z"/></symbol>
-    <symbol id="i-history" viewBox="0 0 24 24"><path d="M13 3a9 9 0 0 0-9 9H1l3.89 3.89.07.14L9 12H6c0-3.87 3.13-7 7-7s7 3.13 7 7-3.13 7-7 7c-1.93 0-3.68-.79-4.94-2.06l-1.42 1.42A8.954 8.954 0 0 0 13 21a9 9 0 0 0 0-18zm-1 5v5l4.28 2.54.72-1.21-3.5-2.08V8H12z"/></symbol>
-    <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M17.65 6.35A7.95 7.95 0 0 0 12 4a8 8 0 1 0 7.73 10h-2.08A6 6 0 1 1 12 6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></symbol>
-    <symbol id="i-link" viewBox="0 0 24 24"><path d="M3.9 12c0-1.71 1.39-3.1 3.1-3.1h4V7H7a5 5 0 0 0 0 10h4v-1.9H7c-1.71 0-3.1-1.39-3.1-3.1zM8 13h8v-2H8v2zm9-6h-4v1.9h4c1.71 0 3.1 1.39 3.1 3.1s-1.39 3.1-3.1 3.1h-4V17h4a5 5 0 0 0 0-10z"/></symbol>
-    <symbol id="i-download" viewBox="0 0 24 24"><path d="M19 9h-4V3H9v6H5l7 7 7-7zm-9-4h4v6h1.17L12 14.17 8.83 11H10V5zM5 18v2h14v-2H5z"/></symbol>
-    <symbol id="i-check" viewBox="0 0 24 24"><path d="M9 16.17 4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></symbol>
-    <symbol id="i-play" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></symbol>
-    <symbol id="i-search" viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27A6.47 6.47 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0A4.5 4.5 0 1 1 14 9.5 4.5 4.5 0 0 1 9.5 14z"/></symbol>
-    <symbol id="i-sun" viewBox="0 0 24 24"><path d="M12 7a5 5 0 1 0 0 10 5 5 0 0 0 0-10zM2 13h2a1 1 0 0 0 0-2H2a1 1 0 0 0 0 2zm18 0h2a1 1 0 0 0 0-2h-2a1 1 0 0 0 0 2zM11 2v2a1 1 0 0 0 2 0V2a1 1 0 0 0-2 0zm0 18v2a1 1 0 0 0 2 0v-2a1 1 0 0 0-2 0zm8.66-14.66-1.42 1.42a1 1 0 0 0 1.42 1.42l1.41-1.42a1 1 0 0 0-1.41-1.42zM5.76 18.24l-1.42 1.42a1 1 0 1 0 1.42 1.41l1.41-1.41a1 1 0 0 0-1.41-1.42zM4.34 4.34 5.76 5.76a1 1 0 0 0 1.42-1.42L5.76 2.93a1 1 0 0 0-1.42 1.41zm14.9 14.9-1.42-1.42a1 1 0 0 0-1.42 1.42l1.42 1.41a1 1 0 0 0 1.42-1.41z"/></symbol>
-    <symbol id="i-moon" viewBox="0 0 24 24"><path d="M12.3 22a9.7 9.7 0 0 0 9.1-13.3 7.8 7.8 0 0 1-9.9-9.9A9.7 9.7 0 1 0 12.3 22z"/></symbol>
-    <symbol id="i-chevron" viewBox="0 0 24 24"><path d="M7.41 8.59 12 13.17l4.59-4.58L18 10l-6 6-6-6z"/></symbol>
-    <symbol id="i-monitor" viewBox="0 0 24 24"><path d="M21 3H3a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h7v2H7v2h10v-2h-3v-2h7a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2zm0 14H3V5h18v12z"/></symbol>
-    <symbol id="i-stop" viewBox="0 0 24 24"><path d="M6 6h12v12H6z"/></symbol>
-  </svg>
-
-  <div class="app">
-    <aside class="rail">
-      <nav class="rail-nav">
-        <button class="rail-item active" data-view="dashboard" title="仪表盘" aria-label="仪表盘"><svg class="icon"><use href="#i-dashboard"/></svg></button>
-        <button class="rail-item" data-view="nodes" title="节点" aria-label="节点"><svg class="icon"><use href="#i-list"/></svg></button>
-        <button class="rail-item" data-view="settings" title="设置" aria-label="设置"><svg class="icon"><use href="#i-settings"/></svg></button>
-        <button class="rail-item" data-view="history" title="历史" aria-label="历史"><svg class="icon"><use href="#i-history"/></svg></button>
-      </nav>
-    </aside>
-
-    <main class="main">
-      <header class="topbar" id="topbar">
-        <div>
-          <h1 id="viewTitle">仪表盘</h1>
-          <p id="viewSub" class="muted">找到最稳的节点，自动保持连接质量</p>
-        </div>
-        <div class="topbar-actions">
-          <button id="themeToggleTop" class="icon-button" title="切换主题" aria-label="切换主题"><svg class="icon"><use href="#i-monitor"/></svg></button>
-          <span id="connBadge" class="status-chip">检测中…</span>
-          <span id="version" class="version">v0.3.0</span>
-        </div>
-      </header>
-
-      <div class="content" id="content">
-      <section id="view-dashboard" class="view active">
-        <div class="hero md-card">
-          <div class="hero-main">
-            <div class="label-row">
-              <span class="label">当前节点</span>
-              <span id="heroStatus" class="status-chip warn">未连接</span>
-            </div>
-            <div id="currentNode" class="hero-node">—</div>
-            <div id="currentMeta" class="hero-meta">连接客户端后显示</div>
-            <div class="hero-actions">
-              <button id="oneClick" class="md-button filled big"><svg class="icon"><use href="#i-play"/></svg>一键优化</button>
-              <button id="testOnly" class="md-button tonal"><svg class="icon"><use href="#i-refresh"/></svg>只测速</button>
-              <label class="strength">强度
-                <select id="quickRounds" class="text-field-input small app-select" aria-label="测速强度">
-                  <option value="3" selected>快速 3 轮</option>
-                  <option value="5">标准 5 轮</option>
-                  <option value="10">精确 10 轮</option>
-                </select>
-              </label>
-            </div>
-          </div>
-          <div class="hero-score" id="heroScore" hidden>
-            <div id="scoreRing" class="score-ring" hidden>
-              <svg viewBox="0 0 100 100" aria-hidden="true">
-                <circle class="ring-track" cx="50" cy="50" r="44"></circle>
-                <circle id="scoreArc" class="ring-value" cx="50" cy="50" r="44"></circle>
-              </svg>
-              <div class="score-text"><span id="scoreValue">--</span><small>评分</small></div>
-            </div>
-            <div id="bestName" class="best-name"></div>
-          </div>
-        </div>
-
-        <div class="grid-2">
-          <div class="md-card">
-            <div class="card-title"><svg class="icon"><use href="#i-link"/></svg>连接</div>
-            <p class="muted">已自动检测本机 Clash 控制口</p>
-            <div id="controllers" class="chips"></div>
-            <details class="help">
-              <summary>没检测到？</summary>
-              <p><b>FlClash</b>：设置 → 网络 → 外部控制，填 <code>127.0.0.1:9090</code>。<br/>
-              <b>Clash Verge</b>：设置 → Clash → 外部控制。<br/>
-              不开也能用：选订阅 + mihomo，只测速不切换。</p>
-            </details>
-            <div class="divider"></div>
-            <div class="card-title small"><svg class="icon"><use href="#i-download"/></svg>订阅</div>
-            <div class="row mt sub-row">
-              <select id="subSelect" class="text-field-input app-select" aria-label="订阅文件"></select>
-              <button id="useSub" class="md-button tonal small">使用</button>
-            </div>
-            <div class="row mt sub-row">
-              <input id="subURL" class="text-field-input" placeholder="https://…/subscribe?token=…" aria-label="订阅 URL" />
-              <button id="importSub" class="md-button tonal small">导入</button>
-            </div>
-            <p id="subPath" class="muted mt"></p>
-          </div>
-
-          <div class="md-card">
-            <div class="card-title"><svg class="icon"><use href="#i-settings"/></svg>后台自动优化</div>
-            <p class="muted">当前节点明显变差时自动切换，失败会回滚。</p>
-            <div class="row between mt">
-              <span>自动优化</span>
-              <label class="switch"><input type="checkbox" id="daemonToggle" aria-label="后台自动优化"><span class="track"><span class="thumb"></span></span></label>
-            </div>
-            <div class="row between mt">
-              <span class="muted">检查间隔</span>
-              <select id="daemonInterval" class="text-field-input small app-select" aria-label="自动优化检查间隔">
-                <option value="300">5 分钟</option>
-                <option value="600">10 分钟</option>
-                <option value="1800">30 分钟</option>
-              </select>
-            </div>
-            <div id="daemonState" class="status-line mt">未开启</div>
-          </div>
-        </div>
-
-        <div class="md-card">
-          <div class="row between">
-            <div class="card-title"><svg class="icon"><use href="#i-list"/></svg>测速结果</div>
-            <span id="resultMeta" class="muted"></span>
-          </div>
-          <div id="results" class="node-list"><p class="muted">还没有结果。点“一键优化”开始。</p></div>
-        </div>
-      </section>
-
-      <section id="view-nodes" class="view">
-        <div class="md-card">
-          <div class="row between">
-            <div class="card-title">节点排名</div>
-            <div class="row">
-              <div class="search"><svg class="icon"><use href="#i-search"/></svg><input id="search" placeholder="搜索节点" /></div>
-              <button id="refresh" class="md-button text"><svg class="icon"><use href="#i-refresh"/></svg>刷新状态</button>
-            </div>
-          </div>
-          <div id="nodesList" class="node-list"><p class="muted">还没有测试结果。</p></div>
-        </div>
-      </section>
-
-      <section id="view-settings" class="view">
-        <div class="md-card">
-          <div class="card-title">外观</div>
-          <p class="muted">主题色会生成整套 Material 3 明暗色板；默认跟随系统主题，字体使用系统字体。</p>
-          <div class="row wrap mt">
-            <label class="seed-picker">主题色
-              <input type="color" id="seedColor" value="#0b57d0" aria-label="主题色" />
-            </label>
-            <div id="seedPresets" class="chips"></div>
-            <button id="seedReset" class="md-button text">恢复默认</button>
-          </div>
-          <div class="row wrap mt">
-            <span class="muted">主题模式</span>
-            <div class="segmented" id="themeModes">
-              <button type="button" data-mode="system" aria-pressed="false">跟随系统</button>
-              <button type="button" data-mode="light" aria-pressed="false">亮色</button>
-              <button type="button" data-mode="dark" aria-pressed="false">暗色</button>
-            </div>
-          </div>
-        </div>
-
-        <div class="md-card">
-          <div class="card-title">连接设置</div>
-          <div class="grid-2 mt">
-            <label class="text-field"><span>Clash 控制口</span><input id="api" placeholder="http://127.0.0.1:9090" /></label>
-            <label class="text-field"><span>Secret</span><input id="secret" type="password" placeholder="可留空" /></label>
-            <label class="text-field"><span>Selector 组</span><input id="group" placeholder="留空自动选择" /></label>
-            <label class="text-field"><span>订阅配置</span><input id="config" placeholder="~/sub.yaml" /></label>
-            <label class="text-field"><span>mihomo 路径</span><input id="mihomo" placeholder="/usr/local/bin/mihomo" /></label>
-            <label class="text-field"><span>测试 URL</span><input id="url" value="https://www.gstatic.com/generate_204" /></label>
-            <label class="text-field"><span>并发节点</span><input id="conc" type="number" min="1" value="8" /></label>
-            <label class="text-field"><span>单轮超时 (ms)</span><input id="timeout" type="number" min="1000" step="500" value="5000" /></label>
-          </div>
-          <div class="row wrap mt">
-            <button id="saveSettings" class="md-button filled"><svg class="icon"><use href="#i-check"/></svg>保存设置</button>
-            <button id="testAdvanced" class="md-button tonal">测速</button>
-            <button id="switch" class="md-button tonal" disabled>切换选中节点</button>
-            <button id="export" class="md-button outlined" disabled>导出稳定配置</button>
-          </div>
-          <div class="divider"></div>
-          <div class="card-title small">控制口状态</div>
-          <div id="groups" class="node-list mt"></div>
-        </div>
-      </section>
-
-      <section id="view-history" class="view">
-        <div class="md-card">
-          <div class="card-title">自动优化事件</div>
-          <div id="history" class="history"><p class="muted">暂无事件。</p></div>
-        </div>
-      </section>
-      </div>
-    </main>
-  </div>
-
-  <div id="snackbar" class="snackbar"></div>
-
-  <nav class="bottom-nav">
-    <button class="bottom-item active" data-view="dashboard"><svg class="icon"><use href="#i-dashboard"/></svg><span>仪表盘</span></button>
-    <button class="bottom-item" data-view="nodes"><svg class="icon"><use href="#i-list"/></svg><span>节点</span></button>
-    <button class="bottom-item" data-view="settings"><svg class="icon"><use href="#i-settings"/></svg><span>设置</span></button>
-    <button class="bottom-item" data-view="history"><svg class="icon"><use href="#i-history"/></svg><span>历史</span></button>
-  </nav>
-
-  <script type="module" src="seed-theme.js"></script>
-  <script src="web-shim.js"></script>
-  <script src="app.js"></script>
+  <div id="app"></div>
+  <script src="vendor/floating-ui.core.umd.min.js"></script>
+  <script src="vendor/floating-ui.dom.umd.min.js"></script>
+  <script type="module" src="app.js"></script>
 </body>
 </html>

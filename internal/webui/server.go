@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"sort"
 	"strings"
 	"sync"
@@ -59,6 +60,7 @@ func New(opts Options) *Server {
 	s := &Server{opts: opts, mux: http.NewServeMux()}
 
 	s.mux.Handle("/", http.FileServer(http.FS(uiassets.Dist())))
+	s.mux.HandleFunc("/api/version", s.handleVersion)
 	s.mux.HandleFunc("/api/results", s.handleResults)
 	s.mux.HandleFunc("/api/history", s.handleHistory)
 	s.mux.HandleFunc("/api/status", s.handleStatus)
@@ -101,7 +103,11 @@ func (s *Server) handleResults(w http.ResponseWriter, r *http.Request) {
 	}
 	data, err := readFile(s.opts.ResultsPath)
 	if err != nil {
-		writeError(w, http.StatusNotFound, err.Error())
+		if errors.Is(err, os.ErrNotExist) {
+			writeJSON(w, map[string]any{"results": []any{}})
+			return
+		}
+		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
@@ -128,12 +134,25 @@ func (s *Server) handleHistory(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
+	api := queryOr(r, "api", s.opts.API)
+	secret := queryOr(r, "secret", s.opts.Secret)
+	switch r.Method {
+	case http.MethodGet:
+	case http.MethodPost:
+		var req struct {
+			API    string `json:"api"`
+			Secret string `json:"secret"`
+		}
+		if err := json.NewDecoder(io.LimitReader(r.Body, 1<<20)).Decode(&req); err != nil {
+			writeError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		api = req.API
+		secret = req.Secret
+	default:
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	api := queryOr(r, "api", s.opts.API)
-	secret := queryOr(r, "secret", s.opts.Secret)
 	if api == "" {
 		writeError(w, http.StatusBadRequest, "api is required")
 		return

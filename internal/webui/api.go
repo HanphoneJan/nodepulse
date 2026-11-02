@@ -20,7 +20,16 @@ import (
 	"github.com/HanphoneJan/nodepulse/internal/settings"
 	"github.com/HanphoneJan/nodepulse/internal/store"
 	"github.com/HanphoneJan/nodepulse/internal/subscription"
+	"github.com/HanphoneJan/nodepulse/internal/version"
 )
+
+func (s *Server) handleVersion(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	writeJSON(w, map[string]string{"version": version.Version})
+}
 
 type bootstrapResult struct {
 	Controllers   []discover.Controller `json:"controllers"`
@@ -105,13 +114,16 @@ func (s *Server) handleSettings(w http.ResponseWriter, r *http.Request) {
 }
 
 type oneClickRequest struct {
-	API        string `json:"api"`
-	Secret     string `json:"secret"`
-	Group      string `json:"group"`
-	ConfigPath string `json:"config_path"`
-	MihomoPath string `json:"mihomo_path"`
-	Rounds     int    `json:"rounds"`
-	DoSwitch   bool   `json:"switch"`
+	API         string `json:"api"`
+	Secret      string `json:"secret"`
+	Group       string `json:"group"`
+	ConfigPath  string `json:"config_path"`
+	MihomoPath  string `json:"mihomo_path"`
+	URL         string `json:"url"`
+	Rounds      int    `json:"rounds"`
+	Concurrency int    `json:"concurrency"`
+	TimeoutMs   int    `json:"timeout_ms"`
+	DoSwitch    bool   `json:"switch"`
 }
 
 func (s *Server) handleOneClick(w http.ResponseWriter, r *http.Request) {
@@ -130,10 +142,10 @@ func (s *Server) handleOneClick(w http.ResponseWriter, r *http.Request) {
 		Group:       req.Group,
 		ConfigPath:  req.ConfigPath,
 		MihomoPath:  req.MihomoPath,
-		URL:         "https://www.gstatic.com/generate_204",
+		URL:         req.URL,
 		Rounds:      req.Rounds,
-		Concurrency: 12,
-		TimeoutMs:   5000,
+		Concurrency: req.Concurrency,
+		TimeoutMs:   req.TimeoutMs,
 		Switch:      req.DoSwitch,
 	})
 	if err != nil {
