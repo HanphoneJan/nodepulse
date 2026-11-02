@@ -41,7 +41,7 @@ nodepulse export -f testdata/subscription.yaml -i results.json -o stable.yaml
 
 - [x] Wails 应用：连接/状态、订阅测速、结果表、切换、导出
 - [ ] 托盘菜单（后续）
-- [ ] 独立本地 Web UI（Wails 窗口已覆盖 GUI 需求）
+- [x] 本地 Web UI（`nodepulse serve`，与 GUI 共用同一套核心）
 - [x] `.deb`（nfpm 配置）
 - [x] AppImage 构建脚本
 - [x] GitHub Actions 发布工作流

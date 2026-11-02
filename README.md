@@ -47,6 +47,9 @@ go build -o bin/nodepulse ./cmd/nodepulse
 # GUI（需要 GTK3 + WebKit2GTK 4.1 开发库）
 make gui
 ./bin/nodepulse-gui
+
+# 或者浏览器里的本地 Web UI
+./bin/nodepulse serve --addr 127.0.0.1:8099
 ```
 
 ### 1. 准备订阅配置
@@ -121,6 +124,7 @@ nodepulse export -f sub.yaml -i results.json -o stable.txt --format v2rayn
 | `nodepulse switch --api <url> --group <组> --node <节点>` | 切换 Selector 组 |
 | `nodepulse v2raya login\|status\|switch` | v2rayA 适配 |
 | `nodepulse mcp` | 启动 MCP stdio server |
+| `nodepulse serve` | 启动本地 Web UI（默认 127.0.0.1:8099） |
 | `nodepulse history` | 查看切换历史 |
 | `nodepulse version` | 版本信息 |
 

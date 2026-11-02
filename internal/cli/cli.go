@@ -27,6 +27,7 @@ import (
 	"github.com/HanphoneJan/nodepulse/internal/store"
 	"github.com/HanphoneJan/nodepulse/internal/subscription"
 	"github.com/HanphoneJan/nodepulse/internal/tester"
+	"github.com/HanphoneJan/nodepulse/internal/webui"
 )
 
 const (
@@ -65,6 +66,8 @@ func Run(args []string, version string) int {
 		return cmdSwitch(args[1:])
 	case "v2raya":
 		return cmdV2raya(args[1:])
+	case "serve":
+		return cmdServe(args[1:])
 	case "mcp":
 		return cmdMCP(args[1:], version)
 	default:
@@ -86,6 +89,7 @@ func usage() {
   nodepulse status --api http://127.0.0.1:9090
   nodepulse switch --api http://127.0.0.1:9090 --group <组> --node <节点>
   nodepulse v2raya login|status|switch
+  nodepulse serve [--addr 127.0.0.1:8099]
   nodepulse history [-n 20]
   nodepulse mcp
 
@@ -98,6 +102,7 @@ func usage() {
   status   查看客户端当前节点
   switch   切换 Selector 组到指定节点
   v2raya   v2rayA 适配（login / status / switch）
+  serve    本地 Web UI
   history  查看切换历史
   mcp      启动 MCP stdio server（给 agent 客户端用）
   version  版本
@@ -776,4 +781,40 @@ func refConnected(refs []v2raya.Ref, want v2raya.Ref) bool {
 		}
 	}
 	return false
+}
+
+func cmdServe(args []string) int {
+	fs := flag.NewFlagSet("serve", flag.ContinueOnError)
+	fs.SetOutput(os.Stderr)
+	addr := fs.String("addr", "127.0.0.1:8099", "监听地址")
+	results := fs.String("results", defaultResultsFile, "结果文件")
+	history := fs.String("history", "", "历史文件（默认 ~/.local/share/nodepulse/history.jsonl）")
+	api := fs.String("api", "", "默认 Clash 控制口")
+	secret := fs.String("secret", "", "默认 Clash secret")
+	configPath := fs.String("config", "", "默认订阅配置")
+	mihomoPath := fs.String("mihomo", "", "默认 mihomo 路径")
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+	historyPath := *history
+	if historyPath == "" {
+		historyPath = store.DefaultPath()
+	}
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	srv := webui.New(webui.Options{
+		Addr:        *addr,
+		ResultsPath: *results,
+		HistoryPath: historyPath,
+		API:         *api,
+		Secret:      *secret,
+		ConfigPath:  *configPath,
+		MihomoPath:  *mihomoPath,
+	})
+	fmt.Fprintf(os.Stderr, "NodePulse web UI: http://%s\n", *addr)
+	if err := srv.Run(ctx); err != nil && !errors.Is(err, context.Canceled) {
+		fmt.Fprintln(os.Stderr, "web UI 退出:", err)
+		return 1
+	}
+	return 0
 }

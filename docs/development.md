@@ -83,6 +83,14 @@ GUI 与 CLI 共用核心；绑定代码在 `gui/app.go`，前端在 `gui/fronten
 
 用 JSON-RPC stdio 与 agent 客户端通信。工具列表见 `internal/mcp/tools.go`。
 
+## 本地 Web UI
+
+```bash
+./bin/nodepulse serve --addr 127.0.0.1:8099
+```
+
+浏览器打开 `http://127.0.0.1:8099`，可以刷新状态、测试、切换和查看历史。
+
 ## dsh 插件
 
 `plugins/dsh` 是 DeepSeek Harness 的薄封装，调用 `nodepulse` CLI：
