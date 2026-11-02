@@ -46,6 +46,11 @@ function defaultSettings() {
     timeoutMs: 5000,
     profiles: [],
     activeProfile: "",
+    autoOptimize: false,
+    daemonInterval: 300,
+    autoMargin: 0.2,
+    autoConfirm: 2,
+    autoMinSuccess: 0.8,
   };
 }
 
@@ -100,7 +105,16 @@ function mapSettings(raw) {
   const activeProfile = profiles.some((profile) => profile.id === raw.active_profile)
     ? raw.active_profile
     : profiles[0].id;
-  return { ...base, profiles, activeProfile };
+  return {
+    ...base,
+    profiles,
+    activeProfile,
+    autoOptimize: !!raw.auto_optimize,
+    daemonInterval: Number(raw.daemon_interval) || 300,
+    autoMargin: Number(raw.auto_margin) || 0.2,
+    autoConfirm: Number(raw.auto_confirm) || 2,
+    autoMinSuccess: Number(raw.auto_min_success) || 0.8,
+  };
 }
 
 function errText(error) {
@@ -135,10 +149,10 @@ function App() {
   const [best, setBest] = useState(null);
   const [selected, setSelected] = useState(null);
   const [daemon, setDaemon] = useState(false);
-  const [daemonInterval, setDaemonInterval] = useState(300);
   const [events, setEvents] = useState([]);
   const [busy, setBusy] = useState(false);
   const [busyKind, setBusyKind] = useState("");
+  const [progress, setProgress] = useState(null);
   const [elapsed, setElapsed] = useState(0);
   const [lastTestAt, setLastTestAt] = useState(readLastTest);
   const [snack, setSnack] = useState(null);
@@ -156,6 +170,7 @@ function App() {
   const seedTimer = useRef(null);
   const snackTimer = useRef(null);
   const contentRef = useRef(null);
+  const canceledRef = useRef(false);
 
   settingsRef.current = settings;
   seedRef.current = seed;
@@ -214,6 +229,19 @@ function App() {
     await clearEnvironmentResults();
     updateSettings({ ...profileFields(profile), activeProfile: profile.id });
     const ok = await refreshStatus(settingsRef.current);
+    if (ok && settingsRef.current.autoOptimize) {
+      if (profile.api) {
+        try {
+          await api.startDaemon(settingsRef.current);
+          setDaemon(true);
+        } catch (error) {
+          notify(`新环境自动优化启动失败：${errText(error)}`, "error");
+        }
+      } else {
+        updateSettings({ autoOptimize: false });
+        notify("新环境没有控制口，自动优化已关闭", "error");
+      }
+    }
     if (ok) notify(`已切换到环境：${profile.name}`, "info");
   }
 
@@ -273,6 +301,18 @@ function App() {
     await clearEnvironmentResults();
     updateSettings({ profiles: remaining, activeProfile: next.id, ...profileFields(next) });
     const ok = await refreshStatus(settingsRef.current);
+    if (ok && settingsRef.current.autoOptimize) {
+      if (next.api) {
+        try {
+          await api.startDaemon(settingsRef.current);
+          setDaemon(true);
+        } catch (error) {
+          notify(`自动优化启动失败：${errText(error)}`, "error");
+        }
+      } else {
+        updateSettings({ autoOptimize: false });
+      }
+    }
     if (ok) notify(`已删除环境，切换到：${next.name}`, "info");
   }
 
@@ -341,6 +381,15 @@ function App() {
         }
         hydratedRef.current = true;
         await refreshStatus(normalized);
+        if (normalized.autoOptimize && normalized.api && !running) {
+          try {
+            await api.startDaemon(normalized);
+            setDaemon(true);
+            notify("后台自动优化已恢复", "info");
+          } catch (error) {
+            notify(`自动优化恢复失败：${errText(error)}`, "error");
+          }
+        }
       } catch (error) {
         if (!cancelled) notify(errText(error), "error");
       }
@@ -377,6 +426,26 @@ function App() {
   }, [view]);
 
   useEffect(() => {
+    if (!busy || !["oneclick", "test"].includes(busyKind)) {
+      setProgress(null);
+      return undefined;
+    }
+    let stopped = false;
+    const tick = async () => {
+      try {
+        const snapshot = await api.progress();
+        if (!stopped) setProgress(snapshot);
+      } catch (_) {}
+    };
+    tick();
+    const timer = setInterval(tick, 500);
+    return () => {
+      stopped = true;
+      clearInterval(timer);
+    };
+  }, [busy, busyKind]);
+
+  useEffect(() => {
     if (!busy) {
       setElapsed(0);
       return undefined;
@@ -407,13 +476,27 @@ function App() {
     writeLastTest(now);
   }
 
+  function clearRunState() {
+    setResults([]);
+    setBest(null);
+    setSelected(null);
+    setLastTestAt("");
+    try { localStorage.removeItem(LAST_TEST_KEY); } catch (_) {}
+  }
+
   async function runOneClick() {
     if (busy) return;
+    if (daemon) {
+      notify("后台自动优化运行中，请先暂停再手动测速", "error");
+      return;
+    }
+    canceledRef.current = false;
     const current = settingsRef.current;
     if (!current.api && !current.configPath) {
       notify("请先连接控制口，或选择一个订阅文件", "error");
       return;
     }
+    clearRunState();
     startBusy("oneclick");
     try {
       const result = await api.oneClick(current, true);
@@ -424,7 +507,9 @@ function App() {
       const ok = await refreshStatus(current);
       if (ok) notify(result.message || (result.best ? `推荐 ${result.best.name}` : "优化完成"), "info");
     } catch (error) {
-      notify(errText(error), "error");
+      if (canceledRef.current) notify("已取消测速", "info");
+      else notify(errText(error), "error");
+      api.clearResults().catch(() => {});
     } finally {
       finishBusy();
     }
@@ -432,11 +517,17 @@ function App() {
 
   async function runTest(goNodes = false) {
     if (busy) return;
+    if (daemon) {
+      notify("后台自动优化运行中，请先暂停再手动测速", "error");
+      return;
+    }
+    canceledRef.current = false;
     const current = settingsRef.current;
     if (!current.api && !current.configPath) {
       notify("请先连接控制口，或选择一个订阅文件", "error");
       return;
     }
+    clearRunState();
     startBusy("test");
     try {
       const response = await api.test(current);
@@ -450,9 +541,25 @@ function App() {
       if (goNodes) setView("nodes");
       if (ok) notify(`测速完成：${list.length} 个节点`, "info");
     } catch (error) {
-      notify(errText(error), "error");
+      if (canceledRef.current) notify("已取消测速", "info");
+      else notify(errText(error), "error");
+      api.clearResults().catch(() => {});
     } finally {
       finishBusy();
+    }
+  }
+
+  async function cancelCurrentTest() {
+    try {
+      const canceled = await api.cancelTest();
+      if (canceled === false) {
+        notify("没有正在运行的测速", "error");
+        return;
+      }
+      canceledRef.current = true;
+      notify("正在取消测速…", "info");
+    } catch (error) {
+      notify(errText(error), "error");
     }
   }
 
@@ -537,15 +644,20 @@ function App() {
   }
 
   async function toggleDaemon(enabled) {
+    if (busy) {
+      notify("当前有测速任务在进行，完成后再切换自动优化", "error");
+      return;
+    }
     const current = settingsRef.current;
     if (enabled && !current.api) {
       notify("自动优化需要先连接客户端", "error");
       return;
     }
     try {
-      if (enabled) await api.startDaemon(current, daemonInterval);
+      if (enabled) await api.startDaemon(current);
       else await api.stopDaemon();
       setDaemon(enabled);
+      updateSettings({ autoOptimize: enabled });
       notify(enabled ? "后台自动优化已开启" : "已停止后台自动优化", "info");
     } catch (error) {
       setDaemon(!enabled);
@@ -588,6 +700,10 @@ function App() {
   const connClass = status.error ? "error" : status.connected ? "ok" : "warn";
   const connLabel = status.error ? "连接失败" : status.connected ? (controllers.length ? `已连接 ${controllers.length} 个客户端` : "已连接") : controllers.length ? "未连接" : "未检测到客户端";
   const lastTestLabel = lastTestAt ? timeAgo(lastTestAt) : "";
+  const latestEvent = events.find((event) =>
+    ["cycle", "switch", "rollback", "error"].includes(event.kind)
+    && (!event.group || !status.groupName || event.group === status.groupName)
+  ) || null;
   const canSwitch = !!selected;
   const canExport = !!settings.configPath && results.length > 0;
 
@@ -637,11 +753,14 @@ function App() {
               busy=${busy}
               busyKind=${busyKind}
               elapsed=${elapsed}
+              progress=${progress}
+              onCancel=${cancelCurrentTest}
               lastTestAt=${lastTestLabel}
               controllers=${controllers}
               subscriptions=${subscriptions}
               daemon=${daemon}
-              daemonInterval=${daemonInterval}
+              daemonInterval=${settings.daemonInterval}
+              latestEvent=${latestEvent}
               groups=${groups}
               subURL=${subURL}
               onOneClick=${runOneClick}
@@ -652,7 +771,7 @@ function App() {
               onSettings=${updateSettings}
               onRounds=${(rounds) => updateSettings({ rounds })}
               onDaemon=${toggleDaemon}
-              onInterval=${setDaemonInterval}
+              onInterval=${(interval) => updateSettings({ daemonInterval: interval })}
               onSubURL=${setSubURL}
               onImport=${importSubscription}
             />`
@@ -675,6 +794,8 @@ function App() {
                   mode=${themeMode}
                   busy=${busy}
                   busyKind=${busyKind}
+                  progress=${progress}
+                  onCancel=${cancelCurrentTest}
                   lastTestAt=${lastTestLabel}
                   onSettings=${updateSettings}
                   onSeed=${changeSeed}

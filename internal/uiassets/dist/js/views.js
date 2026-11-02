@@ -13,7 +13,7 @@ import {
   LoadingRows,
 } from "./components.js";
 import { GroupTable, NodeTable } from "./tables.js";
-import { baseName, formatClock, hostOf, reasonLabel, timeAgo } from "./format.js";
+import { baseName, confidenceLabel, formatClock, hostOf, kindLabel, reasonLabel, timeAgo } from "./format.js";
 
 function Field({ label, id, value, onChange, onBlur, placeholder, type = "text", inputMode, autoComplete, spellcheck = false, className = "" }) {
   return html`<label class=${"text-field " + className}>
@@ -33,8 +33,8 @@ function Field({ label, id, value, onChange, onBlur, placeholder, type = "text",
 }
 
 export function Dashboard({
-  settings, status, results, best, selected, busy, busyKind, elapsed, lastTestAt,
-  controllers, subscriptions, daemon, daemonInterval, groups, subURL,
+  settings, status, results, best, selected, busy, busyKind, elapsed, progress, onCancel, lastTestAt,
+  controllers, subscriptions, daemon, daemonInterval, latestEvent, groups, subURL,
   onOneClick, onTest, onSelectNode, onRefresh, onController, onSettings,
   onRounds, onDaemon, onInterval, onSubURL, onImport,
 }) {
@@ -44,6 +44,18 @@ export function Dashboard({
   const heroLoading = busy && (busyKind === "oneclick" || busyKind === "test");
   const testing = heroLoading;
   const canImport = !!subURL.trim();
+  const intervalOptions = [
+    { value: "300", label: "5 分钟" },
+    { value: "600", label: "10 分钟" },
+    { value: "1800", label: "30 分钟" },
+  ];
+  if (!intervalOptions.some((option) => option.value === String(daemonInterval))) {
+    intervalOptions.unshift({ value: String(daemonInterval), label: `${daemonInterval} 秒` });
+  }
+  const eventCode = latestEvent ? (latestEvent.reason_code || latestEvent.reason) : "";
+  const eventScores = latestEvent
+    ? [Number(latestEvent.current_score) || 0, Number(latestEvent.best_score) || 0]
+    : [0, 0];
 
   return html`<section id="view-dashboard" class="view active">
     <div class="hero md-card" aria-busy=${heroLoading ? "true" : undefined}>
@@ -73,6 +85,7 @@ export function Dashboard({
               onChange=${(value) => onRounds(Number(value))}
             />
           </div>
+          ${testing ? html`<${Button} variant="text" size="small" onClick=${onCancel}>取消<//>` : null}
         </div>
       </div>
       <div class="hero-side">
@@ -152,20 +165,30 @@ export function Dashboard({
           <${M3Select}
             label="自动优化检查间隔"
             value=${String(daemonInterval)}
-            options=${[
-              { value: "300", label: "5 分钟" },
-              { value: "600", label: "10 分钟" },
-              { value: "1800", label: "30 分钟" },
-            ]}
+            options=${intervalOptions}
             onChange=${(value) => onInterval(Number(value))}
           />
         </div>
         <div class="meta-list">
-          <div class="meta-item"><${Icon} name="checkCircle" />连续 2 次确认后切换</div>
-          <div class="meta-item"><${Icon} name="checkCircle" />切换失败自动回滚</div>
-          <div class="meta-item"><${Icon} name="checkCircle" />评分滞后 20% 才行动</div>
+          <div class="meta-item"><${Icon} name="checkCircle" />连续 ${settings.autoConfirm} 次确认后切换</div>
+          <div class="meta-item"><${Icon} name="checkCircle" />切换后验证，失败自动回滚</div>
+          <div class="meta-item"><${Icon} name="checkCircle" />评分滞后 ${Math.round(settings.autoMargin * 100)}% 才行动</div>
         </div>
-        <div class="status-line mt" aria-live="polite">${daemon ? "运行中 · 正在按间隔检查" : "未开启"}</div>
+        <div class=${"auto-decision" + (latestEvent && (!latestEvent.ok || ["rollback", "error"].includes(latestEvent.kind)) ? " auto-decision--error" : "")}>
+          <div class="auto-decision-head"><${Icon} name="monitoring" />最近自动选择</div>
+          ${latestEvent
+            ? html`<div class="auto-decision-title">${latestEvent.kind === "switch" ? "已切换" : latestEvent.kind === "rollback" ? "已回滚" : (latestEvent.kind === "error" || !latestEvent.ok) ? "检查失败" : "保持当前"}</div>
+                <div class="auto-decision-main">${latestEvent.from || "—"} ${latestEvent.to ? `→ ${latestEvent.to}` : ""}</div>
+                <div class="auto-decision-meta">${formatClock(latestEvent.time)} · ${kindLabel(latestEvent.kind)} · ${reasonLabel(eventCode)}</div>
+                ${eventScores[0] || eventScores[1]
+                  ? html`<div class="auto-decision-scores">当前 ${eventScores[0].toFixed(3)} · 候选 ${eventScores[1].toFixed(3)}${latestEvent.confidence ? ` · ${confidenceLabel(latestEvent.confidence)}置信` : ""}</div>`
+                  : null}
+                ${latestEvent.rollback_attempted
+                  ? html`<div class="auto-decision-rollback">${latestEvent.rollback_ok ? "已回滚到原节点" : "回滚失败，请手动检查"}</div>`
+                  : null}`
+            : html`<div class="muted">开启后，每次检查会在这里显示“为什么切换”。</div>`}
+        </div>
+        <div class="status-line mt" aria-live="polite">${daemon ? `运行中 · 每 ${daemonInterval < 60 ? `${daemonInterval} 秒` : `${Math.round(daemonInterval / 60)} 分钟`}检查` : "未开启"}</div>
       </div>
     </div>
 
@@ -175,7 +198,11 @@ export function Dashboard({
         <span class="muted">${best ? `推荐: ${best.name}` : testing ? `已运行 ${elapsed}s` : ""}</span>
       </div>
       ${testing
-        ? html`<${LoadingRows} label="正在测速，请稍候" />`
+        ? html`<div class="progress-line" role="status" aria-live="polite">
+            <span>${progress && progress.total ? `${progress.done || 0}/${progress.total}` : "正在准备…"}${progress && progress.current ? ` · ${progress.current}` : ""}</span>
+            <span>${elapsed}s</span>
+          </div>
+          <${LoadingRows} label="正在测速，请稍候" />`
         : results.length
           ? html`<${NodeTable} rows=${results} best=${best} selected=${selected} onSelect=${onSelectNode} label="测速结果" />`
           : html`<${State}
@@ -234,7 +261,7 @@ export function Nodes({ results, best, selected, onSelect, onRefresh, onSwitch, 
 }
 
 export function Settings({
-  settings, groups, seed, mode, busy, busyKind, lastTestAt,
+  settings, groups, seed, mode, busy, busyKind, progress, onCancel, lastTestAt,
   onSettings, onSeed, onResetSeed, onMode, onSave, onTest, onSwitch, onExport, canSwitch, canExport,
   profiles, activeProfile, onActivateProfile, onRenameProfile, onProfileNameBlur, onSaveProfile, onNewProfile, onDeleteProfile,
 }) {
@@ -297,6 +324,18 @@ export function Settings({
       </div>
     </div>
 
+
+    <div class="md-card">
+      <div class="card-title"><${Icon} name="monitoring" />自动选择</div>
+      <p class="muted">只有当前节点明显变差时才切换；余量越大越保守。修改后在下一次开启或重启自动优化时生效。</p>
+      <div class="text-field-grid mt">
+        <${Field} label="切换余量 (%)" id="autoMargin" type="number" value=${Math.round(settings.autoMargin * 100)} onChange=${(value) => onSettings({ autoMargin: Math.max(1, Math.min(100, Number(value) || 20)) / 100 })} />
+        <${Field} label="连续确认 (轮)" id="autoConfirm" type="number" value=${settings.autoConfirm} onChange=${(value) => onSettings({ autoConfirm: Math.max(1, Number(value) || 2) })} />
+        <${Field} label="最低成功率 (%)" id="autoMin" type="number" value=${Math.round(settings.autoMinSuccess * 100)} onChange=${(value) => onSettings({ autoMinSuccess: Math.max(1, Math.min(100, Number(value) || 80)) / 100 })} />
+        <${Field} label="检查间隔 (秒)" id="daemonInterval" type="number" value=${settings.daemonInterval} onChange=${(value) => onSettings({ daemonInterval: Math.max(30, Number(value) || 300) })} />
+      </div>
+    </div>
+
     <div class="md-card">
       <div class="card-title">连接设置</div>
       <div class="text-field-grid mt">
@@ -312,9 +351,13 @@ export function Settings({
       <div class="settings-actions">
         <${Button} variant="filled" icon="check" loading=${busy && busyKind === "save"} onClick=${onSave}>保存设置<//>
         <${Button} variant="tonal" loading=${busy && busyKind === "test"} onClick=${onTest}>测速<//>
+        ${busy && busyKind === "test" ? html`<${Button} variant="text" onClick=${onCancel}>取消测速<//>` : null}
         <${Button} variant="tonal" disabled=${!canSwitch || busy} onClick=${onSwitch}>切换选中节点<//>
         <${Button} variant="outlined" disabled=${!canExport || busy} onClick=${onExport}>导出稳定配置<//>
       </div>
+      ${busy && busyKind === "test"
+        ? html`<p class="status-line mt" role="status" aria-live="polite">测速中 ${progress && progress.total ? `${progress.done || 0}/${progress.total}` : ""}${progress && progress.current ? ` · ${progress.current}` : ""}</p>`
+        : null}
       <div class="divider"></div>
       <div class="card-title small">控制口状态</div>
       <div class="groups-block">
@@ -333,15 +376,21 @@ export function History({ events }) {
       ${events.length === 0
         ? html`<${State} icon="history" title="暂无事件" body="开启自动优化后，这里会显示切换、回滚和错误记录。" />`
         : html`<ol class="history">
-            ${events.map((event, index) => html`<li class="ev" key=${`${event.time}-${index}`}>
-              <time class="ev-time" datetime=${event.time}>${formatClock(event.time)}</time>
-              <span class="ev-kind">${event.kind}</span>
-              <span class="ev-main">
-                ${event.from || event.to ? `${event.from || "—"} → ${event.to || "—"} · ` : ""}
-                ${reasonLabel(event.reason)}
-                ${event.best ? `（推荐 ${event.best}）` : ""}
-              </span>
-            </li>`)}
+            ${events.map((event, index) => {
+              const cur = Number(event.current_score) || 0;
+              const best = Number(event.best_score) || 0;
+              const scores = cur || best ? ` · 当前 ${cur.toFixed(3)} / 候选 ${best.toFixed(3)}` : "";
+              const confidence = event.confidence ? ` · ${confidenceLabel(event.confidence)}置信` : "";
+              const rollback = event.rollback_attempted ? (event.rollback_ok ? " · 已回滚" : " · 回滚失败") : "";
+              return html`<li class=${"ev" + ((!event.ok || ["rollback", "error"].includes(event.kind)) ? " ev--bad" : "")} key=${`${event.time}-${index}`}>
+                <time class="ev-time" datetime=${event.time}>${formatClock(event.time)}</time>
+                <span class="ev-kind">${kindLabel(event.kind)}</span>
+                <span class="ev-main">
+                  ${event.to ? `${event.from || "—"} → ${event.to} · ` : event.from ? `保持 ${event.from} · ` : event.best ? `候选 ${event.best} · ` : ""}
+                  ${reasonLabel(event.reason_code || event.reason)}${scores}${confidence}${rollback}
+                </span>
+              </li>`;
+            })}
           </ol>`}
       ${events.length ? html`<p class="muted mt">最近 ${events.length} 条 · ${lastEventLabel(events)}</p>` : null}
     </div>

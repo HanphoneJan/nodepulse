@@ -16,6 +16,7 @@ import (
 
 	"github.com/HanphoneJan/nodepulse/internal/clash"
 	"github.com/HanphoneJan/nodepulse/internal/config"
+	"github.com/HanphoneJan/nodepulse/internal/progress"
 	"github.com/HanphoneJan/nodepulse/internal/score"
 	"github.com/HanphoneJan/nodepulse/internal/sidecar"
 	"github.com/HanphoneJan/nodepulse/internal/store"
@@ -47,6 +48,10 @@ type Server struct {
 	daemonRunning  bool
 	daemonSeq      uint64
 	daemonDone     chan struct{}
+
+	progress    *progress.Tracker
+	testCancel  context.CancelFunc
+	testRunning bool
 }
 
 // New creates a server with defaults.
@@ -60,7 +65,7 @@ func New(opts Options) *Server {
 	if opts.HistoryPath == "" {
 		opts.HistoryPath = store.DefaultPath()
 	}
-	s := &Server{opts: opts, mux: http.NewServeMux()}
+	s := &Server{opts: opts, mux: http.NewServeMux(), progress: progress.New()}
 	if data, err := readFile(opts.ResultsPath); err == nil {
 		var rf resultsFile
 		if json.Unmarshal(data, &rf) == nil && len(rf.Results) > 0 {
@@ -71,6 +76,8 @@ func New(opts Options) *Server {
 
 	s.mux.Handle("/", http.FileServer(http.FS(uiassets.Dist())))
 	s.mux.HandleFunc("/api/version", s.handleVersion)
+	s.mux.HandleFunc("/api/progress", s.handleProgress)
+	s.mux.HandleFunc("/api/cancel", s.handleCancel)
 	s.mux.HandleFunc("/api/results", s.handleResults)
 	s.mux.HandleFunc("/api/results/clear", s.handleResultsClear)
 	s.mux.HandleFunc("/api/history", s.handleHistory)
@@ -131,6 +138,43 @@ func (s *Server) Run(ctx context.Context) error {
 		return nil
 	}
 	return err
+}
+
+func (s *Server) handleProgress(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	writeJSON(w, s.progress.Snapshot())
+}
+
+func (s *Server) handleCancel(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	writeJSON(w, map[string]bool{"canceled": s.progress.Cancel()})
+}
+
+func (s *Server) beginTest(parent context.Context, kind string) (context.Context, func(error), error) {
+	s.mu.Lock()
+	if s.testRunning {
+		s.mu.Unlock()
+		return nil, nil, fmt.Errorf("已有测速任务在运行")
+	}
+	ctx, cancel := context.WithCancel(parent)
+	s.testRunning = true
+	s.testCancel = cancel
+	s.mu.Unlock()
+	s.progress.Begin(kind, cancel)
+	finish := func(err error) {
+		s.mu.Lock()
+		s.testRunning = false
+		s.testCancel = nil
+		s.mu.Unlock()
+		s.progress.Finish(err)
+	}
+	return ctx, finish, nil
 }
 
 func (s *Server) handleResults(w http.ResponseWriter, r *http.Request) {
@@ -220,6 +264,7 @@ func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
 
 type testRequest struct {
 	API         string `json:"api"`
+	onProgress  func(done, total int, result score.Result)
 	Secret      string `json:"secret"`
 	ConfigPath  string `json:"config_path"`
 	MihomoPath  string `json:"mihomo_path"`
@@ -249,9 +294,25 @@ func (s *Server) handleTest(w http.ResponseWriter, r *http.Request) {
 	if req.MihomoPath == "" {
 		req.MihomoPath = s.opts.MihomoPath
 	}
-	results, err := s.runTest(r.Context(), req)
+	ctx, finish, err := s.beginTest(r.Context(), "test")
 	if err != nil {
-		writeError(w, http.StatusBadGateway, err.Error())
+		writeError(w, http.StatusConflict, err.Error())
+		return
+	}
+	req.onProgress = func(done, total int, result score.Result) {
+		s.progress.Update(done, total, result.Name)
+	}
+	results, runErr := s.runTest(ctx, req)
+	if runErr == nil && ctx.Err() != nil {
+		runErr = ctx.Err()
+	}
+	finish(runErr)
+	if errors.Is(runErr, context.Canceled) {
+		writeJSON(w, map[string]bool{"canceled": true})
+		return
+	}
+	if runErr != nil {
+		writeError(w, http.StatusBadGateway, runErr.Error())
 		return
 	}
 	s.mu.Lock()
@@ -335,6 +396,10 @@ func (s *Server) runTest(ctx context.Context, req testRequest) ([]score.Result, 
 		URL:         req.URL,
 		Timeout:     time.Duration(req.TimeoutMs) * time.Millisecond,
 	})
+	if req.onProgress != nil {
+		req.onProgress(0, len(nodes), score.Result{})
+		t.OnNode(req.onProgress)
+	}
 	ranked := score.Rank(t.Test(ctx, nodes))
 
 	rf := resultsFile{

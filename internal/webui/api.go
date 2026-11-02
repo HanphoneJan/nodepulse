@@ -3,6 +3,7 @@ package webui
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -138,7 +139,12 @@ func (s *Server) handleOneClick(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	res, err := optimize.Run(r.Context(), optimize.Request{
+	ctx, finish, err := s.beginTest(r.Context(), "oneclick")
+	if err != nil {
+		writeError(w, http.StatusConflict, err.Error())
+		return
+	}
+	res, runErr := optimize.Run(ctx, optimize.Request{
 		API:         req.API,
 		Secret:      req.Secret,
 		Group:       req.Group,
@@ -149,9 +155,17 @@ func (s *Server) handleOneClick(w http.ResponseWriter, r *http.Request) {
 		Concurrency: req.Concurrency,
 		TimeoutMs:   req.TimeoutMs,
 		Switch:      req.DoSwitch,
+		OnProgress: func(done, total int, result score.Result) {
+			s.progress.Update(done, total, result.Name)
+		},
 	})
-	if err != nil {
-		writeError(w, http.StatusBadGateway, err.Error())
+	finish(runErr)
+	if errors.Is(runErr, context.Canceled) {
+		writeJSON(w, map[string]bool{"canceled": true})
+		return
+	}
+	if runErr != nil {
+		writeError(w, http.StatusBadGateway, runErr.Error())
 		return
 	}
 	s.mu.Lock()

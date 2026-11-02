@@ -16,6 +16,12 @@ async function request(path, options) {
 }
 
 const post = (path, body) => request(path, { method: "POST", body: JSON.stringify(body || {}) });
+
+function canceledError() {
+  const error = new Error("已取消测速");
+  error.name = "CanceledError";
+  return error;
+}
 const get = (path) => request(path);
 
 function profilePayload(p) {
@@ -47,6 +53,11 @@ function settingsPayload(s) {
     timeout_ms: s.timeoutMs,
     profiles: (s.profiles || []).map(profilePayload),
     active_profile: s.activeProfile,
+    auto_optimize: !!s.autoOptimize,
+    daemon_interval: s.daemonInterval,
+    auto_margin: s.autoMargin,
+    auto_confirm: s.autoConfirm,
+    auto_min_success: s.autoMinSuccess,
   };
 }
 
@@ -89,7 +100,7 @@ export const api = {
     if (wails()) {
       return wails().Test(s.api, s.secret, s.configPath, s.mihomoPath, s.url, s.rounds, s.concurrency, s.timeoutMs);
     }
-    return post("/api/test", {
+    const data = await post("/api/test", {
       api: s.api,
       secret: s.secret,
       config_path: s.configPath,
@@ -99,6 +110,8 @@ export const api = {
       concurrency: s.concurrency,
       timeout_ms: s.timeoutMs,
     });
+    if (data && data.canceled) throw canceledError();
+    return data;
   },
 
   async status(s) {
@@ -124,19 +137,19 @@ export const api = {
     return data.path;
   },
 
-  async startDaemon(s, intervalSec) {
+  async startDaemon(s) {
     if (wails()) {
-      return wails().StartDaemon(s.api, s.secret, s.group, intervalSec, s.rounds, 0.2, 2, 0.8);
+      return wails().StartDaemon(s.api, s.secret, s.group, s.daemonInterval, s.rounds, s.autoMargin, s.autoConfirm, s.autoMinSuccess);
     }
     return post("/api/daemon/start", {
       api: s.api,
       secret: s.secret,
       group: s.group,
-      interval_sec: intervalSec,
+      interval_sec: s.daemonInterval,
       rounds: s.rounds,
-      margin: 0.2,
-      confirm: 2,
-      min_success: 0.8,
+      margin: s.autoMargin,
+      confirm: s.autoConfirm,
+      min_success: s.autoMinSuccess,
     });
   },
 
@@ -155,6 +168,21 @@ export const api = {
     if (wails() && wails().History) return wails().History();
     if (!wails()) return get("/api/history");
     return [];
+  },
+
+  async progress() {
+    if (wails() && wails().Progress) return wails().Progress();
+    if (!wails()) return get("/api/progress");
+    return null;
+  },
+
+  async cancelTest() {
+    if (wails() && wails().CancelTest) return wails().CancelTest();
+    if (!wails()) {
+      const data = await post("/api/cancel", {});
+      return !!(data && data.canceled);
+    }
+    return false;
   },
 
   async clearResults() {

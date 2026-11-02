@@ -19,6 +19,7 @@ import (
 	"github.com/HanphoneJan/nodepulse/internal/discover"
 	"github.com/HanphoneJan/nodepulse/internal/export"
 	"github.com/HanphoneJan/nodepulse/internal/optimize"
+	"github.com/HanphoneJan/nodepulse/internal/progress"
 	"github.com/HanphoneJan/nodepulse/internal/score"
 	"github.com/HanphoneJan/nodepulse/internal/settings"
 	"github.com/HanphoneJan/nodepulse/internal/sidecar"
@@ -43,11 +44,15 @@ type App struct {
 	daemonRunning bool
 	daemonSeq     uint64
 	daemonDone    chan struct{}
+
+	progress    *progress.Tracker
+	testCancel  context.CancelFunc
+	testRunning bool
 }
 
 // NewApp creates the binding object.
 func NewApp() *App {
-	return &App{}
+	return &App{progress: progress.New()}
 }
 
 func (a *App) startup(ctx context.Context) {
@@ -143,8 +148,56 @@ func (a *App) Detect() (BootstrapResult, error) {
 	return a.Bootstrap()
 }
 
+// Progress returns the current manual test/optimization progress.
+func (a *App) Progress() progress.Snapshot {
+	return a.progress.Snapshot()
+}
+
+// CancelTest cancels the running manual test/optimization.
+func (a *App) CancelTest() bool {
+	a.mu.Lock()
+	cancel := a.testCancel
+	a.mu.Unlock()
+	if cancel == nil {
+		return false
+	}
+	cancel()
+	return true
+}
+
+func (a *App) beginTest(kind string) (context.Context, func(error), error) {
+	a.mu.Lock()
+	if a.testRunning {
+		a.mu.Unlock()
+		return nil, nil, fmt.Errorf("已有测速任务在运行")
+	}
+	base := a.ctx
+	if base == nil {
+		base = context.Background()
+	}
+	ctx, cancel := context.WithCancel(base)
+	a.testRunning = true
+	a.testCancel = cancel
+	a.mu.Unlock()
+	a.progress.Begin(kind, cancel)
+	finish := func(err error) {
+		a.mu.Lock()
+		a.testRunning = false
+		a.testCancel = nil
+		a.mu.Unlock()
+		a.progress.Finish(err)
+	}
+	return ctx, finish, nil
+}
+
 // OneClick tests nodes and optionally switches to the best one.
-func (a *App) OneClick(api, secret, group, configPath, mihomoPath, testURL string, rounds, concurrency, timeoutMs int, doSwitch bool) (*optimize.Result, error) {
+func (a *App) OneClick(api, secret, group, configPath, mihomoPath, testURL string, rounds, concurrency, timeoutMs int, doSwitch bool) (res *optimize.Result, err error) {
+	ctx, finish, err := a.beginTest("oneclick")
+	if err != nil {
+		return nil, err
+	}
+	defer func() { finish(err) }()
+
 	req := optimize.Request{
 		API:         api,
 		Secret:      secret,
@@ -156,8 +209,11 @@ func (a *App) OneClick(api, secret, group, configPath, mihomoPath, testURL strin
 		Concurrency: concurrency,
 		TimeoutMs:   timeoutMs,
 		Switch:      doSwitch,
+		OnProgress: func(done, total int, result score.Result) {
+			a.progress.Update(done, total, result.Name)
+		},
 	}
-	res, err := optimize.Run(a.ctx, req)
+	res, err = optimize.Run(ctx, req)
 	if err != nil {
 		return nil, err
 	}
@@ -356,7 +412,13 @@ func (a *App) Status(api, secret string) ([]GroupView, error) {
 }
 
 // Test runs a stability test via controller or sidecar.
-func (a *App) Test(api, secret, configPath, mihomoPath, testURL string, rounds, concurrency, timeoutMs int) ([]score.Result, error) {
+func (a *App) Test(api, secret, configPath, mihomoPath, testURL string, rounds, concurrency, timeoutMs int) (ranked []score.Result, err error) {
+	ctx, finish, err := a.beginTest("test")
+	if err != nil {
+		return nil, err
+	}
+	defer func() { finish(err) }()
+
 	if rounds <= 0 {
 		rounds = 5
 	}
@@ -382,7 +444,7 @@ func (a *App) Test(api, secret, configPath, mihomoPath, testURL string, rounds, 
 		if err != nil {
 			return nil, err
 		}
-		sc, err := sidecar.Start(a.ctx, cfg, mihomoPath)
+		sc, err := sidecar.Start(ctx, cfg, mihomoPath)
 		if err != nil {
 			return nil, err
 		}
@@ -401,9 +463,9 @@ func (a *App) Test(api, secret, configPath, mihomoPath, testURL string, rounds, 
 		}
 		nodes = cfg.RealProxies()
 	} else {
-		ctx, cancel := context.WithTimeout(a.ctx, 15*time.Second)
+		listCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
 		defer cancel()
-		proxies, err := clash.New(api, secret).Proxies(ctx)
+		proxies, err := clash.New(api, secret).Proxies(listCtx)
 		if err != nil {
 			return nil, err
 		}
@@ -433,8 +495,15 @@ func (a *App) Test(api, secret, configPath, mihomoPath, testURL string, rounds, 
 		URL:         testURL,
 		Timeout:     time.Duration(timeoutMs) * time.Millisecond,
 	})
-	results := t.Test(a.ctx, nodes)
-	ranked := score.Rank(results)
+	a.progress.Update(0, len(nodes), "")
+	t.OnNode(func(done, total int, result score.Result) {
+		a.progress.Update(done, total, result.Name)
+	})
+	results := t.Test(ctx, nodes)
+	if ctx.Err() != nil {
+		return nil, ctx.Err()
+	}
+	ranked = score.Rank(results)
 	a.mu.Lock()
 	a.lastResults = ranked
 	a.lastConfigPath = configPath

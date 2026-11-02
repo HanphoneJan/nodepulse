@@ -44,6 +44,14 @@ type Settings struct {
 
 	Profiles      []Profile `json:"profiles,omitempty"`
 	ActiveProfile string    `json:"active_profile,omitempty"`
+
+	// Background auto-selection is global, not per environment: it follows the
+	// active environment's client/subscription but keeps the same policy.
+	AutoOptimize   bool    `json:"auto_optimize,omitempty"`
+	DaemonInterval int     `json:"daemon_interval,omitempty"`
+	AutoMargin     float64 `json:"auto_margin,omitempty"`
+	AutoConfirm    int     `json:"auto_confirm,omitempty"`
+	AutoMinSuccess float64 `json:"auto_min_success,omitempty"`
 }
 
 // DefaultPath is ~/.config/nodepulse/settings.json.
@@ -62,10 +70,14 @@ func DefaultPath() string {
 // Defaults returns sensible starting values.
 func Defaults() Settings {
 	return Settings{
-		URL:         "https://www.gstatic.com/generate_204",
-		Rounds:      5,
-		Concurrency: 8,
-		TimeoutMs:   5000,
+		URL:            "https://www.gstatic.com/generate_204",
+		Rounds:         5,
+		Concurrency:    8,
+		TimeoutMs:      5000,
+		DaemonInterval: 300,
+		AutoMargin:     0.2,
+		AutoConfirm:    2,
+		AutoMinSuccess: 0.8,
 	}
 }
 
@@ -119,6 +131,18 @@ func (s *Settings) normalizeValues() {
 	}
 	if s.TimeoutMs <= 0 {
 		s.TimeoutMs = 5000
+	}
+	if s.DaemonInterval <= 0 {
+		s.DaemonInterval = 300
+	}
+	if s.AutoMargin <= 0 {
+		s.AutoMargin = 0.2
+	}
+	if s.AutoConfirm <= 0 {
+		s.AutoConfirm = 2
+	}
+	if s.AutoMinSuccess <= 0 {
+		s.AutoMinSuccess = 0.8
 	}
 }
 
