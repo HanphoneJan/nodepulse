@@ -1,9 +1,18 @@
 <!doctype html>
-<html lang="zh-CN" data-theme="dark">
+<html lang="zh-CN">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>NodePulse</title>
+  <script>
+    (function () {
+      var mode = localStorage.getItem("nodepulse.theme") || "system";
+      var light = window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches;
+      var dark = mode === "dark" || (mode === "system" && !light);
+      document.documentElement.dataset.theme = dark ? "dark" : "light";
+      document.documentElement.dataset.themeMode = mode;
+    })();
+  </script>
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
@@ -20,6 +29,7 @@
     <symbol id="i-search" viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27A6.47 6.47 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0A4.5 4.5 0 1 1 14 9.5 4.5 4.5 0 0 1 9.5 14z"/></symbol>
     <symbol id="i-sun" viewBox="0 0 24 24"><path d="M12 7a5 5 0 1 0 0 10 5 5 0 0 0 0-10zM2 13h2a1 1 0 0 0 0-2H2a1 1 0 0 0 0 2zm18 0h2a1 1 0 0 0 0-2h-2a1 1 0 0 0 0 2zM11 2v2a1 1 0 0 0 2 0V2a1 1 0 0 0-2 0zm0 18v2a1 1 0 0 0 2 0v-2a1 1 0 0 0-2 0zm8.66-14.66-1.42 1.42a1 1 0 0 0 1.42 1.42l1.41-1.42a1 1 0 0 0-1.41-1.42zM5.76 18.24l-1.42 1.42a1 1 0 1 0 1.42 1.41l1.41-1.41a1 1 0 0 0-1.41-1.42zM4.34 4.34 5.76 5.76a1 1 0 0 0 1.42-1.42L5.76 2.93a1 1 0 0 0-1.42 1.41zm14.9 14.9-1.42-1.42a1 1 0 0 0-1.42 1.42l1.42 1.41a1 1 0 0 0 1.42-1.41z"/></symbol>
     <symbol id="i-moon" viewBox="0 0 24 24"><path d="M12.3 22a9.7 9.7 0 0 0 9.1-13.3 7.8 7.8 0 0 1-9.9-9.9A9.7 9.7 0 1 0 12.3 22z"/></symbol>
+    <symbol id="i-monitor" viewBox="0 0 24 24"><path d="M21 3H3a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h7v2H7v2h10v-2h-3v-2h7a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2zm0 14H3V5h18v12z"/></symbol>
     <symbol id="i-stop" viewBox="0 0 24 24"><path d="M6 6h12v12H6z"/></symbol>
   </svg>
 
@@ -52,7 +62,10 @@
       <section id="view-dashboard" class="view active">
         <div class="hero md-card">
           <div class="hero-main">
-            <div class="label">当前节点</div>
+            <div class="label-row">
+              <span class="label">当前节点</span>
+              <span id="heroStatus" class="status-chip warn">未连接</span>
+            </div>
             <div id="currentNode" class="hero-node">—</div>
             <div id="currentMeta" class="hero-meta">连接客户端后显示</div>
             <div class="hero-actions">
@@ -68,7 +81,13 @@
             </div>
           </div>
           <div class="hero-score">
-            <div id="scoreRing" class="score-ring"><span id="scoreValue">--</span><small>评分</small></div>
+            <div id="scoreRing" class="score-ring">
+              <svg viewBox="0 0 100 100" aria-hidden="true">
+                <circle class="ring-track" cx="50" cy="50" r="44"></circle>
+                <circle id="scoreArc" class="ring-value" cx="50" cy="50" r="44"></circle>
+              </svg>
+              <div class="score-text"><span id="scoreValue">--</span><small>评分</small></div>
+            </div>
             <div id="bestName" class="best-name"></div>
           </div>
         </div>
@@ -86,11 +105,11 @@
             </details>
             <div class="divider"></div>
             <div class="card-title small"><svg class="icon"><use href="#i-download"/></svg>订阅</div>
-            <div class="row mt">
+            <div class="row mt sub-row">
               <select id="subSelect" class="text-field-input"></select>
               <button id="useSub" class="md-button tonal small">使用</button>
             </div>
-            <div class="row mt">
+            <div class="row mt sub-row">
               <input id="subURL" class="text-field-input" placeholder="https://…/subscribe?token=…" />
               <button id="importSub" class="md-button tonal small">导入</button>
             </div>
@@ -173,6 +192,15 @@
   </div>
 
   <div id="snackbar" class="snackbar"></div>
+
+  <nav class="bottom-nav">
+    <button class="bottom-item active" data-view="dashboard"><svg class="icon"><use href="#i-dashboard"/></svg><span>仪表盘</span></button>
+    <button class="bottom-item" data-view="nodes"><svg class="icon"><use href="#i-list"/></svg><span>节点</span></button>
+    <button class="bottom-item" data-view="settings"><svg class="icon"><use href="#i-settings"/></svg><span>设置</span></button>
+    <button class="bottom-item" data-view="history"><svg class="icon"><use href="#i-history"/></svg><span>历史</span></button>
+    <button id="themeToggleMobile" class="bottom-item" title="主题"><svg class="icon"><use href="#i-monitor"/></svg><span>主题</span></button>
+  </nav>
+
   <script src="web-shim.js"></script>
   <script src="app.js"></script>
 </body>

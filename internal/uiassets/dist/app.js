@@ -71,6 +71,13 @@ function applySettings(s) {
   $("subPath").textContent = s.config_path ? "当前订阅: " + s.config_path : "当前没有选择订阅文件";
 }
 
+function setHeroStatus(ok, text) {
+  const el = $("heroStatus");
+  if (!el) return;
+  el.textContent = text;
+  el.className = "status-chip " + (ok ? "ok" : "warn");
+}
+
 async function bootstrap() {
   try {
     const b = await App().Bootstrap();
@@ -84,9 +91,11 @@ async function bootstrap() {
     if (state.controllers.length) {
       $("connBadge").textContent = "已连接 " + state.controllers.length + " 个客户端";
       $("connBadge").className = "status-chip ok";
+      setHeroStatus(true, "已连接");
     } else {
       $("connBadge").textContent = "未检测到客户端";
       $("connBadge").className = "status-chip warn";
+      setHeroStatus(false, "未连接");
     }
     if ($("api").value) refreshStatus();
   } catch (e) {
@@ -139,8 +148,10 @@ async function refreshStatus() {
       $("currentNode").textContent = g.now || "—";
       $("currentMeta").textContent = `${g.name} · ${g.type} · ${g.members} 个成员`;
     }
+    setHeroStatus(true, "已连接");
     renderGroups(groups);
   } catch (e) {
+    setHeroStatus(false, "连接失败");
     snack(errText(e), "error");
   }
 }
@@ -188,7 +199,9 @@ async function oneClick(doSwitch) {
 function renderBest(res) {
   const score = res.best ? Number(res.best.score) : 0;
   const p = Math.max(0, Math.min(100, Math.round(score * 100)));
-  $("scoreRing").style.setProperty("--p", p);
+  const circumference = 2 * Math.PI * 44;
+  const arc = $("scoreArc");
+  if (arc) arc.style.strokeDashoffset = String(circumference * (1 - score));
   $("scoreValue").textContent = res.best ? p : "--";
   $("bestName").textContent = res.best ? res.best.name : "";
   if (res.current) {
@@ -211,13 +224,14 @@ function resultRows() {
     const p50 = dead ? "—" : r.median_ms + "ms";
     const p90 = dead ? "—" : r.p90_ms + "ms";
     const jitter = dead ? "—" : r.jitter_ms + "ms";
+    const latCls = dead ? "err" : r.p90_ms <= 200 ? "ok" : r.p90_ms <= 500 ? "warn" : "err";
     return `<div class="node-row ${best} ${selected}" data-name="${esc(r.name)}">
       <div class="node-rank">${i + 1}</div>
       <div class="node-name" title="${esc(r.name)}">${esc(r.name)}</div>
       <div class="node-type">${esc(r.type)}</div>
       <div class="node-num ${cls}">${r.success}/${r.total}</div>
       <div class="node-num">${p50}</div>
-      <div class="node-num">${p90}</div>
+      <div class="node-num ${latCls}">${p90}</div>
       <div class="node-num">${jitter}</div>
       <div class="node-score">${Number(r.score).toFixed(3)}</div>
     </div>`;
@@ -323,32 +337,59 @@ async function importSub() {
 
 function switchView(name) {
   document.querySelectorAll(".view").forEach((v) => v.classList.toggle("active", v.id === "view-" + name));
-  document.querySelectorAll(".rail-item[data-view]").forEach((b) => b.classList.toggle("active", b.dataset.view === name));
+  document.querySelectorAll(".rail-item[data-view], .bottom-item[data-view]").forEach((b) => b.classList.toggle("active", b.dataset.view === name));
   const meta = viewMeta[name] || ["", ""];
   $("viewTitle").textContent = meta[0];
   $("viewSub").textContent = meta[1];
   if (name === "nodes") renderNodesList();
 }
 
-function initTheme() {
-  const saved = localStorage.getItem("nodepulse.theme");
-  if (saved === "light" || saved === "dark") document.documentElement.dataset.theme = saved;
-  updateThemeIcon();
+const THEME_KEY = "nodepulse.theme";
+const THEME_MODES = ["system", "light", "dark"];
+
+function systemDark() {
+  return !(window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches);
 }
-function updateThemeIcon() {
-  const dark = document.documentElement.dataset.theme !== "light";
-  $("themeToggle").querySelector("use").setAttribute("href", dark ? "#i-sun" : "#i-moon");
+function currentThemeMode() {
+  const m = localStorage.getItem(THEME_KEY) || "system";
+  return THEME_MODES.includes(m) ? m : "system";
+}
+function applyTheme(mode) {
+  const dark = mode === "dark" || (mode === "system" && systemDark());
+  document.documentElement.dataset.theme = dark ? "dark" : "light";
+  document.documentElement.dataset.themeMode = mode;
+  updateThemeIcon(mode);
+}
+function updateThemeIcon(mode) {
+  const icon = mode === "light" ? "#i-sun" : mode === "dark" ? "#i-moon" : "#i-monitor";
+  const title = mode === "system" ? "主题：跟随系统" : mode === "light" ? "主题：亮色" : "主题：暗色";
+  ["themeToggle", "themeToggleMobile"].forEach((id) => {
+    const el = $(id);
+    if (!el) return;
+    el.querySelector("use").setAttribute("href", icon);
+    el.title = title;
+  });
+}
+function initTheme() {
+  applyTheme(currentThemeMode());
+  const mq = window.matchMedia && window.matchMedia("(prefers-color-scheme: light)");
+  if (!mq) return;
+  const onChange = () => { if (currentThemeMode() === "system") applyTheme("system"); };
+  if (mq.addEventListener) mq.addEventListener("change", onChange);
+  else if (mq.addListener) mq.addListener(onChange);
 }
 function toggleTheme() {
-  const next = document.documentElement.dataset.theme === "light" ? "dark" : "light";
-  document.documentElement.dataset.theme = next;
-  localStorage.setItem("nodepulse.theme", next);
-  updateThemeIcon();
+  const cur = currentThemeMode();
+  const next = cur === "system" ? "light" : cur === "light" ? "dark" : "system";
+  localStorage.setItem(THEME_KEY, next);
+  applyTheme(next);
+  snack("主题：" + (next === "system" ? "跟随系统" : next === "light" ? "亮色" : "暗色"));
 }
 
 function wire() {
-  document.querySelectorAll(".rail-item[data-view]").forEach((b) => b.addEventListener("click", () => switchView(b.dataset.view)));
+  document.querySelectorAll(".rail-item[data-view], .bottom-item[data-view]").forEach((b) => b.addEventListener("click", () => switchView(b.dataset.view)));
   $("themeToggle").addEventListener("click", toggleTheme);
+  $("themeToggleMobile")?.addEventListener("click", toggleTheme);
   $("oneClick").addEventListener("click", () => oneClick(true));
   $("testOnly").addEventListener("click", () => oneClick(false));
   $("daemonToggle").addEventListener("change", (e) => toggleDaemon(e.target.checked));

@@ -17,7 +17,7 @@ NodePulse 的 GUI 与本地 Web UI 共用同一套 UI 资源（`internal/uiasset
 | 角色 | 用途 |
 |---|---|
 | `--md-primary` / `on-primary` | 主按钮、选中导航、评分环 |
-| `--md-primary-container` | 强调背景（hero 渐变） |
+| `--md-primary-container` | 强调背景 |
 | `--md-secondary-container` | tonal 按钮、激活项 |
 | `--md-surface` | 页面背景 |
 | `--md-surface-container` | 卡片 |
@@ -38,6 +38,28 @@ NodePulse 的 GUI 与本地 Web UI 共用同一套 UI 资源（`internal/uiasset
 | 14px / 400 | 正文 |
 | 12px / 400 | 辅助文本 |
 | 11px / 500 | 标签、节点表头 |
+
+## 主题
+
+- 默认 **跟随系统**（`prefers-color-scheme`），不写死明暗；
+- 三态循环：系统 → 亮色 → 暗色 → 系统；
+- 选择保存在 `localStorage`，系统模式时监听系统变化实时切换；
+- 首屏在 `<head>` 内联脚本里先设 `data-theme`，避免闪烁。
+
+## 顶部操作栏
+
+采用**自定义 Material 3 Top App Bar**，而不是假装成系统原生标题栏：
+
+- 保留系统原生窗口边框/窗口按钮（Wails 默认窗口），拖拽、缩放、贴边交给系统；
+- 应用内部用自定义 Top App Bar 放标题、连接状态、版本、刷新等操作；
+- 移动端 Web 使用同一个 Top App Bar，配合底部 Dock；
+- 这与 FlClash 的做法一致：原生窗口 + 应用内自定义 AppBar。
+
+## 响应式
+
+- `>900px`：左侧 Navigation Rail（带文字）；
+- `700–900px`：Rail 收成图标，节点表隐藏类型/抖动列，保留 OK / P50 / P90 / 评分；
+- `<700px`：隐藏 Rail，底部 Navigation Dock（仪表盘/节点/设置/历史/主题），订阅行改为上下布局。
 
 ## 形状与组件
 
@@ -75,6 +97,17 @@ NodePulse 的 GUI 与本地 Web UI 共用同一套 UI 资源（`internal/uiasset
 - `gui/`：Wails 直接调用 Go 绑定；
 - `internal/webui`：同一套静态资源 + `web-shim.js` 把 `window.go.main.App` 映射到 HTTP API；
 - 主题变量集中在 `style.css` 的 `:root` 与 `[data-theme="light"]`。
+
+## 从 FlClash 借鉴的点
+
+浅克隆 `chen08209/FlClash` 后，只借鉴设计/交互，不复制其 GPL 代码：
+
+- 自定义 AppBar + 应用内操作，不伪装系统标题栏；
+- 卡片统一圆角/内边距/轻阴影，卡片头用图标 + 标题 + trailing；
+- 状态 chip（运行/连接/警告）与状态色；
+- 桌面侧栏 + 移动端底部 Dock 的响应式切换；
+- 断点驱动的密度变化（隐藏次要列）；
+- 不使用装饰性渐变，层级靠 surface 色阶与描边/阴影。
 
 ## 参考
 
