@@ -37,37 +37,37 @@ nodepulse export -f testdata/subscription.yaml -i results.json -o stable.yaml
 
 验收：当当前节点连续失败或明显变差时，守护进程在 2 个周期内切换到更稳节点，并在失败时回滚。
 
-## Phase 3 · GUI + 托盘 + 打包
+## Phase 3 · GUI + 打包（已实现，托盘/本地 Web UI 后续）
 
-- [ ] Wails 应用：仪表盘、节点表、订阅、设置、历史
-- [ ] 托盘菜单：立即测试 / 自动模式开关 / 打开面板 / 退出
-- [ ] 本地 Web UI（127.0.0.1 随机端口）
-- [ ] `.deb`（nfpm）
-- [ ] AppImage
-- [ ] GitHub Actions 发布 linux/amd64、arm64
-- [ ] 图标、桌面入口、systemd user unit
+- [x] Wails 应用：连接/状态、订阅测速、结果表、切换、导出
+- [ ] 托盘菜单（后续）
+- [ ] 独立本地 Web UI（Wails 窗口已覆盖 GUI 需求）
+- [x] `.deb`（nfpm 配置）
+- [x] AppImage 构建脚本
+- [x] GitHub Actions 发布工作流
+- [x] 图标、桌面入口、systemd user unit
 
-验收：下载 `.deb` 安装后，托盘可用，能导入订阅并看到稳定性排名。
+验收：`make gui` 构建桌面应用；`make deb` / `make appimage` 产出安装包。
 
-## Phase 4 · MCP + dsh 插件
+## Phase 4 · MCP + dsh 插件（已实现）
 
-- [ ] MCP stdio server
-- [ ] 工具：`list_profiles`、`list_nodes`、`test_nodes`、`rank_nodes`、`get_current`、`switch_node`、`export_config`、`daemon_status`
-- [ ] MCP 资源：最近一次结果、节点历史
-- [ ] dsh 插件薄封装（复用 CLI/MCP）
-- [ ] 文档与示例
+- [x] MCP stdio server
+- [x] 工具：`nodes.list`、`nodes.test`、`nodes.rank`、`nodes.switch`、`export.stable`、`status.groups`、`history.recent`
+- [ ] MCP 资源（最近结果、节点历史）
+- [x] dsh 插件薄封装（复用 CLI）
+- [x] 文档与示例
 
-验收：在支持 MCP 的 agent 客户端里可以“测一下所有节点，切到最稳的”。
+验收：支持 MCP 的 agent 客户端可以“测一下所有节点，切到最稳的”。
 
-## Phase 5 · v2rayA / v2rayN 适配
+## Phase 5 · base64 / v2rayA / v2rayN（已实现）
 
-- [ ] v2rayA REST：读取节点、连接/切换
-- [ ] v2rayN：读取订阅/配置、导出过滤配置
-- [ ] v2rayN 可选“应用并重启”模式
-- [ ] base64 v2ray 订阅解析
+- [x] base64 分享链接订阅解析（vmess / vless / trojan / ss / hysteria2）
+- [x] v2rayA REST：login / touch / connect（状态与切换）
+- [x] v2rayN：导出 Clash 配置或 base64 订阅
+- [ ] v2rayN “应用并重启”模式
 - [ ] sing-box JSON 解析（可选）
 
-验收：v2rayA 可实时切换；v2rayN 能导入过滤后的配置并保留节点参数。
+验收：v2rayA 可切换；导出的 base64 订阅可被 v2rayN 导入。
 
 ## 后续候选
 

@@ -66,6 +66,41 @@ go test -race ./...
 - `internal/tester`：用 fake `Delayer` 验成功率
 - `internal/export`：过滤与导出
 
+## GUI
+
+```bash
+make gui          # 需要 libgtk-3-dev、libwebkit2gtk-4.1-dev
+./bin/nodepulse-gui
+```
+
+GUI 与 CLI 共用核心；绑定代码在 `gui/app.go`，前端在 `gui/frontend/dist`。
+
+## MCP
+
+```bash
+./bin/nodepulse mcp
+```
+
+用 JSON-RPC stdio 与 agent 客户端通信。工具列表见 `internal/mcp/tools.go`。
+
+## dsh 插件
+
+`plugins/dsh` 是 DeepSeek Harness 的薄封装，调用 `nodepulse` CLI：
+
+```bash
+cd plugins/dsh && npm pack
+dsh plugin --profile web add ./hanphone-dsh-nodepulse-0.1.0.tgz
+```
+
+## 打包
+
+```bash
+make deb        # 需要 nfpm
+make appimage   # 需要 appimagetool
+```
+
+`.deb` 内容见 `packaging/nfpm.yaml`；AppImage 脚本见 `packaging/build-appimage.sh`。
+
 ## 发布（Phase 3）
 
 计划使用 GoReleaser + nfpm + appimagetool：

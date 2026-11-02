@@ -174,10 +174,16 @@ internal/clash/         # Clash REST 客户端
 internal/tester/        # 测试引擎
 internal/score/         # 指标与评分
 internal/export/        # 配置导出
+internal/share/         # base64 / 分享链接解析与编码
 internal/sidecar/       # mihomo 生命周期
 internal/daemon/        # 自动切换守护
 internal/store/         # 历史记录（JSONL）
+internal/mcp/           # MCP stdio server
+internal/adapters/      # v2rayA 等客户端适配
 internal/cli/           # 命令行
+gui/                    # Wails 桌面应用（独立 Go module）
+plugins/dsh/            # DeepSeek Harness 插件
+packaging/              # 打包（nfpm / AppImage / systemd）
 ui/                     # Wails 前端（Phase 3）
 mcp/                    # MCP server（Phase 4）
 packaging/              # 打包（Phase 3）

@@ -15,11 +15,14 @@ import (
 	"text/tabwriter"
 	"time"
 
+	"github.com/HanphoneJan/nodepulse/internal/adapters/v2raya"
 	"github.com/HanphoneJan/nodepulse/internal/clash"
 	"github.com/HanphoneJan/nodepulse/internal/config"
 	"github.com/HanphoneJan/nodepulse/internal/daemon"
 	"github.com/HanphoneJan/nodepulse/internal/export"
+	"github.com/HanphoneJan/nodepulse/internal/mcp"
 	"github.com/HanphoneJan/nodepulse/internal/score"
+	"github.com/HanphoneJan/nodepulse/internal/share"
 	"github.com/HanphoneJan/nodepulse/internal/sidecar"
 	"github.com/HanphoneJan/nodepulse/internal/store"
 	"github.com/HanphoneJan/nodepulse/internal/subscription"
@@ -58,6 +61,12 @@ func Run(args []string, version string) int {
 		return cmdStatus(args[1:])
 	case "history":
 		return cmdHistory(args[1:])
+	case "switch":
+		return cmdSwitch(args[1:])
+	case "v2raya":
+		return cmdV2raya(args[1:])
+	case "mcp":
+		return cmdMCP(args[1:], version)
 	default:
 		fmt.Fprintf(os.Stderr, "未知命令 %q\n\n", args[0])
 		usage()
@@ -75,7 +84,10 @@ func usage() {
   nodepulse export -f <config.yaml> -i <results.json> -o <stable.yaml>
   nodepulse daemon --api http://127.0.0.1:9090 [options]
   nodepulse status --api http://127.0.0.1:9090
+  nodepulse switch --api http://127.0.0.1:9090 --group <组> --node <节点>
+  nodepulse v2raya login|status|switch
   nodepulse history [-n 20]
+  nodepulse mcp
 
 命令:
   nodes    列出节点
@@ -84,7 +96,10 @@ func usage() {
   export   过滤并导出 Clash 配置
   daemon   定时测速并自动切换节点
   status   查看客户端当前节点
+  switch   切换 Selector 组到指定节点
+  v2raya   v2rayA 适配（login / status / switch）
   history  查看切换历史
+  mcp      启动 MCP stdio server（给 agent 客户端用）
   version  版本
 
 运行 "nodepulse <command> -h" 查看该命令的参数。
@@ -274,6 +289,7 @@ func cmdExport(args []string) int {
 	maxP90 := fs.Int("max-p90", 0, "P90 上限（ms，0 表示不限制）")
 	maxJitter := fs.Int("max-jitter", 0, "抖动上限（ms，0 表示不限制）")
 	testURL := fs.String("url", defaultTestURL, "导出配置里的测试 URL")
+	format := fs.String("format", "clash", "导出格式：clash | v2rayn")
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
@@ -302,9 +318,25 @@ func cmdExport(args []string) int {
 		fmt.Fprintln(os.Stderr, "导出失败:", err)
 		return 1
 	}
-	if err := sel.Config.Write(*out); err != nil {
-		fmt.Fprintln(os.Stderr, "写入失败:", err)
-		return 1
+	switch strings.ToLower(*format) {
+	case "", "clash":
+		if err := sel.Config.Write(*out); err != nil {
+			fmt.Fprintln(os.Stderr, "写入失败:", err)
+			return 1
+		}
+	case "v2rayn", "v2ray", "share":
+		body, err := share.EncodeSubscription(sel.Config.Proxies)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "编码分享链接失败:", err)
+			return 1
+		}
+		if err := os.WriteFile(*out, body, 0o600); err != nil {
+			fmt.Fprintln(os.Stderr, "写入失败:", err)
+			return 1
+		}
+	default:
+		fmt.Fprintf(os.Stderr, "不支持的导出格式 %q（clash | v2rayn）\n", *format)
+		return 2
 	}
 	fmt.Printf("已写入 %s：保留 %d 个节点，排除 %d 个\n", *out, len(sel.Included), len(sel.Excluded))
 	if len(sel.Excluded) > 0 {
@@ -562,4 +594,186 @@ func cmdHistory(args []string) int {
 	}
 	w.Flush()
 	return 0
+}
+
+func cmdSwitch(args []string) int {
+	fs := flag.NewFlagSet("switch", flag.ContinueOnError)
+	fs.SetOutput(os.Stderr)
+	api := fs.String("api", "", "Clash 控制口，如 http://127.0.0.1:9090")
+	secret := fs.String("secret", "", "Clash 控制口 secret")
+	group := fs.String("group", "", "Selector 组名")
+	node := fs.String("node", "", "节点名")
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+	if *api == "" || *group == "" || *node == "" {
+		fmt.Fprintln(os.Stderr, "需要 --api、--group、--node")
+		return 2
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	if err := clash.New(*api, *secret).Switch(ctx, *group, *node); err != nil {
+		fmt.Fprintln(os.Stderr, "切换失败:", err)
+		return 1
+	}
+	fmt.Printf("已切换 %s -> %s\n", *group, *node)
+	return 0
+}
+
+func cmdMCP(_ []string, version string) int {
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	if err := mcp.Run(ctx, os.Stdin, os.Stdout, version); err != nil && !errors.Is(err, context.Canceled) {
+		fmt.Fprintln(os.Stderr, "MCP server 退出:", err)
+		return 1
+	}
+	return 0
+}
+
+const defaultV2rayaURL = "http://127.0.0.1:2017"
+
+func cmdV2raya(args []string) int {
+	if len(args) == 0 {
+		fmt.Fprint(os.Stderr, `用法:
+  nodepulse v2raya login  --url http://127.0.0.1:2017 --username <u> --password <p>
+  nodepulse v2raya status --url http://127.0.0.1:2017 [--token <jwt> | --username <u> --password <p>]
+  nodepulse v2raya switch --url http://127.0.0.1:2017 [--token <jwt> | --username <u> --password <p>] --node <name>
+`)
+		return 2
+	}
+	switch args[0] {
+	case "login":
+		return cmdV2rayaLogin(args[1:])
+	case "status":
+		return cmdV2rayaStatus(args[1:])
+	case "switch":
+		return cmdV2rayaSwitch(args[1:])
+	default:
+		fmt.Fprintf(os.Stderr, "未知 v2raya 子命令 %q\n", args[0])
+		return 2
+	}
+}
+
+func cmdV2rayaLogin(args []string) int {
+	fs := flag.NewFlagSet("v2raya login", flag.ContinueOnError)
+	fs.SetOutput(os.Stderr)
+	base := fs.String("url", defaultV2rayaURL, "v2rayA 地址")
+	username := fs.String("username", "", "用户名")
+	password := fs.String("password", "", "密码")
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+	if *username == "" || *password == "" {
+		fmt.Fprintln(os.Stderr, "需要 --username 和 --password")
+		return 2
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+	c := v2raya.New(*base)
+	if err := c.Login(ctx, *username, *password); err != nil {
+		fmt.Fprintln(os.Stderr, "登录失败:", err)
+		return 1
+	}
+	fmt.Println(c.Token)
+	return 0
+}
+
+func v2rayaAuth(ctx context.Context, base, token, username, password string) (*v2raya.Client, error) {
+	c := v2raya.New(base)
+	if token != "" {
+		c.Token = token
+		return c, nil
+	}
+	if username != "" {
+		if err := c.Login(ctx, username, password); err != nil {
+			return nil, err
+		}
+		return c, nil
+	}
+	return nil, fmt.Errorf("需要 --token 或 --username/--password")
+}
+
+func cmdV2rayaStatus(args []string) int {
+	fs := flag.NewFlagSet("v2raya status", flag.ContinueOnError)
+	fs.SetOutput(os.Stderr)
+	base := fs.String("url", defaultV2rayaURL, "v2rayA 地址")
+	token := fs.String("token", "", "JWT token")
+	username := fs.String("username", "", "用户名")
+	password := fs.String("password", "", "密码")
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	c, err := v2rayaAuth(ctx, *base, *token, *username, *password)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		return 1
+	}
+	touch, err := c.Touch(ctx)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "查询失败:", err)
+		return 1
+	}
+	fmt.Printf("v2rayA running: %v\n\n", touch.Running)
+	w := tabwriter.NewWriter(os.Stdout, 0, 4, 2, ' ', 0)
+	fmt.Fprintln(w, "GROUP\tNAME\tNET\tLATENCY\tADDRESS\tCURRENT")
+	for _, n := range touch.Nodes() {
+		mark := ""
+		if refConnected(touch.Touch.ConnectedServers, n.Ref) {
+			mark = "*"
+		}
+		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\n", n.Group, n.Name, n.Net, n.Latency, n.Address, mark)
+	}
+	w.Flush()
+	return 0
+}
+
+func cmdV2rayaSwitch(args []string) int {
+	fs := flag.NewFlagSet("v2raya switch", flag.ContinueOnError)
+	fs.SetOutput(os.Stderr)
+	base := fs.String("url", defaultV2rayaURL, "v2rayA 地址")
+	token := fs.String("token", "", "JWT token")
+	username := fs.String("username", "", "用户名")
+	password := fs.String("password", "", "密码")
+	node := fs.String("node", "", "节点名（支持部分匹配）")
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+	if *node == "" {
+		fmt.Fprintln(os.Stderr, "需要 --node")
+		return 2
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+	defer cancel()
+	c, err := v2rayaAuth(ctx, *base, *token, *username, *password)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		return 1
+	}
+	touch, err := c.Touch(ctx)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "查询失败:", err)
+		return 1
+	}
+	n, ok := touch.FindNode(*node)
+	if !ok {
+		fmt.Fprintf(os.Stderr, "没有找到节点 %q\n", *node)
+		return 1
+	}
+	if err := c.Connect(ctx, n.Ref); err != nil {
+		fmt.Fprintln(os.Stderr, "切换失败:", err)
+		return 1
+	}
+	fmt.Printf("已切换 v2rayA -> %s (%s)\n", n.Name, n.Group)
+	return 0
+}
+
+func refConnected(refs []v2raya.Ref, want v2raya.Ref) bool {
+	for _, r := range refs {
+		if r.Type == want.Type && r.ID == want.ID && r.Sub == want.Sub {
+			return true
+		}
+	}
+	return false
 }

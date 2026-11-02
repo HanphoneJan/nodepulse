@@ -1,0 +1,13 @@
+[Unit]
+Description=NodePulse node stability daemon
+Documentation=https://github.com/HanphoneJan/nodepulse
+After=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/nodepulse daemon --api http://127.0.0.1:9090 --interval 5m
+Restart=on-failure
+RestartSec=10s
+
+[Install]
+WantedBy=default.target

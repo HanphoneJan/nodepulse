@@ -8,8 +8,8 @@
 | Clash Verge Rev | ✅ | ✅ | Clash REST API | 默认控制口通常已开 |
 | Mihomo Party | ✅ | ✅ | Clash REST API | 在设置里确认端口和 secret |
 | sing-box GUI | ✅ | ✅ | `experimental.clash_api` | 需要启用 clash_api |
-| v2rayA | ✅（规划） | ✅（规划） | v2rayA REST API | 需要登录 token |
-| v2rayN | ✅（导出） | ⚠️ 受限 | 读取配置 + 导出 | 无稳定本地控制 API |
+| v2rayA | ✅ | ✅ | v2rayA REST API | `v2raya login/status/switch` |
+| v2rayN | ✅（导出） | ⚠️ 受限 | 导出 Clash / base64 订阅 | 无稳定本地控制 API |
 | 任意订阅 URL | ✅ | — | 内置 mihomo sidecar | 不需要客户端 |
 
 图例：✅ 支持；⚠️ 需要额外配置或有条件；— 不适用。
@@ -69,19 +69,29 @@ sing-box 本身没有 Clash 控制口，需要在配置里启用：
 
 ## v2rayA
 
-- v2rayA 自带 REST API（默认 `127.0.0.1:2017`）；
-- 需要登录拿 token；
-- Phase 5 实现适配：读取节点、连接/切换；
-- 目前可先用 sidecar 模式测速，再手动在 v2rayA 里选。
+v2rayA 自带 REST API（默认 `127.0.0.1:2017`）：
+
+```bash
+# 登录拿 token
+nodepulse v2raya login --url http://127.0.0.1:2017 --username <u> --password <p>
+
+# 查看节点与当前选择
+nodepulse v2raya status --url http://127.0.0.1:2017 --token <jwt>
+
+# 切换（支持部分名称匹配）
+nodepulse v2raya switch --url http://127.0.0.1:2017 --token <jwt> --node "香港"
+```
+
+也可以每次传 `--username/--password` 自动登录。
 
 ## v2rayN
 
-v2rayN 没有稳定的本地控制 API，强实时切换只能改数据库或重启核心，风险高。v1 策略：
+v2rayN 没有稳定的本地控制 API，强实时切换只能改数据库或重启核心，风险高。当前策略：
 
-1. 读取 v2rayN 的订阅 URL 或导出的 Clash 配置；
-2. 用 sidecar 测速；
-3. 导出只包含稳定节点的配置；
-4. 在 v2rayN 里导入该配置。
+1. 用 sidecar 或 Clash 控制口测速；
+2. 导出 Clash 配置：`nodepulse export ... -o stable.yaml`
+3. 或导出 base64 订阅：`nodepulse export ... -o stable.txt --format v2rayn`
+4. 在 v2rayN 里导入该文件。
 
 后续可选“应用并重启”模式：写入配置后调用 v2rayN 的重启，不修改其内部数据库。
 

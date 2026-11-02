@@ -1,0 +1,5 @@
+# @hanphone/dsh-nodepulse bundle patch: mount the plugin as one row.
+- insert:
+    - id: nodepulse
+      name: '@hanphone/dsh-nodepulse'
+      config: {}

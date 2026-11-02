@@ -19,12 +19,16 @@ NodePulse 解决的是“**哪个节点真的稳**”，而不是“哪个节点
 ## 功能
 
 - 解析 Clash / mihomo 订阅配置（YAML）；
+- 解析 base64 分享链接订阅（vmess / vless / trojan / ss / hysteria2）；
 - 内置 mihomo sidecar，用订阅在本地随机端口跑测试，不依赖具体客户端；
 - 也支持直接连接已有的 Clash REST 控制口（FlClash / Clash Verge / Mihomo Party / sing-box）；
 - 多轮真实代理请求，统计成功率、P50、P90、最大值、抖动；
 - 稳定性评分与排序；
-- 导出只包含稳定节点的 Clash 配置（`url-test` 自动组）；
-- 预留自动切换、定时守护、MCP server 和 GUI。
+- 导出只包含稳定节点的 Clash 配置，或 v2rayN 可导入的 base64 订阅；
+- 守护进程：定时测试 + 滞后阈值 + 自动切换 + 失败回滚；
+- Wails 桌面 GUI；
+- MCP server（通用 agent 入口）与 dsh 插件；
+- v2rayA 适配（状态 / 切换）。
 
 ## 快速开始
 
@@ -39,6 +43,10 @@ NodePulse 解决的是“**哪个节点真的稳**”，而不是“哪个节点
 make build
 # 或
 go build -o bin/nodepulse ./cmd/nodepulse
+
+# GUI（需要 GTK3 + WebKit2GTK 4.1 开发库）
+make gui
+./bin/nodepulse-gui
 ```
 
 ### 1. 准备订阅配置
@@ -94,6 +102,12 @@ nodepulse export \
 
 把 `stable.yaml` 导入客户端即可，里面只保留通过阈值的节点，并自动生成一个 `Auto`（url-test）组。
 
+导出 v2rayN / 通用 base64 订阅：
+
+```bash
+nodepulse export -f sub.yaml -i results.json -o stable.txt --format v2rayn
+```
+
 ## 命令
 
 | 命令 | 说明 |
@@ -104,6 +118,9 @@ nodepulse export \
 | `nodepulse export -f <config> -i <results.json>` | 导出过滤后的 Clash 配置 |
 | `nodepulse daemon --api <url>` | 定时测速并自动切换节点 |
 | `nodepulse status --api <url>` | 查看控制口里的组和当前节点 |
+| `nodepulse switch --api <url> --group <组> --node <节点>` | 切换 Selector 组 |
+| `nodepulse v2raya login\|status\|switch` | v2rayA 适配 |
+| `nodepulse mcp` | 启动 MCP stdio server |
 | `nodepulse history` | 查看切换历史 |
 | `nodepulse version` | 版本信息 |
 
@@ -160,8 +177,8 @@ score = 0.5 * success + 0.3 * latencyScore + 0.2 * stabilityScore
 | Clash Verge Rev | 支持 | 支持 | Clash REST API |
 | Mihomo Party | 支持 | 支持 | Clash REST API |
 | sing-box GUI | 支持 | 支持 | `clash_api` |
-| v2rayA | 规划中 | 规划中 | v2rayA REST API |
-| v2rayN | 支持（导出） | 受限 | 读取配置 + 导出 |
+| v2rayA | 支持 | 支持 | v2rayA REST API |
+| v2rayN | 支持（导出） | 受限 | Clash 配置 / base64 订阅导入 |
 | 任意订阅 URL | 支持 | — | 内置 mihomo sidecar |
 
 详见 [docs/adapter-matrix.md](docs/adapter-matrix.md)。
@@ -177,10 +194,10 @@ score = 0.5 * success + 0.3 * latencyScore + 0.2 * stabilityScore
 ## 路线图
 
 - [x] Phase 1：核心引擎 + CLI
-- [ ] Phase 2：Clash 适配 + 守护/自动切换
-- [ ] Phase 3：Wails GUI + 托盘 + `.deb`/AppImage
-- [ ] Phase 4：MCP server + dsh 插件
-- [ ] Phase 5：v2rayA / v2rayN 适配
+- [x] Phase 2：Clash 适配 + 守护/自动切换
+- [x] Phase 3：Wails GUI + 打包配置（托盘/本地 Web UI 后续）
+- [x] Phase 4：MCP server + dsh 插件
+- [x] Phase 5：base64 订阅 + v2rayA 适配 + v2rayN 导出
 
 ## License
 

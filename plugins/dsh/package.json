@@ -1,0 +1,34 @@
+{
+  "name": "@hanphone/dsh-nodepulse",
+  "version": "0.1.0",
+  "description": "NodePulse plugin for DeepSeek Harness: stability testing, ranking and node switching as a model tool.",
+  "type": "module",
+  "license": "Apache-2.0",
+  "main": "./lib/index.js",
+  "exports": {
+    ".": "./lib/index.js",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib",
+    "cordis.patch.yml",
+    "README.md"
+  ],
+  "keywords": [
+    "deepseek-harness",
+    "dsh",
+    "cordis",
+    "proxy",
+    "clash",
+    "mihomo",
+    "latency",
+    "stability",
+    "plugin"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "*"
+  }
+}
