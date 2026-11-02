@@ -47,9 +47,12 @@ go build -o bin/nodepulse ./cmd/nodepulse
 # GUI（需要 GTK3 + WebKit2GTK 4.1 开发库，带系统托盘）
 make gui
 ./bin/nodepulse-gui
+# 或者一步构建并启动
+make run
 
 # 或者浏览器里的本地 Web UI
-./bin/nodepulse serve --addr 127.0.0.1:8099
+make web
+# 等价于 ./bin/nodepulse serve --addr 127.0.0.1:8099
 ```
 
 ### 1. 准备订阅配置
