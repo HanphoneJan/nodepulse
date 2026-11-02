@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"sort"
@@ -40,6 +41,8 @@ type App struct {
 
 	daemonCancel  context.CancelFunc
 	daemonRunning bool
+	daemonSeq     uint64
+	daemonDone    chan struct{}
 }
 
 // NewApp creates the binding object.
@@ -54,6 +57,15 @@ func (a *App) startup(ctx context.Context) {
 // Version returns the GUI version.
 func (a *App) Version() string {
 	return version.Version
+}
+
+// ClearResults drops the last ranked results, used when switching environments
+// so stale nodes cannot be selected or exported under a new subscription.
+func (a *App) ClearResults() {
+	a.mu.Lock()
+	a.lastResults = nil
+	a.lastConfigPath = ""
+	a.mu.Unlock()
 }
 
 // Results returns the last ranked results held by this GUI process.
@@ -103,6 +115,7 @@ func (a *App) Bootstrap() (BootstrapResult, error) {
 			s.ConfigPath = files[0]
 		}
 	}
+	s.SyncActiveProfile()
 	out := BootstrapResult{
 		Controllers:   controllers,
 		Mihomo:        mihomo,
@@ -181,6 +194,10 @@ func (a *App) ImportSubscription(rawURL string) (string, error) {
 	if rawURL == "" {
 		return "", fmt.Errorf("请填写订阅 URL")
 	}
+	parsed, err := url.Parse(rawURL)
+	if err != nil || parsed.Host == "" || (parsed.Scheme != "http" && parsed.Scheme != "https") {
+		return "", fmt.Errorf("订阅 URL 必须是 http 或 https")
+	}
 	client := &http.Client{Timeout: 45 * time.Second}
 	resp, err := client.Get(rawURL)
 	if err != nil {
@@ -224,14 +241,23 @@ func (a *App) StartDaemon(api, secret, group string, intervalSec, rounds int, ma
 		return fmt.Errorf("后台自动优化已经在运行")
 	}
 	ctx, cancel := context.WithCancel(a.ctx)
+	a.daemonSeq++
+	id := a.daemonSeq
+	done := make(chan struct{})
 	a.daemonCancel = cancel
 	a.daemonRunning = true
+	a.daemonDone = done
 	a.mu.Unlock()
 
 	st, err := store.New(store.DefaultPath())
 	if err != nil {
 		a.mu.Lock()
-		a.daemonRunning = false
+		if a.daemonSeq == id {
+			a.daemonRunning = false
+			a.daemonCancel = nil
+			a.daemonDone = nil
+		}
+		close(done)
 		a.mu.Unlock()
 		cancel()
 		return err
@@ -256,23 +282,39 @@ func (a *App) StartDaemon(api, secret, group string, intervalSec, rounds int, ma
 	go func() {
 		_ = d.Run(ctx)
 		a.mu.Lock()
-		a.daemonRunning = false
-		a.daemonCancel = nil
+		if a.daemonSeq == id {
+			a.daemonRunning = false
+			a.daemonCancel = nil
+			a.daemonDone = nil
+		}
 		a.mu.Unlock()
+		close(done)
 	}()
 	return nil
 }
 
-// StopDaemon stops the background loop.
+// StopDaemon stops the background loop and waits briefly for the run loop to
+// exit so a subsequent start cannot overlap with the old one.
 func (a *App) StopDaemon() error {
 	a.mu.Lock()
-	defer a.mu.Unlock()
-	if a.daemonCancel == nil {
+	cancel := a.daemonCancel
+	done := a.daemonDone
+	if cancel == nil {
+		a.mu.Unlock()
 		return nil
 	}
-	a.daemonCancel()
 	a.daemonCancel = nil
 	a.daemonRunning = false
+	a.daemonDone = nil
+	a.mu.Unlock()
+
+	cancel()
+	if done != nil {
+		select {
+		case <-done:
+		case <-time.After(3 * time.Second):
+		}
+	}
 	return nil
 }
 
@@ -432,14 +474,30 @@ func (a *App) Export(out string, minSuccess float64) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	sel, err := export.Stable(cfg, results, export.Options{MinSuccess: minSuccess, TestURL: defaultTestURL})
+	sel, err := export.Stable(cfg, results, export.Options{MinSuccess: minSuccess, TestURL: defaultTestURL, Preserve: true})
 	if err != nil {
 		return "", err
+	}
+	if a.ctx != nil {
+		chosen, err := runtime.SaveFileDialog(a.ctx, runtime.SaveDialogOptions{
+			Title:           "导出稳定配置",
+			DefaultFilename: filepath.Base(out),
+			Filters: []runtime.FileFilter{
+				{DisplayName: "Clash YAML (*.yaml)", Pattern: "*.yaml"},
+			},
+		})
+		if err != nil {
+			return "", err
+		}
+		if chosen == "" {
+			return "", fmt.Errorf("已取消导出")
+		}
+		out = chosen
 	}
 	if err := sel.Config.Write(out); err != nil {
 		return "", err
 	}
-	return fmt.Sprintf("已写入 %s：保留 %d 个，排除 %d 个", out, len(sel.Included), len(sel.Excluded)), nil
+	return fmt.Sprintf("已写入 %s（保留原规则/分组）：保留 %d 个，排除 %d 个", out, len(sel.Included), len(sel.Excluded)), nil
 }
 
 // ChooseConfig opens a file dialog for the subscription config.

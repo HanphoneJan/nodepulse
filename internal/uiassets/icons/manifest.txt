@@ -16,6 +16,7 @@ monitor         desktop_windows-fill
 chevron         keyboard_arrow_down-fill
 palette         palette-fill
 monitoring      monitoring-fill
+swap            swap_horiz-fill
 speed           speed-fill
 checkCircle     check_circle-fill
 wifiOff         wifi_off-fill

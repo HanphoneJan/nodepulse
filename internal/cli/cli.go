@@ -294,6 +294,7 @@ func cmdExport(args []string) int {
 	maxP90 := fs.Int("max-p90", 0, "P90 上限（ms，0 表示不限制）")
 	maxJitter := fs.Int("max-jitter", 0, "抖动上限（ms，0 表示不限制）")
 	testURL := fs.String("url", defaultTestURL, "导出配置里的测试 URL")
+	minimal := fs.Bool("minimal", false, "只导出最小配置；默认保留原规则/分组/DNS/TUN")
 	format := fs.String("format", "clash", "导出格式：clash | v2rayn")
 	if err := fs.Parse(args); err != nil {
 		return 2
@@ -318,6 +319,7 @@ func cmdExport(args []string) int {
 		MaxP90Ms:    *maxP90,
 		MaxJitterMs: *maxJitter,
 		TestURL:     *testURL,
+		Preserve:    !*minimal,
 	})
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "导出失败:", err)
@@ -343,7 +345,11 @@ func cmdExport(args []string) int {
 		fmt.Fprintf(os.Stderr, "不支持的导出格式 %q（clash | v2rayn）\n", *format)
 		return 2
 	}
-	fmt.Printf("已写入 %s：保留 %d 个节点，排除 %d 个\n", *out, len(sel.Included), len(sel.Excluded))
+	mode := "保留原规则/分组"
+	if !sel.Preserved {
+		mode = "最小配置"
+	}
+	fmt.Printf("已写入 %s（%s）：保留 %d 个节点，排除 %d 个\n", *out, mode, len(sel.Included), len(sel.Excluded))
 	if len(sel.Excluded) > 0 {
 		fmt.Fprintln(os.Stderr, "排除:", strings.Join(sel.Excluded, "、"))
 	}

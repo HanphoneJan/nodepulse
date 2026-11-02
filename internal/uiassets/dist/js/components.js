@@ -1,6 +1,7 @@
 import { html } from "./html.js";
 import { useEffect, useId, useRef, useState } from "../vendor/hooks.module.js";
 import { PRESETS, isPreset, seedInk, seedLabel } from "./theme.js";
+import { baseName, hostOf } from "./format.js";
 
 export function Icon({ name, className = "" }) {
   return html`<svg class="icon ${className}" aria-hidden="true" focusable="false"><use href="icons.svg#i-${name}"></use></svg>`;
@@ -246,6 +247,7 @@ export function Segmented({ label, value, options, onChange }) {
         type="radio"
         name=${name}
         value=${option.value}
+        aria-label=${option.label}
         checked=${option.value === value}
         onChange=${() => onChange(option.value)}
       />
@@ -283,6 +285,121 @@ export function SeedPicker({ seed, onSeed, onReset }) {
       <button type="button" class="md-button text small" onClick=${onReset}>恢复默认</button>
     </div>
     <p class="seed-status" aria-live="polite">当前：${seedLabel(seed)}</p>
+  </div>`;
+}
+
+export function ProfileMenu({ profiles, activeId, onSelect, onManage }) {
+  const [open, setOpen] = useState(false);
+  const wrapRef = useRef(null);
+  const buttonRef = useRef(null);
+  const menuRef = useRef(null);
+  const active = profiles.find((profile) => profile.id === activeId) || profiles[0];
+
+  const close = (restoreFocus = true) => {
+    setOpen(false);
+    if (restoreFocus) buttonRef.current?.focus();
+  };
+
+  useEffect(() => {
+    if (!open) return undefined;
+    const update = () => {
+      const button = buttonRef.current;
+      const menu = menuRef.current;
+      if (!button || !menu) return;
+      const rect = button.getBoundingClientRect();
+      const width = Math.min(320, window.innerWidth - 16);
+      const height = menu.offsetHeight;
+      menu.style.width = `${width}px`;
+      menu.style.left = `${Math.max(8, Math.min(rect.right - width, window.innerWidth - width - 8))}px`;
+      const below = rect.bottom + 4;
+      menu.style.top = `${below + height > window.innerHeight - 8 ? Math.max(8, rect.top - height - 4) : below}px`;
+    };
+    update();
+    const onPointerDown = (event) => {
+      if (!wrapRef.current?.contains(event.target)) close(false);
+    };
+    const onKeyDown = (event) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        close();
+      }
+    };
+    const onFocusIn = (event) => {
+      if (!wrapRef.current?.contains(event.target)) close(false);
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    document.addEventListener("focusin", onFocusIn);
+    window.addEventListener("resize", update);
+    window.addEventListener("scroll", update, true);
+    const timer = setTimeout(() => {
+      const target = menuRef.current?.querySelector(".profile-item.active") || menuRef.current?.querySelector("button");
+      target?.focus();
+    }, 0);
+    return () => {
+      clearTimeout(timer);
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+      document.removeEventListener("focusin", onFocusIn);
+      window.removeEventListener("resize", update);
+      window.removeEventListener("scroll", update, true);
+    };
+  }, [open]);
+
+  return html`<div class="profile-switch" ref=${wrapRef}>
+    <button
+      ref=${buttonRef}
+      type="button"
+      class="env-button"
+      aria-haspopup="menu"
+      aria-expanded=${open ? "true" : "false"}
+      aria-label=${`快速切换环境：${active ? active.name : "默认环境"}`}
+      title=${`快速切换环境：${active ? active.name : "默认环境"}`}
+      onClick=${() => (open ? close() : setOpen(true))}
+    >
+      <${Icon} name="swap" />
+      <span class="env-name">${active ? active.name : "默认环境"}</span>
+    </button>
+    ${open && html`<div
+      ref=${menuRef}
+      class="profile-menu"
+      role="menu"
+      aria-label="快速切换环境"
+      onKeyDown=${(event) => {
+        const items = [...(menuRef.current?.querySelectorAll(".profile-item, .profile-manage") || [])];
+        const index = items.indexOf(document.activeElement);
+        if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+          event.preventDefault();
+          const delta = event.key === "ArrowDown" ? 1 : -1;
+          const next = (index + delta + items.length) % items.length;
+          items[next]?.focus();
+        } else if (event.key === "Home" || event.key === "End") {
+          event.preventDefault();
+          items[event.key === "Home" ? 0 : items.length - 1]?.focus();
+        }
+      }}
+    >
+      <div class="profile-menu-head">快速切换环境</div>
+      ${profiles.length === 0
+        ? html`<div class="profile-empty">还没有保存的环境</div>`
+        : profiles.map((profile) => html`<button
+            key=${profile.id}
+            type="button"
+            role="menuitem"
+            class=${"profile-item" + (profile.id === (active && active.id) ? " active" : "")}
+            aria-current=${profile.id === (active && active.id) ? "true" : undefined}
+            onClick=${() => { onSelect(profile.id); close(); }}
+          >
+            <span class="profile-item-body">
+              <strong>${profile.name}</strong>
+              <small>${hostOf(profile.api)} · ${baseName(profile.configPath)}</small>
+            </span>
+            ${profile.id === (active && active.id) ? html`<${Icon} name="check" />` : null}
+          </button>`)}
+      <div class="profile-menu-foot">
+        <button type="button" role="menuitem" class="profile-manage" onClick=${() => { onManage(); close(); }}>管理环境…</button>
+      </div>
+    </div>`}
   </div>`;
 }
 

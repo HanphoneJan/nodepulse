@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"sort"
 	"strings"
@@ -44,6 +45,8 @@ type Server struct {
 	lastConfigPath string
 	daemonCancel   context.CancelFunc
 	daemonRunning  bool
+	daemonSeq      uint64
+	daemonDone     chan struct{}
 }
 
 // New creates a server with defaults.
@@ -58,10 +61,18 @@ func New(opts Options) *Server {
 		opts.HistoryPath = store.DefaultPath()
 	}
 	s := &Server{opts: opts, mux: http.NewServeMux()}
+	if data, err := readFile(opts.ResultsPath); err == nil {
+		var rf resultsFile
+		if json.Unmarshal(data, &rf) == nil && len(rf.Results) > 0 {
+			s.lastResults = rf.Results
+			s.lastConfigPath = rf.ConfigPath
+		}
+	}
 
 	s.mux.Handle("/", http.FileServer(http.FS(uiassets.Dist())))
 	s.mux.HandleFunc("/api/version", s.handleVersion)
 	s.mux.HandleFunc("/api/results", s.handleResults)
+	s.mux.HandleFunc("/api/results/clear", s.handleResultsClear)
 	s.mux.HandleFunc("/api/history", s.handleHistory)
 	s.mux.HandleFunc("/api/status", s.handleStatus)
 	s.mux.HandleFunc("/api/test", s.handleTest)
@@ -77,12 +88,38 @@ func New(opts Options) *Server {
 	return s
 }
 
-// Handler exposes the mux (used by tests).
-func (s *Server) Handler() http.Handler { return s.mux }
+// Handler exposes the secured mux (used by tests).
+func (s *Server) Handler() http.Handler { return secureHandler(s.mux) }
+
+// secureHandler keeps the local management API local and same-origin. It also
+// prevents API responses (settings/secret) from being cached.
+func secureHandler(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasPrefix(r.URL.Path, "/api/") {
+			w.Header().Set("Cache-Control", "no-store")
+			w.Header().Set("X-Content-Type-Options", "nosniff")
+			w.Header().Set("Referrer-Policy", "no-referrer")
+			if r.Method != http.MethodGet && r.Method != http.MethodHead && r.Method != http.MethodOptions {
+				if origin := r.Header.Get("Origin"); origin != "" {
+					u, err := url.Parse(origin)
+					if err != nil || !strings.EqualFold(u.Host, r.Host) {
+						http.Error(w, "cross-origin request rejected", http.StatusForbidden)
+						return
+					}
+				}
+				if strings.EqualFold(r.Header.Get("Sec-Fetch-Site"), "cross-site") {
+					http.Error(w, "cross-site request rejected", http.StatusForbidden)
+					return
+				}
+			}
+		}
+		next.ServeHTTP(w, r)
+	})
+}
 
 // Run serves until the context is canceled.
 func (s *Server) Run(ctx context.Context) error {
-	srv := &http.Server{Addr: s.opts.Addr, Handler: s.mux}
+	srv := &http.Server{Addr: s.opts.Addr, Handler: s.Handler()}
 	go func() {
 		<-ctx.Done()
 		shutdown, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -135,7 +172,7 @@ func (s *Server) handleHistory(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
 	api := queryOr(r, "api", s.opts.API)
-	secret := queryOr(r, "secret", s.opts.Secret)
+	secret := s.opts.Secret
 	switch r.Method {
 	case http.MethodGet:
 	case http.MethodPost:
@@ -234,29 +271,48 @@ func (s *Server) runTest(ctx context.Context, req testRequest) ([]score.Result, 
 	if req.TimeoutMs <= 0 {
 		req.TimeoutMs = 5000
 	}
-	if req.ConfigPath == "" {
-		return nil, fmt.Errorf("config_path is required")
+	if req.URL == "" {
+		req.URL = "https://www.gstatic.com/generate_204"
 	}
-	cfg, err := subscription.Load(req.ConfigPath)
-	if err != nil {
-		return nil, err
+	if req.ConfigPath == "" && req.API == "" {
+		return nil, fmt.Errorf("api or config_path is required")
 	}
-	nodes := make([]config.Proxy, 0, len(cfg.Proxies))
-	for _, n := range cfg.RealProxies() {
-		if !config.IsInfoNode(n.Name) {
-			nodes = append(nodes, n)
+
+	var cfg *config.Config
+	var nodes []config.Proxy
+	if req.ConfigPath != "" {
+		loaded, err := subscription.Load(req.ConfigPath)
+		if err != nil {
+			return nil, err
 		}
-	}
-	if len(nodes) == 0 {
-		return nil, fmt.Errorf("no testable nodes")
+		cfg = loaded
+		nodes = make([]config.Proxy, 0, len(cfg.Proxies))
+		for _, n := range cfg.RealProxies() {
+			if !config.IsInfoNode(n.Name) {
+				nodes = append(nodes, n)
+			}
+		}
 	}
 
 	var delayer tester.Delayer
 	var cleanup func()
 	if req.API != "" {
 		delayer = clash.New(req.API, req.Secret)
+		if len(nodes) == 0 {
+			proxies, err := clash.New(req.API, req.Secret).Proxies(ctx)
+			if err != nil {
+				return nil, err
+			}
+			for name, info := range proxies {
+				if isGroupType(info.Type) || !isTestable(info.Type) {
+					continue
+				}
+				nodes = append(nodes, config.Proxy{Name: name, Type: info.Type})
+			}
+			sort.Slice(nodes, func(i, j int) bool { return nodes[i].Name < nodes[j].Name })
+		}
 	} else {
-		if req.MihomoPath == "" {
+		if req.MihomoPath == "" || cfg == nil {
 			return nil, fmt.Errorf("api or mihomo_path is required")
 		}
 		sc, err := sidecar.Start(ctx, cfg, req.MihomoPath)
@@ -268,6 +324,9 @@ func (s *Server) runTest(ctx context.Context, req testRequest) ([]score.Result, 
 	}
 	if cleanup != nil {
 		defer cleanup()
+	}
+	if len(nodes) == 0 {
+		return nil, fmt.Errorf("no testable nodes")
 	}
 
 	t := tester.New(delayer, tester.Options{
@@ -283,6 +342,7 @@ func (s *Server) runTest(ctx context.Context, req testRequest) ([]score.Result, 
 		URL:         req.URL,
 		Rounds:      req.Rounds,
 		Results:     ranked,
+		ConfigPath:  req.ConfigPath,
 	}
 	if err := writeJSONFile(s.opts.ResultsPath, rf); err != nil {
 		return nil, err
@@ -326,6 +386,7 @@ type resultsFile struct {
 	GeneratedAt string         `json:"generated_at"`
 	URL         string         `json:"url"`
 	Rounds      int            `json:"rounds"`
+	ConfigPath  string         `json:"config_path,omitempty"`
 	Results     []score.Result `json:"results"`
 }
 
@@ -352,6 +413,14 @@ func queryOr(r *http.Request, key, fallback string) string {
 		return v
 	}
 	return fallback
+}
+
+func isTestable(t string) bool {
+	switch strings.ToLower(t) {
+	case "selector", "urltest", "fallback", "loadbalance", "direct", "reject", "rejectdrop", "compatible", "pass", "dns":
+		return false
+	}
+	return true
 }
 
 func isGroupType(t string) bool {

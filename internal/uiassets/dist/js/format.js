@@ -42,3 +42,14 @@ export function reasonLabel(reason) {
   };
   return map[reason] || reason || "";
 }
+
+export function hostOf(api) {
+  if (!api) return "未连接客户端";
+  try { return new URL(api).host; } catch (_) { return api; }
+}
+
+export function baseName(path) {
+  if (!path) return "未选择订阅";
+  const parts = String(path).split(/[\\/]/);
+  return parts[parts.length - 1] || path;
+}

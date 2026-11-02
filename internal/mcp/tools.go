@@ -95,6 +95,7 @@ func tools() []toolDef {
 				"min_success":   numProp("Minimum success rate 0..1 (default 0.8)"),
 				"max_p90_ms":    intProp("Maximum P90 in ms (0 = no limit)"),
 				"max_jitter_ms": intProp("Maximum jitter in ms (0 = no limit)"),
+				"minimal":       boolProp("Write only a minimal config; default preserves rules, groups, DNS and TUN"),
 			}, "config_path", "results_path"),
 			Handler: handleExportStable,
 		},
@@ -266,6 +267,7 @@ type exportArgs struct {
 	MinSuccess  float64 `json:"min_success"`
 	MaxP90Ms    int     `json:"max_p90_ms"`
 	MaxJitterMs int     `json:"max_jitter_ms"`
+	Minimal     bool    `json:"minimal"`
 }
 
 func handleExportStable(_ context.Context, raw json.RawMessage) (string, error) {
@@ -292,6 +294,7 @@ func handleExportStable(_ context.Context, raw json.RawMessage) (string, error) 
 		MinSuccess:  args.MinSuccess,
 		MaxP90Ms:    args.MaxP90Ms,
 		MaxJitterMs: args.MaxJitterMs,
+		Preserve:    !args.Minimal,
 	})
 	if err != nil {
 		return "", err
@@ -299,7 +302,11 @@ func handleExportStable(_ context.Context, raw json.RawMessage) (string, error) 
 	if err := sel.Config.Write(out); err != nil {
 		return "", err
 	}
-	return fmt.Sprintf("wrote %s: kept %d, excluded %d", out, len(sel.Included), len(sel.Excluded)), nil
+	mode := "preserved rules/groups"
+	if !sel.Preserved {
+		mode = "minimal config"
+	}
+	return fmt.Sprintf("wrote %s (%s): kept %d, excluded %d", out, mode, len(sel.Included), len(sel.Excluded)), nil
 }
 
 type statusArgs struct {
@@ -451,4 +458,8 @@ func intProp(desc string) map[string]any {
 
 func numProp(desc string) map[string]any {
 	return map[string]any{"type": "number", "description": desc}
+}
+
+func boolProp(desc string) map[string]any {
+	return map[string]any{"type": "boolean", "description": desc}
 }

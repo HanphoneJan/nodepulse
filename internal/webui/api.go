@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -76,6 +77,7 @@ func (s *Server) handleBootstrap(w http.ResponseWriter, r *http.Request) {
 	if st.ConfigPath == "" && len(files) > 0 {
 		st.ConfigPath = files[0]
 	}
+	st.SyncActiveProfile()
 	out := bootstrapResult{
 		Controllers:   controllers,
 		Mihomo:        mihomo,
@@ -156,6 +158,19 @@ func (s *Server) handleOneClick(w http.ResponseWriter, r *http.Request) {
 	s.lastResults = res.Results
 	s.lastConfigPath = req.ConfigPath
 	s.mu.Unlock()
+	if len(res.Results) > 0 {
+		url := req.URL
+		if url == "" {
+			url = "https://www.gstatic.com/generate_204"
+		}
+		_ = writeJSONFile(s.opts.ResultsPath, resultsFile{
+			GeneratedAt: time.Now().Format(time.RFC3339),
+			URL:         url,
+			Rounds:      req.Rounds,
+			ConfigPath:  req.ConfigPath,
+			Results:     res.Results,
+		})
+	}
 
 	st, _ := settings.Load("")
 	if req.API != "" {
@@ -195,6 +210,11 @@ func (s *Server) handleImport(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "url is required")
 		return
 	}
+	parsed, err := url.Parse(rawURL)
+	if err != nil || parsed.Host == "" || (parsed.Scheme != "http" && parsed.Scheme != "https") {
+		writeError(w, http.StatusBadRequest, "订阅 URL 必须是 http 或 https")
+		return
+	}
 	client := &http.Client{Timeout: 45 * time.Second}
 	resp, err := client.Get(rawURL)
 	if err != nil {
@@ -231,6 +251,22 @@ func (s *Server) handleImport(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, map[string]string{"path": path})
 }
 
+func (s *Server) handleResultsClear(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	s.mu.Lock()
+	s.lastResults = nil
+	s.lastConfigPath = ""
+	s.mu.Unlock()
+	if err := os.Remove(s.opts.ResultsPath); err != nil && !os.IsNotExist(err) {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, map[string]bool{"ok": true})
+}
+
 func (s *Server) handleExport(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -239,12 +275,18 @@ func (s *Server) handleExport(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Out        string  `json:"out"`
 		MinSuccess float64 `json:"min_success"`
+		Minimal    bool    `json:"minimal"`
 	}
 	_ = json.NewDecoder(io.LimitReader(r.Body, 1<<20)).Decode(&req)
 	s.mu.Lock()
 	results := append([]score.Result(nil), s.lastResults...)
 	configPath := s.lastConfigPath
 	s.mu.Unlock()
+	if configPath == "" {
+		if st, err := settings.Load(""); err == nil {
+			configPath = st.ConfigPath
+		}
+	}
 	if len(results) == 0 || configPath == "" {
 		writeError(w, http.StatusBadRequest, "请先测试一次")
 		return
@@ -260,17 +302,31 @@ func (s *Server) handleExport(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	sel, err := export.Stable(cfg, results, export.Options{MinSuccess: req.MinSuccess})
+	sel, err := export.Stable(cfg, results, export.Options{MinSuccess: req.MinSuccess, Preserve: !req.Minimal})
 	if err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	if err := sel.Config.Write(req.Out); err != nil {
+	dir := exportDir()
+	if err := os.MkdirAll(dir, 0o700); err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+	name := filepath.Base(strings.TrimSpace(req.Out))
+	if name == "" || name == "." || name == string(filepath.Separator) {
+		name = "stable.yaml"
+	}
+	outPath := filepath.Join(dir, name)
+	if err := sel.Config.Write(outPath); err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	mode := "保留原规则和分组"
+	if !sel.Preserved {
+		mode = "最小配置"
+	}
 	writeJSON(w, map[string]string{
-		"message": fmt.Sprintf("已写入 %s：保留 %d 个，排除 %d 个", req.Out, len(sel.Included), len(sel.Excluded)),
+		"message": fmt.Sprintf("已写入 %s（%s）：保留 %d 个，排除 %d 个", outPath, mode, len(sel.Included), len(sel.Excluded)),
 	})
 }
 
@@ -306,15 +362,23 @@ func (s *Server) handleDaemonStart(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	ctx, cancel := context.WithCancel(context.Background())
+	s.daemonSeq++
+	id := s.daemonSeq
+	done := make(chan struct{})
 	s.daemonCancel = cancel
 	s.daemonRunning = true
+	s.daemonDone = done
 	s.mu.Unlock()
 
-	st, err := store.New(store.DefaultPath())
+	st, err := store.New(s.opts.HistoryPath)
 	if err != nil {
 		s.mu.Lock()
-		s.daemonRunning = false
-		s.daemonCancel = nil
+		if s.daemonSeq == id {
+			s.daemonRunning = false
+			s.daemonCancel = nil
+			s.daemonDone = nil
+		}
+		close(done)
 		s.mu.Unlock()
 		cancel()
 		writeError(w, http.StatusInternalServerError, err.Error())
@@ -335,21 +399,42 @@ func (s *Server) handleDaemonStart(w http.ResponseWriter, r *http.Request) {
 	go func() {
 		_ = d.Run(ctx)
 		s.mu.Lock()
-		s.daemonRunning = false
-		s.daemonCancel = nil
+		if s.daemonSeq == id {
+			s.daemonRunning = false
+			s.daemonCancel = nil
+			s.daemonDone = nil
+		}
 		s.mu.Unlock()
+		close(done)
 	}()
 	writeJSON(w, map[string]bool{"ok": true})
 }
 
 func (s *Server) handleDaemonStop(w http.ResponseWriter, r *http.Request) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.daemonCancel != nil {
-		s.daemonCancel()
-		s.daemonCancel = nil
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
 	}
+	s.mu.Lock()
+	cancel := s.daemonCancel
+	done := s.daemonDone
+	if cancel == nil {
+		s.mu.Unlock()
+		writeJSON(w, map[string]bool{"ok": true})
+		return
+	}
+	s.daemonCancel = nil
 	s.daemonRunning = false
+	s.daemonDone = nil
+	s.mu.Unlock()
+
+	cancel()
+	if done != nil {
+		select {
+		case <-done:
+		case <-time.After(3 * time.Second):
+		}
+	}
 	writeJSON(w, map[string]bool{"ok": true})
 }
 
@@ -358,4 +443,16 @@ func (s *Server) handleDaemonStatus(w http.ResponseWriter, r *http.Request) {
 	running := s.daemonRunning
 	s.mu.Unlock()
 	writeJSON(w, map[string]bool{"running": running})
+}
+
+func exportDir() string {
+	base := os.Getenv("XDG_DATA_HOME")
+	if base == "" {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return "nodepulse-exports"
+		}
+		base = filepath.Join(home, ".local", "share")
+	}
+	return filepath.Join(base, "nodepulse", "exports")
 }

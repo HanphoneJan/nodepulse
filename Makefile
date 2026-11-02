@@ -18,6 +18,7 @@ icons:
 	go run ./internal/uiassets/genicons
 
 ui-check:
+	find internal/uiassets/dist -name '*.js' -not -path '*/material-color-utilities.js' -print0 | xargs -0 -n1 node --check
 	go test ./internal/uiassets/...
 
 run: gui

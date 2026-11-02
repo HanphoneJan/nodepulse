@@ -18,6 +18,22 @@ async function request(path, options) {
 const post = (path, body) => request(path, { method: "POST", body: JSON.stringify(body || {}) });
 const get = (path) => request(path);
 
+function profilePayload(p) {
+  return {
+    id: p.id,
+    name: p.name,
+    api: p.api,
+    secret: p.secret,
+    group: p.group,
+    config_path: p.configPath,
+    mihomo_path: p.mihomoPath,
+    url: p.url,
+    rounds: p.rounds,
+    concurrency: p.concurrency,
+    timeout_ms: p.timeoutMs,
+  };
+}
+
 function settingsPayload(s) {
   return {
     api: s.api,
@@ -29,6 +45,8 @@ function settingsPayload(s) {
     rounds: s.rounds,
     concurrency: s.concurrency,
     timeout_ms: s.timeoutMs,
+    profiles: (s.profiles || []).map(profilePayload),
+    active_profile: s.activeProfile,
   };
 }
 
@@ -96,7 +114,8 @@ export const api = {
 
   async exportConfig(out, minSuccess) {
     if (wails()) return wails().Export(out, minSuccess);
-    return post("/api/export", { out, min_success: minSuccess });
+    const data = await post("/api/export", { out, min_success: minSuccess });
+    return (data && data.message) || "已导出稳定配置";
   },
 
   async importSubscription(url) {
@@ -136,6 +155,11 @@ export const api = {
     if (wails() && wails().History) return wails().History();
     if (!wails()) return get("/api/history");
     return [];
+  },
+
+  async clearResults() {
+    if (wails() && wails().ClearResults) return wails().ClearResults();
+    if (!wails()) return post("/api/results/clear", {});
   },
 
   async results() {

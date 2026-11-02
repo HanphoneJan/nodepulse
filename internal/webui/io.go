@@ -22,5 +22,6 @@ func writeJSONFile(path string, v any) error {
 	if err := os.WriteFile(path, data, 0o600); err != nil {
 		return fmt.Errorf("write %s: %w", path, err)
 	}
+	_ = os.Chmod(path, 0o600)
 	return nil
 }

@@ -15,7 +15,7 @@ import {
   setMode,
   DEFAULT_SEED,
 } from "./theme.js";
-import { Icon, IconButton, Snackbar } from "./components.js";
+import { Icon, IconButton, ProfileMenu, Snackbar } from "./components.js";
 import { Dashboard, Nodes, Settings, History } from "./views.js";
 import { timeAgo } from "./format.js";
 
@@ -44,21 +44,63 @@ function defaultSettings() {
     rounds: 5,
     concurrency: 8,
     timeoutMs: 5000,
+    profiles: [],
+    activeProfile: "",
+  };
+}
+
+function profileFields(source) {
+  return {
+    api: source.api || "",
+    secret: source.secret || "",
+    group: source.group || "",
+    configPath: source.configPath || "",
+    mihomoPath: source.mihomoPath || "",
+    url: source.url || "https://www.gstatic.com/generate_204",
+    rounds: Number(source.rounds) || 5,
+    concurrency: Number(source.concurrency) || 8,
+    timeoutMs: Number(source.timeoutMs) || 5000,
+  };
+}
+
+function mapProfile(raw) {
+  return {
+    id: raw.id || "",
+    name: raw.name || "未命名环境",
+    ...profileFields({
+      api: raw.api,
+      secret: raw.secret,
+      group: raw.group,
+      configPath: raw.config_path,
+      mihomoPath: raw.mihomo_path,
+      url: raw.url,
+      rounds: raw.rounds,
+      concurrency: raw.concurrency,
+      timeoutMs: raw.timeout_ms,
+    }),
   };
 }
 
 function mapSettings(raw) {
-  return {
-    api: raw.api || "",
-    secret: raw.secret || "",
-    group: raw.group || "",
-    configPath: raw.config_path || "",
-    mihomoPath: raw.mihomo_path || "",
-    url: raw.url || "https://www.gstatic.com/generate_204",
-    rounds: Number(raw.rounds) || 5,
-    concurrency: Number(raw.concurrency) || 8,
-    timeoutMs: Number(raw.timeout_ms) || 5000,
-  };
+  const base = profileFields({
+    api: raw.api,
+    secret: raw.secret,
+    group: raw.group,
+    configPath: raw.config_path,
+    mihomoPath: raw.mihomo_path,
+    url: raw.url,
+    rounds: raw.rounds,
+    concurrency: raw.concurrency,
+    timeoutMs: raw.timeout_ms,
+  });
+  const profiles = Array.isArray(raw.profiles) ? raw.profiles.map(mapProfile) : [];
+  if (profiles.length === 0) {
+    profiles.push({ id: "default", name: "默认环境", ...base });
+  }
+  const activeProfile = profiles.some((profile) => profile.id === raw.active_profile)
+    ? raw.active_profile
+    : profiles[0].id;
+  return { ...base, profiles, activeProfile };
 }
 
 function errText(error) {
@@ -125,11 +167,113 @@ function App() {
   }, []);
 
   function updateSettings(patch) {
-    setSettings((previous) => {
-      const next = { ...previous, ...patch };
-      settingsRef.current = next;
-      return next;
+    const previous = settingsRef.current;
+    let next = { ...previous, ...patch };
+    if (!("activeProfile" in patch) && !("profiles" in patch) && next.profiles?.length) {
+      const fields = profileFields(next);
+      next = {
+        ...next,
+        profiles: next.profiles.map((profile) =>
+          profile.id === next.activeProfile ? { ...profile, ...fields } : profile
+        ),
+      };
+    }
+    settingsRef.current = next;
+    setSettings(next);
+  }
+
+  async function clearEnvironmentResults() {
+    setResults([]);
+    setBest(null);
+    setSelected(null);
+    setLastTestAt("");
+    try { localStorage.removeItem(LAST_TEST_KEY); } catch (_) {}
+    try { await api.clearResults(); } catch (_) {}
+  }
+
+  async function stopDaemonForSwitch() {
+    if (!daemon) return true;
+    try {
+      await api.stopDaemon();
+      setDaemon(false);
+      return true;
+    } catch (error) {
+      notify(`请先停止自动优化再切换环境：${errText(error)}`, "error");
+      return false;
+    }
+  }
+
+  async function activateProfile(id) {
+    if (busy) {
+      notify("当前有任务在进行，完成后再切换环境", "error");
+      return;
+    }
+    const profile = settingsRef.current.profiles.find((item) => item.id === id);
+    if (!profile) return;
+    if (!(await stopDaemonForSwitch())) return;
+    await clearEnvironmentResults();
+    updateSettings({ ...profileFields(profile), activeProfile: profile.id });
+    const ok = await refreshStatus(settingsRef.current);
+    if (ok) notify(`已切换到环境：${profile.name}`, "info");
+  }
+
+  function saveCurrentProfile() {
+    const current = settingsRef.current;
+    const active = current.profiles.find((item) => item.id === current.activeProfile);
+    if (!active) {
+      notify("当前没有可保存的环境", "error");
+      return;
+    }
+    const fields = profileFields(current);
+    updateSettings({
+      profiles: current.profiles.map((profile) =>
+        profile.id === active.id ? { ...profile, ...fields, name: active.name } : profile
+      ),
     });
+    notify(`已保存到环境：${active.name}`, "info");
+  }
+
+  function newProfile() {
+    const current = settingsRef.current;
+    const profile = {
+      id: `env-${Date.now().toString(36)}`,
+      name: `环境 ${current.profiles.length + 1}`,
+      ...profileFields(current),
+    };
+    updateSettings({ profiles: [...current.profiles, profile], activeProfile: profile.id });
+    notify(`已新建环境：${profile.name}`, "info");
+  }
+
+  function renameProfile(name) {
+    const current = settingsRef.current;
+    updateSettings({
+      profiles: current.profiles.map((profile) =>
+        profile.id === current.activeProfile ? { ...profile, name: String(name || "") } : profile
+      ),
+    });
+  }
+
+  function commitProfileName(name) {
+    if (!String(name || "").trim()) renameProfile("未命名环境");
+  }
+
+  async function deleteProfile() {
+    if (busy) {
+      notify("当前有任务在进行，完成后再删除环境", "error");
+      return;
+    }
+    const current = settingsRef.current;
+    if (current.profiles.length <= 1) {
+      notify("至少保留一个环境", "error");
+      return;
+    }
+    if (!(await stopDaemonForSwitch())) return;
+    const remaining = current.profiles.filter((profile) => profile.id !== current.activeProfile);
+    const next = remaining[0];
+    await clearEnvironmentResults();
+    updateSettings({ profiles: remaining, activeProfile: next.id, ...profileFields(next) });
+    const ok = await refreshStatus(settingsRef.current);
+    if (ok) notify(`已删除环境，切换到：${next.name}`, "info");
   }
 
   const refreshStatus = useCallback(async (override) => {
@@ -137,7 +281,7 @@ function App() {
     if (!current.api) {
       setGroups([]);
       setStatus({ connected: false, current: "", groupName: current.group || "", members: 0, error: "" });
-      return;
+      return true;
     }
     try {
       const list = await api.status(current);
@@ -156,10 +300,12 @@ function App() {
         error: "",
       });
       if (groupName && groupName !== current.group) updateSettings({ group: groupName });
+      return true;
     } catch (error) {
       setGroups([]);
       setStatus({ connected: false, current: "", groupName: current.group || "", members: 0, error: errText(error) });
       notify(errText(error), "error");
+      return false;
     }
   }, [notify]);
 
@@ -183,7 +329,8 @@ function App() {
         setSettings(normalized);
         settingsRef.current = normalized;
         setEvents(sortEvents(history));
-        if (saved && Array.isArray(saved.results) && saved.results.length) {
+        const sameEnvironment = !saved?.config_path || saved.config_path === normalized.configPath;
+        if (saved && Array.isArray(saved.results) && saved.results.length && sameEnvironment) {
           setResults(saved.results);
           setBest(saved.results[0] || null);
           setSelected(saved.results[0]?.name || null);
@@ -274,8 +421,8 @@ function App() {
       setBest(result.best || null);
       if (result.best) setSelected(result.best.name);
       markTest();
-      await refreshStatus(current);
-      notify(result.message || (result.best ? `推荐 ${result.best.name}` : "优化完成"), "info");
+      const ok = await refreshStatus(current);
+      if (ok) notify(result.message || (result.best ? `推荐 ${result.best.name}` : "优化完成"), "info");
     } catch (error) {
       notify(errText(error), "error");
     } finally {
@@ -299,9 +446,9 @@ function App() {
       setBest(top);
       setSelected(top ? top.name : null);
       markTest();
-      await refreshStatus(current);
+      const ok = await refreshStatus(current);
       if (goNodes) setView("nodes");
-      notify(`测速完成：${list.length} 个节点`, "info");
+      if (ok) notify(`测速完成：${list.length} 个节点`, "info");
     } catch (error) {
       notify(errText(error), "error");
     } finally {
@@ -334,10 +481,12 @@ function App() {
       const path = await api.importSubscription(url);
       updateSettings({ configPath: path });
       setSubURL("");
-      const bootstrap = await api.bootstrap();
-      setControllers(bootstrap.controllers || []);
-      setSubscriptions(bootstrap.subscriptions || []);
       notify("订阅已导入", "info");
+      try {
+        const bootstrap = await api.bootstrap();
+        setControllers(bootstrap.controllers || []);
+        setSubscriptions(bootstrap.subscriptions || []);
+      } catch (_) {}
     } catch (error) {
       notify(errText(error), "error");
     } finally {
@@ -360,8 +509,8 @@ function App() {
     startBusy("switch");
     try {
       await api.switchNode(current, selected);
-      await refreshStatus(current);
-      notify(`已切换到 ${selected}`, "info");
+      const ok = await refreshStatus(current);
+      if (ok) notify(`已切换到 ${selected}`, "info");
     } catch (error) {
       notify(errText(error), "error");
     } finally {
@@ -465,6 +614,12 @@ function App() {
           <p class="topbar-sub">${meta[1]}</p>
         </div>
         <div class="topbar-actions">
+          <${ProfileMenu}
+            profiles=${settings.profiles}
+            activeId=${settings.activeProfile}
+            onSelect=${activateProfile}
+            onManage=${() => navigate("settings")}
+          />
           <${IconButton} icon=${themeIcon} label=${themeTitle} title=${themeTitle} onClick=${toggleTheme} />
           <span class=${"status-chip " + connClass} role="status" aria-live="polite">${connLabel}</span>
           ${version ? html`<span class="version">v${version}</span>` : null}
@@ -531,6 +686,14 @@ function App() {
                   onExport=${exportConfig}
                   canSwitch=${canSwitch}
                   canExport=${canExport}
+                  profiles=${settings.profiles}
+                  activeProfile=${settings.activeProfile}
+                  onActivateProfile=${activateProfile}
+                  onRenameProfile=${renameProfile}
+                  onProfileNameBlur=${commitProfileName}
+                  onSaveProfile=${saveCurrentProfile}
+                  onNewProfile=${newProfile}
+                  onDeleteProfile=${deleteProfile}
                 />`
               : html`<${History} events=${events} />`}
       </div>

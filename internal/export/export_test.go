@@ -57,3 +57,75 @@ func repeat(v, n int) []int {
 	}
 	return out
 }
+
+func TestStablePreservesRulesGroupsAndExtra(t *testing.T) {
+	cfg := &config.Config{
+		MixedPort: 7897,
+		Mode:      "rule",
+		Proxies: []config.Proxy{
+			{Name: "A", Type: "ss", Server: "127.0.0.1", Port: 1},
+			{Name: "B", Type: "ss", Server: "127.0.0.1", Port: 2},
+		},
+		ProxyGroups: []config.Group{
+			{Name: "PROXY", Type: "select", Proxies: []string{"A", "B", "Auto"}},
+			{Name: "Auto", Type: "url-test", Proxies: []string{"A", "B"}},
+			{Name: "Streaming", Type: "select", Proxies: []string{"B"}},
+		},
+		Rules: []string{"DOMAIN-SUFFIX,example.com,PROXY", "MATCH,PROXY"},
+		Extra: map[string]any{
+			"dns": map[string]any{"enable": true, "nameserver": []any{"1.1.1.1"}},
+			"tun": map[string]any{"enable": true},
+		},
+	}
+	results := []score.Result{
+		score.FromLatencies("A", "ss", repeat(100, 10), 10),
+		score.FromLatencies("B", "ss", []int{900, 900}, 10),
+	}
+	sel, err := Stable(cfg, results, Options{MinSuccess: 0.8, TestURL: "https://example.com", Preserve: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !sel.Preserved {
+		t.Fatal("expected Preserved")
+	}
+	if sel.Config.MixedPort != 7897 {
+		t.Fatalf("mixed port = %d", sel.Config.MixedPort)
+	}
+	if len(sel.Config.Rules) != 2 || sel.Config.Rules[0] != cfg.Rules[0] {
+		t.Fatalf("rules = %v", sel.Config.Rules)
+	}
+	if sel.Config.Extra["dns"] == nil || sel.Config.Extra["tun"] == nil {
+		t.Fatalf("extra fields were dropped: %+v", sel.Config.Extra)
+	}
+	groups := map[string]config.Group{}
+	for _, group := range sel.Config.ProxyGroups {
+		groups[group.Name] = group
+	}
+	if _, ok := groups["NodePulse"]; !ok {
+		t.Fatal("NodePulse group missing")
+	}
+	if got := groups["PROXY"].Proxies; len(got) != 2 || got[0] != "A" || got[1] != "Auto" {
+		t.Fatalf("PROXY members = %v", got)
+	}
+	if got := groups["Auto"].Proxies; len(got) != 1 || got[0] != "A" {
+		t.Fatalf("Auto members = %v", got)
+	}
+	if got := groups["Streaming"].Proxies; len(got) != 1 || got[0] != "DIRECT" {
+		t.Fatalf("empty group fallback = %v", got)
+	}
+	if sel.Config.Secret != "" || sel.Config.ExternalController != "" {
+		t.Fatalf("controller credentials leaked into export")
+	}
+}
+
+func TestStablePreserveAddsRuleWhenMissing(t *testing.T) {
+	cfg := &config.Config{Proxies: []config.Proxy{{Name: "A", Type: "ss", Server: "127.0.0.1", Port: 1}}}
+	results := []score.Result{score.FromLatencies("A", "ss", []int{100}, 1)}
+	sel, err := Stable(cfg, results, Options{MinSuccess: 0.8, Preserve: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(sel.Config.Rules) != 1 || sel.Config.Rules[0] != "MATCH,NodePulse" {
+		t.Fatalf("rules = %v", sel.Config.Rules)
+	}
+}

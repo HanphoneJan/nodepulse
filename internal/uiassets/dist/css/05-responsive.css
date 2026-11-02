@@ -19,6 +19,8 @@
   .topbar { min-height: var(--topbar-min-h-sm); padding: var(--space-2) 0; }
   .topbar h1 { font-size: var(--text-xl); line-height: var(--leading-28); }
   .version { display: none; }
+  .env-name { display: none; }
+  .env-button { width: var(--target-touch); height: var(--target-touch); padding: 0; justify-content: center; }
   .topbar-actions { gap: var(--space-icon-gap); }
   .status-chip { min-height: 26px; padding: 0 var(--space-2); font-size: var(--text-xs); }
   .content {
@@ -126,6 +128,16 @@
 
 @media (pointer: coarse) {
   .chip { min-height: var(--target-touch); }
+  .m3-option, .profile-item, .profile-manage, .profile-settings-row, .snackbar-close {
+    min-height: var(--target-touch);
+  }
+  .snackbar-close { width: var(--target-touch); }
+  .seg-option::before {
+    content: "";
+    position: absolute;
+    inset: -6px 0;
+  }
+  .env-button { height: var(--target-touch); }
   .md-button { min-height: var(--target-touch); }
   .icon-button { width: var(--target-touch); height: var(--target-touch); }
   .search { height: var(--target-touch); }

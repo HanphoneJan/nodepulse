@@ -13,9 +13,9 @@ import {
   LoadingRows,
 } from "./components.js";
 import { GroupTable, NodeTable } from "./tables.js";
-import { formatClock, reasonLabel, timeAgo } from "./format.js";
+import { baseName, formatClock, hostOf, reasonLabel, timeAgo } from "./format.js";
 
-function Field({ label, id, value, onChange, placeholder, type = "text", inputMode, autoComplete, spellcheck = false, className = "" }) {
+function Field({ label, id, value, onChange, onBlur, placeholder, type = "text", inputMode, autoComplete, spellcheck = false, className = "" }) {
   return html`<label class=${"text-field " + className}>
     <span>${label}</span>
     <input
@@ -27,6 +27,7 @@ function Field({ label, id, value, onChange, placeholder, type = "text", inputMo
       autocomplete=${autoComplete}
       spellcheck=${spellcheck}
       onInput=${(event) => onChange(event.currentTarget.value)}
+      onBlur=${onBlur ? (event) => onBlur(event.currentTarget.value) : undefined}
     />
   </label>`;
 }
@@ -60,7 +61,7 @@ export function Dashboard({
           <${Button} variant="tonal" icon="refresh" loading=${busy && busyKind === "test"} onClick=${onTest}>
             ${busy && busyKind === "test" ? "测速中…" : "只测速"}
           <//>
-          <label class="strength">强度
+          <div class="strength"><span>强度</span>
             <${M3Select}
               label="测速强度"
               value=${String(settings.rounds)}
@@ -71,7 +72,7 @@ export function Dashboard({
               ]}
               onChange=${(value) => onRounds(Number(value))}
             />
-          </label>
+          </div>
         </div>
       </div>
       <div class="hero-side">
@@ -235,7 +236,10 @@ export function Nodes({ results, best, selected, onSelect, onRefresh, onSwitch, 
 export function Settings({
   settings, groups, seed, mode, busy, busyKind, lastTestAt,
   onSettings, onSeed, onResetSeed, onMode, onSave, onTest, onSwitch, onExport, canSwitch, canExport,
+  profiles, activeProfile, onActivateProfile, onRenameProfile, onProfileNameBlur, onSaveProfile, onNewProfile, onDeleteProfile,
 }) {
+  const currentProfile = profiles.find((profile) => profile.id === activeProfile) || profiles[0];
+  const [confirmDelete, setConfirmDelete] = useState(false);
   return html`<section id="view-settings" class="view active">
     <div class="md-card">
       <div class="card-title">外观</div>
@@ -255,6 +259,41 @@ export function Settings({
             ]}
           />
         </div>
+      </div>
+    </div>
+
+    <div class="md-card">
+      <div class="card-title"><${Icon} name="swap" />环境</div>
+      <p class="muted">环境会同时切换控制口、Secret、订阅、Selector 组和测速参数；顶栏的切换按钮可在任意页面快速切换。</p>
+      <div class="text-field-grid mt">
+        <${Field} label="环境名称" id="profileName" className="span-2" value=${currentProfile ? currentProfile.name : ""} placeholder="例如：FlClash + 日本订阅" onChange=${onRenameProfile} onBlur=${onProfileNameBlur} />
+      </div>
+      <div class="profile-settings-actions">
+        <${Button} variant="tonal" icon="check" onClick=${onSaveProfile}>保存当前设置<//>
+        <${Button} variant="outlined" onClick=${onNewProfile}>新建环境<//>
+        <${Button} variant="text" disabled=${profiles.length <= 1 || busy} onClick=${() => {
+          if (!confirmDelete) {
+            setConfirmDelete(true);
+            return;
+          }
+          setConfirmDelete(false);
+          onDeleteProfile();
+        }}>${confirmDelete ? "确认删除？" : "删除当前环境"}<//>
+      </div>
+      <div class="profile-settings-list" role="group" aria-label="已保存环境">
+        ${profiles.map((profile) => html`<button
+          key=${profile.id}
+          type="button"
+          class=${"profile-settings-row" + (profile.id === activeProfile ? " active" : "")}
+          aria-pressed=${profile.id === activeProfile ? "true" : "false"}
+          onClick=${() => { setConfirmDelete(false); onActivateProfile(profile.id); }}
+        >
+          <span class="profile-item-body">
+            <strong>${profile.name}</strong>
+            <small>${hostOf(profile.api)} · ${baseName(profile.configPath)}</small>
+          </span>
+          ${profile.id === activeProfile ? html`<${Icon} name="check" />` : null}
+        </button>`)}
       </div>
     </div>
 

@@ -83,6 +83,7 @@ func (c *Config) Write(path string) error {
 	if err := os.WriteFile(path, data, 0o600); err != nil {
 		return fmt.Errorf("write config %s: %w", path, err)
 	}
+	_ = os.Chmod(path, 0o600)
 	return nil
 }
 
@@ -139,4 +140,19 @@ func (c *Config) Clone() *Config {
 	out.ProxyGroups = append([]Group(nil), c.ProxyGroups...)
 	out.Rules = append([]string(nil), c.Rules...)
 	return &out
+}
+
+// DeepClone copies the whole config, including unknown inline fields such as
+// DNS, TUN and rule-providers. Export preservation uses it so daily-use
+// configs are not reduced to a minimal file.
+func (c *Config) DeepClone() (*Config, error) {
+	data, err := yaml.Marshal(c)
+	if err != nil {
+		return nil, fmt.Errorf("marshal config: %w", err)
+	}
+	var out Config
+	if err := yaml.Unmarshal(data, &out); err != nil {
+		return nil, fmt.Errorf("unmarshal config copy: %w", err)
+	}
+	return &out, nil
 }
