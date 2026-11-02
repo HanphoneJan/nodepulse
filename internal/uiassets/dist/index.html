@@ -29,6 +29,7 @@
     <symbol id="i-search" viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27A6.47 6.47 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0A4.5 4.5 0 1 1 14 9.5 4.5 4.5 0 0 1 9.5 14z"/></symbol>
     <symbol id="i-sun" viewBox="0 0 24 24"><path d="M12 7a5 5 0 1 0 0 10 5 5 0 0 0 0-10zM2 13h2a1 1 0 0 0 0-2H2a1 1 0 0 0 0 2zm18 0h2a1 1 0 0 0 0-2h-2a1 1 0 0 0 0 2zM11 2v2a1 1 0 0 0 2 0V2a1 1 0 0 0-2 0zm0 18v2a1 1 0 0 0 2 0v-2a1 1 0 0 0-2 0zm8.66-14.66-1.42 1.42a1 1 0 0 0 1.42 1.42l1.41-1.42a1 1 0 0 0-1.41-1.42zM5.76 18.24l-1.42 1.42a1 1 0 1 0 1.42 1.41l1.41-1.41a1 1 0 0 0-1.41-1.42zM4.34 4.34 5.76 5.76a1 1 0 0 0 1.42-1.42L5.76 2.93a1 1 0 0 0-1.42 1.41zm14.9 14.9-1.42-1.42a1 1 0 0 0-1.42 1.42l1.42 1.41a1 1 0 0 0 1.42-1.41z"/></symbol>
     <symbol id="i-moon" viewBox="0 0 24 24"><path d="M12.3 22a9.7 9.7 0 0 0 9.1-13.3 7.8 7.8 0 0 1-9.9-9.9A9.7 9.7 0 1 0 12.3 22z"/></symbol>
+    <symbol id="i-chevron" viewBox="0 0 24 24"><path d="M7.41 8.59 12 13.17l4.59-4.58L18 10l-6 6-6-6z"/></symbol>
     <symbol id="i-monitor" viewBox="0 0 24 24"><path d="M21 3H3a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h7v2H7v2h10v-2h-3v-2h7a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2zm0 14H3V5h18v12z"/></symbol>
     <symbol id="i-stop" viewBox="0 0 24 24"><path d="M6 6h12v12H6z"/></symbol>
   </svg>
@@ -36,14 +37,11 @@
   <div class="app">
     <aside class="rail">
       <nav class="rail-nav">
-        <button class="rail-item active" data-view="dashboard"><svg class="icon"><use href="#i-dashboard"/></svg><span>仪表盘</span></button>
-        <button class="rail-item" data-view="nodes"><svg class="icon"><use href="#i-list"/></svg><span>节点</span></button>
-        <button class="rail-item" data-view="settings"><svg class="icon"><use href="#i-settings"/></svg><span>设置</span></button>
-        <button class="rail-item" data-view="history"><svg class="icon"><use href="#i-history"/></svg><span>历史</span></button>
+        <button class="rail-item active" data-view="dashboard" title="仪表盘" aria-label="仪表盘"><svg class="icon"><use href="#i-dashboard"/></svg></button>
+        <button class="rail-item" data-view="nodes" title="节点" aria-label="节点"><svg class="icon"><use href="#i-list"/></svg></button>
+        <button class="rail-item" data-view="settings" title="设置" aria-label="设置"><svg class="icon"><use href="#i-settings"/></svg></button>
+        <button class="rail-item" data-view="history" title="历史" aria-label="历史"><svg class="icon"><use href="#i-history"/></svg></button>
       </nav>
-      <div class="rail-bottom">
-        <button id="themeToggle" class="rail-item" title="切换主题" aria-label="切换主题"><svg class="icon"><use href="#i-sun"/></svg><span>主题</span></button>
-      </div>
     </aside>
 
     <main class="main">
@@ -53,6 +51,7 @@
           <p id="viewSub" class="muted">找到最稳的节点，自动保持连接质量</p>
         </div>
         <div class="topbar-actions">
+          <button id="themeToggleTop" class="icon-button" title="切换主题" aria-label="切换主题"><svg class="icon"><use href="#i-monitor"/></svg></button>
           <span id="connBadge" class="status-chip">检测中…</span>
           <span id="version" class="version">v0.3.0</span>
         </div>
@@ -72,7 +71,7 @@
               <button id="oneClick" class="md-button filled big"><svg class="icon"><use href="#i-play"/></svg>一键优化</button>
               <button id="testOnly" class="md-button tonal"><svg class="icon"><use href="#i-refresh"/></svg>只测速</button>
               <label class="strength">强度
-                <select id="quickRounds" class="text-field-input small">
+                <select id="quickRounds" class="text-field-input small app-select" aria-label="测速强度">
                   <option value="3" selected>快速 3 轮</option>
                   <option value="5">标准 5 轮</option>
                   <option value="10">精确 10 轮</option>
@@ -80,7 +79,7 @@
               </label>
             </div>
           </div>
-          <div class="hero-score">
+          <div class="hero-score" id="heroScore" hidden>
             <div id="scoreRing" class="score-ring" hidden>
               <svg viewBox="0 0 100 100" aria-hidden="true">
                 <circle class="ring-track" cx="50" cy="50" r="44"></circle>
@@ -88,7 +87,7 @@
               </svg>
               <div class="score-text"><span id="scoreValue">--</span><small>评分</small></div>
             </div>
-            <div id="bestName" class="best-name">尚未测速</div>
+            <div id="bestName" class="best-name"></div>
           </div>
         </div>
 
@@ -106,7 +105,7 @@
             <div class="divider"></div>
             <div class="card-title small"><svg class="icon"><use href="#i-download"/></svg>订阅</div>
             <div class="row mt sub-row">
-              <select id="subSelect" class="text-field-input" aria-label="订阅文件"></select>
+              <select id="subSelect" class="text-field-input app-select" aria-label="订阅文件"></select>
               <button id="useSub" class="md-button tonal small">使用</button>
             </div>
             <div class="row mt sub-row">
@@ -125,7 +124,7 @@
             </div>
             <div class="row between mt">
               <span class="muted">检查间隔</span>
-              <select id="daemonInterval" class="text-field-input small" aria-label="自动优化检查间隔">
+              <select id="daemonInterval" class="text-field-input small app-select" aria-label="自动优化检查间隔">
                 <option value="300">5 分钟</option>
                 <option value="600">10 分钟</option>
                 <option value="1800">30 分钟</option>
@@ -158,6 +157,26 @@
       </section>
 
       <section id="view-settings" class="view">
+        <div class="md-card">
+          <div class="card-title">外观</div>
+          <p class="muted">主题色会生成整套 Material 3 明暗色板；默认跟随系统主题，字体使用系统字体。</p>
+          <div class="row wrap mt">
+            <label class="seed-picker">主题色
+              <input type="color" id="seedColor" value="#0b57d0" aria-label="主题色" />
+            </label>
+            <div id="seedPresets" class="chips"></div>
+            <button id="seedReset" class="md-button text">恢复默认</button>
+          </div>
+          <div class="row wrap mt">
+            <span class="muted">主题模式</span>
+            <div class="segmented" id="themeModes">
+              <button type="button" data-mode="system" aria-pressed="false">跟随系统</button>
+              <button type="button" data-mode="light" aria-pressed="false">亮色</button>
+              <button type="button" data-mode="dark" aria-pressed="false">暗色</button>
+            </div>
+          </div>
+        </div>
+
         <div class="md-card">
           <div class="card-title">连接设置</div>
           <div class="grid-2 mt">
@@ -199,9 +218,9 @@
     <button class="bottom-item" data-view="nodes"><svg class="icon"><use href="#i-list"/></svg><span>节点</span></button>
     <button class="bottom-item" data-view="settings"><svg class="icon"><use href="#i-settings"/></svg><span>设置</span></button>
     <button class="bottom-item" data-view="history"><svg class="icon"><use href="#i-history"/></svg><span>历史</span></button>
-    <button id="themeToggleMobile" class="bottom-item" title="主题" aria-label="切换主题"><svg class="icon"><use href="#i-monitor"/></svg><span>主题</span></button>
   </nav>
 
+  <script type="module" src="seed-theme.js"></script>
   <script src="web-shim.js"></script>
   <script src="app.js"></script>
 </body>

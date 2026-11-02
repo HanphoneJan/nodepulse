@@ -11,6 +11,8 @@ const state = {
   events: [],
 };
 
+const selects = new Map();
+
 const viewMeta = {
   dashboard: ["仪表盘", "找到最稳的节点，自动保持连接质量"],
   nodes: ["节点", "按成功率、P90 和抖动综合排序"],
@@ -68,6 +70,7 @@ function applySettings(s) {
   $("conc").value = s.concurrency || 8;
   $("timeout").value = s.timeout_ms || 5000;
   if ([3, 5, 10].includes(Number(s.rounds))) $("quickRounds").value = String(s.rounds);
+  refreshSelect($("quickRounds"));
   $("subPath").textContent = s.config_path ? "当前订阅: " + s.config_path : "当前没有选择订阅文件";
 }
 
@@ -134,6 +137,7 @@ function renderSubscriptions() {
   }
   const cur = $("config").value.trim();
   sel.innerHTML = state.subscriptions.map((p) => `<option value="${esc(p)}" ${p === cur ? "selected" : ""}>${esc(p)}</option>`).join("");
+  refreshSelect(sel);
 }
 
 async function refreshStatus() {
@@ -203,9 +207,11 @@ function renderBest(res) {
   const arc = $("scoreArc");
   if (arc) arc.style.strokeDashoffset = String(circumference * (1 - score));
   const ring = $("scoreRing");
+  const heroScore = $("heroScore");
   if (ring) ring.hidden = !res.best;
+  if (heroScore) heroScore.hidden = !res.best;
   $("scoreValue").textContent = res.best ? p : "--";
-  $("bestName").textContent = res.best ? res.best.name : "尚未测速";
+  $("bestName").textContent = res.best ? res.best.name : "";
   if (res.current) {
     $("currentNode").textContent = res.current;
     $("currentMeta").textContent = `${res.group || "自动"} · ${res.source === "controller" ? "客户端" : "sidecar"}`;
@@ -373,11 +379,18 @@ function applyTheme(mode) {
   document.documentElement.dataset.theme = dark ? "dark" : "light";
   document.documentElement.dataset.themeMode = mode;
   updateThemeIcon(mode);
+  document.querySelectorAll("#themeModes button").forEach((b) => {
+    b.setAttribute("aria-pressed", String(b.dataset.mode === mode));
+  });
+  if (window.NPSeedTheme) {
+    const seed = localStorage.getItem(window.NPSeedTheme.STORAGE_KEY) || window.NPSeedTheme.DEFAULT_SEED;
+    window.NPSeedTheme.apply(seed);
+  }
 }
 function updateThemeIcon(mode) {
   const icon = mode === "light" ? "#i-sun" : mode === "dark" ? "#i-moon" : "#i-monitor";
   const title = mode === "system" ? "主题：跟随系统" : mode === "light" ? "主题：亮色" : "主题：暗色";
-  ["themeToggle", "themeToggleMobile"].forEach((id) => {
+  ["themeToggleTop"].forEach((id) => {
     const el = $(id);
     if (!el) return;
     el.querySelector("use").setAttribute("href", icon);
@@ -400,10 +413,132 @@ function toggleTheme() {
   snack("主题：" + (next === "system" ? "跟随系统" : next === "light" ? "亮色" : "暗色"));
 }
 
+function setThemeMode(mode) {
+  localStorage.setItem(THEME_KEY, mode);
+  applyTheme(mode);
+  snack("主题：" + (mode === "system" ? "跟随系统" : mode === "light" ? "亮色" : "暗色"));
+}
+
+function currentSeed() {
+  if (!window.NPSeedTheme) return "#0b57d0";
+  return localStorage.getItem(window.NPSeedTheme.STORAGE_KEY) || window.NPSeedTheme.DEFAULT_SEED;
+}
+
+function renderSeedPresets(active) {
+  const wrap = $("seedPresets");
+  if (!wrap || !window.NPSeedTheme) return;
+  wrap.innerHTML = window.NPSeedTheme.PRESETS.map((p) =>
+    `<button type="button" class="seed-chip ${p.color === active ? "active" : ""}" data-seed="${p.color}" style="--seed:${p.color}" title="${p.name}" aria-label="主题色 ${p.name}"></button>`
+  ).join("");
+  wrap.querySelectorAll("button").forEach((b) => b.addEventListener("click", () => setSeed(b.dataset.seed, true)));
+}
+
+function setSeed(seed, announce = false) {
+  if (!window.NPSeedTheme) return;
+  const normalized = window.NPSeedTheme.apply(seed);
+  localStorage.setItem(window.NPSeedTheme.STORAGE_KEY, normalized);
+  $("seedColor").value = normalized;
+  renderSeedPresets(normalized);
+  if (announce) snack("主题色已更新");
+}
+
+function initSeed() {
+  if (!window.NPSeedTheme) {
+    setTimeout(initSeed, 50);
+    return;
+  }
+  const seed = currentSeed();
+  $("seedColor").value = seed;
+  window.NPSeedTheme.apply(seed);
+  renderSeedPresets(seed);
+}
+
+function closeAllSelects() {
+  selects.forEach((s) => s.close());
+}
+
+function enhanceSelect(sel) {
+  if (!sel || selects.has(sel.id)) return;
+  const wrap = document.createElement("div");
+  wrap.className = "m3-select";
+  sel.parentNode.insertBefore(wrap, sel);
+  wrap.appendChild(sel);
+  sel.classList.add("m3-enhanced");
+
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "m3-select-button";
+  button.setAttribute("aria-haspopup", "listbox");
+  button.setAttribute("aria-expanded", "false");
+  button.setAttribute("aria-label", sel.getAttribute("aria-label") || "选择");
+
+  const label = document.createElement("span");
+  label.className = "m3-select-label";
+  const icon = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  icon.setAttribute("class", "icon");
+  icon.setAttribute("aria-hidden", "true");
+  const use = document.createElementNS("http://www.w3.org/2000/svg", "use");
+  use.setAttribute("href", "#i-chevron");
+  icon.appendChild(use);
+  button.append(label, icon);
+
+  const menu = document.createElement("div");
+  menu.className = "m3-select-menu";
+  menu.setAttribute("role", "listbox");
+  wrap.append(button, menu);
+
+  const close = () => {
+    wrap.classList.remove("open");
+    button.setAttribute("aria-expanded", "false");
+  };
+  const refresh = () => {
+    label.textContent = sel.options[sel.selectedIndex]?.textContent || "";
+    menu.innerHTML = Array.from(sel.options).map((o, i) =>
+      `<button type="button" class="m3-option" role="option" aria-selected="${i === sel.selectedIndex}" data-index="${i}">${esc(o.textContent)}</button>`
+    ).join("");
+    menu.querySelectorAll(".m3-option").forEach((opt) => {
+      opt.addEventListener("click", (ev) => {
+        ev.stopPropagation();
+        sel.selectedIndex = Number(opt.dataset.index);
+        sel.dispatchEvent(new Event("input", { bubbles: true }));
+        sel.dispatchEvent(new Event("change", { bubbles: true }));
+        close();
+        refresh();
+      });
+    });
+  };
+
+  button.addEventListener("click", (ev) => {
+    ev.stopPropagation();
+    const open = !wrap.classList.contains("open");
+    closeAllSelects();
+    if (open) {
+      wrap.classList.add("open");
+      button.setAttribute("aria-expanded", "true");
+    }
+  });
+  button.addEventListener("keydown", (ev) => {
+    if (ev.key === "Escape") close();
+    if (ev.key === "ArrowDown") {
+      ev.preventDefault();
+      if (!wrap.classList.contains("open")) button.click();
+      menu.querySelector(".m3-option")?.focus();
+    }
+  });
+
+  selects.set(sel.id, { refresh, close });
+  refresh();
+}
+
+function refreshSelect(sel) {
+  if (!sel) return;
+  selects.get(sel.id)?.refresh();
+}
+
 function wire() {
   document.querySelectorAll(".rail-item[data-view], .bottom-item[data-view]").forEach((b) => b.addEventListener("click", () => switchView(b.dataset.view)));
-  $("themeToggle").addEventListener("click", toggleTheme);
-  $("themeToggleMobile")?.addEventListener("click", toggleTheme);
+  $("themeToggleTop").addEventListener("click", toggleTheme);
+  document.addEventListener("click", closeAllSelects);
   $("oneClick").addEventListener("click", () => oneClick(true));
   $("testOnly").addEventListener("click", () => oneClick(false));
   $("daemonToggle").addEventListener("change", (e) => toggleDaemon(e.target.checked));
@@ -432,7 +567,16 @@ function wire() {
     try { snack(await App().Export("stable.yaml", 0.8), "ok"); } catch (e) { snack(errText(e), "error"); }
   });
   $("search").addEventListener("input", renderNodesList);
-  document.querySelectorAll("input, select").forEach((el) => el.addEventListener("input", persistSoon));
+  $("seedColor").addEventListener("input", () => setSeed($("seedColor").value));
+  $("seedReset").addEventListener("click", () => {
+    if (window.NPSeedTheme) setSeed(window.NPSeedTheme.DEFAULT_SEED, true);
+  });
+  document.querySelectorAll("#themeModes button").forEach((b) => {
+    b.addEventListener("click", () => setThemeMode(b.dataset.mode));
+  });
+  document.querySelectorAll("input, select").forEach((el) => {
+    if (el.id !== "seedColor") el.addEventListener("input", persistSoon);
+  });
 }
 
 async function init() {
@@ -442,7 +586,9 @@ async function init() {
   }
   document.querySelectorAll("svg.icon").forEach((el) => el.setAttribute("aria-hidden", "true"));
   initTheme();
+  initSeed();
   wire();
+  document.querySelectorAll("select.app-select").forEach(enhanceSelect);
   bindScroll();
   try { $("version").textContent = "v" + await App().Version(); } catch (_) {}
   try { state.daemon = await App().DaemonStatus(); } catch (_) {}

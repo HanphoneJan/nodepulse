@@ -26,3 +26,7 @@ contents:
     dst: /usr/share/icons/hicolor/scalable/apps/nodepulse.svg
   - src: packaging/nodepulse-daemon.service
     dst: /usr/lib/systemd/user/nodepulse-daemon.service
+  - src: LICENSE
+    dst: /usr/share/doc/nodepulse/LICENSE
+  - src: THIRD_PARTY_NOTICES.md
+    dst: /usr/share/doc/nodepulse/THIRD_PARTY_NOTICES.md

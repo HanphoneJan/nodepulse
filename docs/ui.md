@@ -53,9 +53,26 @@ NodePulse 的 GUI 与本地 Web UI 共用同一套 UI 资源（`internal/uiasset
 ## 主题
 
 - 默认 **跟随系统**（`prefers-color-scheme`），不写死明暗；
-- 三态循环：系统 → 亮色 → 暗色 → 系统；
-- 选择保存在 `localStorage`，系统模式时监听系统变化实时切换；
+- 三态：跟随系统 → 亮色 → 暗色，设置页有分段控件，Rail/Dock 的主题按钮也会循环；
+- 选择保存在 `localStorage`（`nodepulse.themeMode.v2`），系统模式时监听系统变化实时切换；
 - 首屏在 `<head>` 内联脚本里先设 `data-theme`，避免闪烁。
+
+## 主题色 Seed
+
+- 设置页提供主题色选择器 + 7 个预设（蓝/紫/青/绿/橙/红/粉）；
+- 使用 Google 官方 `@material/material-color-utilities` 从 seed 生成完整的 M3 明暗色板（primary/secondary/tertiary/surface/outline/error）；
+- 默认 seed：`#0b57d0`；自定义 seed 保存在 `localStorage`（`nodepulse.seed.v1`）；
+- 生成结果注入到 `#seed-theme` 的 `<style>`，同时更新 `theme-color`；
+- 三方库与许可证见 `THIRD_PARTY_NOTICES.md`；
+- Seed 是 **client-local** 设置：GUI 和 Web UI 各自保存自己的选择。
+
+## 字体
+
+使用系统字体栈，不加载远程字体：
+
+```css
+system-ui, -apple-system, "Segoe UI", "Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif
+```
 
 ## 顶部操作栏
 
