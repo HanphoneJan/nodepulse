@@ -1,5 +1,5 @@
 bin/
-dist/
+/dist/
 *.out
 results.json
 stable.yaml

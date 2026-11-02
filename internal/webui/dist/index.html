@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>NodePulse</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header><h1>NodePulse</h1><span class="badge">local web ui</span></header>
+  <main>
+    <section class="card">
+      <div class="card-head"><h2>连接</h2><button id="refresh" class="secondary">刷新状态</button></div>
+      <div class="grid">
+        <label>Clash 控制口 <input id="api" placeholder="http://127.0.0.1:9090" /></label>
+        <label>Secret <input id="secret" type="password" placeholder="没有就留空" /></label>
+        <label>Selector 组 <input id="group" placeholder="留空自动选择" /></label>
+      </div>
+      <div id="groups" class="table-wrap"></div>
+    </section>
+
+    <section class="card">
+      <div class="card-head"><h2>测速</h2><span id="testMsg" class="muted"></span></div>
+      <div class="grid">
+        <label>订阅配置 <input id="config" placeholder="~/sub.yaml" /></label>
+        <label>mihomo 路径 <input id="mihomo" placeholder="/usr/local/bin/mihomo" /></label>
+        <label>测试 URL <input id="url" value="https://www.gstatic.com/generate_204" /></label>
+        <label>轮数 <input id="rounds" type="number" value="5" min="1" /></label>
+        <label>并发 <input id="conc" type="number" value="8" min="1" /></label>
+      </div>
+      <div class="row actions"><button id="start">开始测试</button><span class="muted">有控制口走客户端，否则用 mihomo sidecar</span></div>
+    </section>
+
+    <section class="card">
+      <div class="card-head"><h2>结果</h2><button id="switch" class="secondary" disabled>切换到此节点</button></div>
+      <div id="results" class="table-wrap"><p class="muted">还没有测试结果。</p></div>
+    </section>
+
+    <section class="card">
+      <div class="card-head"><h2>历史</h2><button id="reloadHistory" class="secondary">刷新</button></div>
+      <div id="history" class="table-wrap"><p class="muted">暂无历史。</p></div>
+    </section>
+  </main>
+  <div id="toast" class="toast"></div>
+  <script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>NodePulse</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header>
+    <div>
+      <h1>NodePulse</h1>
+      <p class="sub">一键找到最稳的节点，自动帮你切换</p>
+    </div>
+    <div class="header-right">
+      <span id="connBadge" class="badge">检测中…</span>
+      <span id="version" class="badge">dev</span>
+    </div>
+  </header>
+
+  <main>
+    <section class="card hero">
+      <div class="step">
+        <div class="step-no">1</div>
+        <div class="step-body">
+          <div class="step-title">连接你的客户端</div>
+          <p class="muted" id="detectHint">正在检测 FlClash / Clash Verge / Mihomo Party…</p>
+          <div id="controllers" class="chips"></div>
+          <div class="row">
+            <button id="redetect" class="secondary small">重新检测</button>
+            <span class="muted" id="detectError"></span>
+          </div>
+          <details class="help">
+            <summary>没检测到？怎么开启控制口</summary>
+            <p><b>FlClash</b>：设置 → 网络 → 外部控制，填 <code>127.0.0.1:9090</code>，保存后回来点“重新检测”。<br/>
+            <b>Clash Verge</b>：设置 → Clash → 外部控制，记下端口（常见 9097）和 secret。<br/>
+            不开启也能用：选择下面的订阅文件 + mihomo 路径，一键测速仍可用，只是不能自动切换。</p>
+          </details>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-no">2</div>
+        <div class="step-body">
+          <div class="step-title">选择订阅</div>
+          <p class="muted">已自动找到本机的订阅文件；也可以直接粘贴订阅 URL。</p>
+          <div class="row wrap">
+            <select id="subSelect" class="input"></select>
+            <button id="useSub" class="secondary small">使用这个文件</button>
+          </div>
+          <div class="row wrap">
+            <input id="subURL" class="input" placeholder="https://example.com/api/v1/client/subscribe?token=..." />
+            <button id="importSub" class="secondary small">导入 URL</button>
+          </div>
+          <p class="muted" id="subPath"></p>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-no">3</div>
+        <div class="step-body">
+          <div class="step-title">一键测速并选最优</div>
+          <p class="muted">每个节点跑多轮真实请求，按成功率、P90 和抖动综合评分。</p>
+          <div class="row wrap">
+            <label class="inline">测试轮数
+              <select id="quickRounds" class="input small-select">
+                <option value="3">3 轮（快）</option>
+                <option value="5" selected>5 轮（推荐）</option>
+                <option value="10">10 轮（更准）</option>
+              </select>
+            </label>
+            <button id="oneClick" class="primary big">一键优化</button>
+            <button id="testOnly" class="secondary">只测速</button>
+          </div>
+          <div id="resultBanner" class="banner hidden"></div>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-no">4</div>
+        <div class="step-body">
+          <div class="step-title">后台自动优化</div>
+          <p class="muted">每隔一段时间重新测速；当前节点明显变差时自动切换，失败会回滚。</p>
+          <div class="row wrap">
+            <label class="inline">间隔
+              <select id="daemonInterval" class="input small-select">
+                <option value="300">5 分钟</option>
+                <option value="600">10 分钟</option>
+                <option value="1800">30 分钟</option>
+              </select>
+            </label>
+            <button id="daemonToggle" class="secondary">开启自动优化</button>
+            <span class="muted" id="daemonState">未开启</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <details class="card advanced">
+      <summary>高级设置 / 调试</summary>
+      <div class="grid">
+        <label>Clash 控制口 <input id="api" placeholder="http://127.0.0.1:9090" /></label>
+        <label>Secret <input id="secret" type="password" placeholder="没有就留空" /></label>
+        <label>Selector 组 <input id="group" placeholder="留空自动选择" /></label>
+        <label>订阅配置 <input id="config" placeholder="~/sub.yaml" /></label>
+        <label>mihomo 路径 <input id="mihomo" placeholder="/usr/local/bin/mihomo" /></label>
+        <label>测试 URL <input id="url" value="https://www.gstatic.com/generate_204" /></label>
+        <label>并发 <input id="conc" type="number" min="1" value="8" /></label>
+        <label>单轮超时 (ms) <input id="timeout" type="number" min="1000" step="500" value="5000" /></label>
+      </div>
+      <div class="row wrap actions">
+        <button id="refresh" class="secondary">刷新状态</button>
+        <button id="testAdvanced" class="secondary">测速</button>
+        <button id="switch" class="secondary" disabled>切换选中节点</button>
+        <button id="export" class="secondary" disabled>导出稳定配置</button>
+      </div>
+      <div id="groups" class="table-wrap"></div>
+      <div id="history" class="history"></div>
+    </details>
+
+    <section class="card">
+      <div class="card-head">
+        <h2>节点排名</h2>
+        <span class="muted" id="resultMeta"></span>
+      </div>
+      <div id="results" class="table-wrap"><p class="muted">还没有测试结果。点上面的“一键优化”开始。</p></div>
+    </section>
+  </main>
+
+  <div id="toast" class="toast"></div>
+  <script src="app.js"></script>
+</body>
+</html>
