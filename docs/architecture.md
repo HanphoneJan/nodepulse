@@ -101,7 +101,25 @@ Clash REST API 客户端：
 
 ### `internal/cli`
 
-命令行入口，Phase 1 的唯一前端。
+命令行入口，负责 `nodes / test / rank / export / daemon / status / history`。
+
+### `internal/daemon`
+
+自动切换守护进程：
+
+- 解析 Selector 组与候选节点；
+- 定时调用测试引擎；
+- 滞后阈值 + 连续确认；
+- 切换后验证，失败回滚；
+- 事件写入历史。
+
+### `internal/store`
+
+历史记录（JSONL）：
+
+- 每次 cycle / switch / rollback / error；
+- `nodepulse history` 读取最近 N 条；
+- 接口独立，后续可替换为 SQLite。
 
 ## 数据流
 
@@ -157,6 +175,8 @@ internal/tester/        # 测试引擎
 internal/score/         # 指标与评分
 internal/export/        # 配置导出
 internal/sidecar/       # mihomo 生命周期
+internal/daemon/        # 自动切换守护
+internal/store/         # 历史记录（JSONL）
 internal/cli/           # 命令行
 ui/                     # Wails 前端（Phase 3）
 mcp/                    # MCP server（Phase 4）

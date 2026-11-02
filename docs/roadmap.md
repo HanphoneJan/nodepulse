@@ -24,16 +24,16 @@ nodepulse rank  -i results.json
 nodepulse export -f testdata/subscription.yaml -i results.json -o stable.yaml
 ```
 
-## Phase 2 · Clash 适配 + 守护/自动切换
+## Phase 2 · Clash 适配 + 守护/自动切换（已实现）
 
-- [ ] 自动发现 Clash 控制口（9090/9097 等）与 secret
-- [ ] `Switcher` 接口与 `PUT /proxies/{group}` 实现
-- [ ] `nodepulse daemon`：定时测试 + 滞后阈值 + 连续确认
-- [ ] 切换验证与失败回滚
-- [ ] SQLite 历史：节点画像、切换记录
-- [ ] systemd user unit
-- [ ] `status` / `history` 命令
-- [ ] 集成测试：FlClash / Clash Verge
+- [x] 自动发现 Clash 控制口里的 Selector 组
+- [x] `Switcher` 接口与 `PUT /proxies/{group}` 实现
+- [x] `nodepulse daemon`：定时测试 + 滞后阈值 + 连续确认
+- [x] 切换验证与失败回滚
+- [x] 历史记录（JSONL；SQLite 作为后续可替换后端）
+- [x] `status` / `history` 命令
+- [ ] systemd user unit（随 Phase 3 打包一起做）
+- [ ] 与 FlClash / Clash Verge 的实机集成测试（需要用户环境）
 
 验收：当当前节点连续失败或明显变差时，守护进程在 2 个周期内切换到更稳节点，并在失败时回滚。
 

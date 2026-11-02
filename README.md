@@ -102,6 +102,9 @@ nodepulse export \
 | `nodepulse test -f <config>` | 多轮测速并输出 JSON |
 | `nodepulse rank -i <results.json>` | 按稳定性排名 |
 | `nodepulse export -f <config> -i <results.json>` | 导出过滤后的 Clash 配置 |
+| `nodepulse daemon --api <url>` | 定时测速并自动切换节点 |
+| `nodepulse status --api <url>` | 查看控制口里的组和当前节点 |
+| `nodepulse history` | 查看切换历史 |
 | `nodepulse version` | 版本信息 |
 
 `test` 的常用参数：
@@ -113,6 +116,30 @@ nodepulse export \
 | `--timeout` | `5s` | 单轮超时 |
 | `--concurrency` | `8` | 并发节点数 |
 | `--skip-info` | `true` | 跳过信息伪节点 |
+
+## 自动切换（Phase 2）
+
+前提：客户端开启了 Clash 控制口（见适配矩阵）。
+
+```bash
+nodepulse daemon \
+  --api http://127.0.0.1:9090 \
+  --group "🚀节点选择" \
+  --interval 5m \
+  --rounds 3 \
+  --margin 0.2 \
+  --confirm 2
+```
+
+策略：
+
+- 当前节点成功率低于 `--min-success`（默认 0.8）→ 立即切换；
+- 候选节点评分需比当前高 `--margin`（默认 20%）；
+- 连续 `--confirm`（默认 2）轮占优才切换，避免抖动；
+- 切换后验证，失败自动回滚；
+- `--dry-run` 只看决策；`--once` 只跑一轮。
+
+历史写入 `~/.local/share/nodepulse/history.jsonl`，用 `nodepulse history` 查看。
 
 ## 评分
 

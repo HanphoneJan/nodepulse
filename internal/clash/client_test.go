@@ -2,6 +2,7 @@ package clash
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -57,5 +58,46 @@ func TestDelayHTTPError(t *testing.T) {
 	c := New(srv.URL, "")
 	if _, err := c.Delay(context.Background(), "x", "https://example.com", time.Second); err == nil {
 		t.Fatal("expected an error")
+	}
+}
+
+func TestSwitchAndCurrent(t *testing.T) {
+	now := "B"
+	var switched string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.URL.Path == "/proxies":
+			fmt.Fprintf(w, `{"proxies":{"Auto":{"type":"Selector","now":%q,"all":["A","B"]}}}`, now)
+		case r.URL.Path == "/proxies/Auto" && r.Method == http.MethodPut:
+			var body struct {
+				Name string `json:"name"`
+			}
+			if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+			switched = body.Name
+			now = body.Name
+			w.WriteHeader(http.StatusNoContent)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer srv.Close()
+
+	c := New(srv.URL, "secret")
+	cur, err := c.Current(context.Background(), "Auto")
+	if err != nil || cur != "B" {
+		t.Fatalf("Current = %q, %v", cur, err)
+	}
+	if err := c.Switch(context.Background(), "Auto", "A"); err != nil {
+		t.Fatal(err)
+	}
+	if switched != "A" {
+		t.Fatalf("switched = %q, want A", switched)
+	}
+	cur, err = c.Current(context.Background(), "Auto")
+	if err != nil || cur != "A" {
+		t.Fatalf("Current after switch = %q, %v", cur, err)
 	}
 }

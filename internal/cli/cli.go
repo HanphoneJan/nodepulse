@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
+	"sort"
 	"strings"
 	"syscall"
 	"text/tabwriter"
@@ -16,9 +17,11 @@ import (
 
 	"github.com/HanphoneJan/nodepulse/internal/clash"
 	"github.com/HanphoneJan/nodepulse/internal/config"
+	"github.com/HanphoneJan/nodepulse/internal/daemon"
 	"github.com/HanphoneJan/nodepulse/internal/export"
 	"github.com/HanphoneJan/nodepulse/internal/score"
 	"github.com/HanphoneJan/nodepulse/internal/sidecar"
+	"github.com/HanphoneJan/nodepulse/internal/store"
 	"github.com/HanphoneJan/nodepulse/internal/subscription"
 	"github.com/HanphoneJan/nodepulse/internal/tester"
 )
@@ -49,6 +52,12 @@ func Run(args []string, version string) int {
 		return cmdRank(args[1:])
 	case "export":
 		return cmdExport(args[1:])
+	case "daemon":
+		return cmdDaemon(args[1:])
+	case "status":
+		return cmdStatus(args[1:])
+	case "history":
+		return cmdHistory(args[1:])
 	default:
 		fmt.Fprintf(os.Stderr, "未知命令 %q\n\n", args[0])
 		usage()
@@ -64,12 +73,18 @@ func usage() {
   nodepulse test   -f <config.yaml> [--api URL | --mihomo PATH] [options]
   nodepulse rank   -i <results.json>
   nodepulse export -f <config.yaml> -i <results.json> -o <stable.yaml>
+  nodepulse daemon --api http://127.0.0.1:9090 [options]
+  nodepulse status --api http://127.0.0.1:9090
+  nodepulse history [-n 20]
 
 命令:
   nodes    列出节点
   test     多轮测速并输出 JSON
   rank     按稳定性排名
   export   过滤并导出 Clash 配置
+  daemon   定时测速并自动切换节点
+  status   查看客户端当前节点
+  history  查看切换历史
   version  版本
 
 运行 "nodepulse <command> -h" 查看该命令的参数。
@@ -355,4 +370,196 @@ func serverOf(p config.Proxy) string {
 		return fmt.Sprintf("%s:%d", p.Server, p.Port)
 	}
 	return p.Server
+}
+
+func cmdDaemon(args []string) int {
+	fs := flag.NewFlagSet("daemon", flag.ContinueOnError)
+	fs.SetOutput(os.Stderr)
+	api := fs.String("api", "", "Clash 控制口，如 http://127.0.0.1:9090")
+	secret := fs.String("secret", "", "Clash 控制口 secret")
+	group := fs.String("group", "", "要切换的 Selector 组（默认自动选择）")
+	interval := fs.Duration("interval", 5*time.Minute, "测试间隔")
+	rounds := fs.Int("rounds", 3, "每个节点测试轮数")
+	concurrency := fs.Int("concurrency", 8, "并发节点数")
+	testURL := fs.String("url", defaultTestURL, "测试 URL")
+	timeout := fs.Duration("timeout", 5*time.Second, "单轮超时")
+	margin := fs.Float64("margin", 0.2, "切换阈值：新节点需优于当前 20%")
+	confirm := fs.Int("confirm", 2, "连续多少轮占优才切换")
+	minSuccess := fs.Float64("min-success", 0.8, "当前节点低于此成功率时立即切换")
+	once := fs.Bool("once", false, "只运行一轮")
+	dryRun := fs.Bool("dry-run", false, "只输出决策，不实际切换")
+	history := fs.String("history", "", "历史文件路径（默认 ~/.local/share/nodepulse/history.jsonl）")
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+	if *api == "" {
+		fmt.Fprintln(os.Stderr, "daemon 需要 --api <http://127.0.0.1:9090>（自动切换必须走客户端控制口）")
+		return 2
+	}
+
+	client := clash.New(*api, *secret)
+	historyPath := *history
+	if historyPath == "" {
+		historyPath = store.DefaultPath()
+	}
+	st, err := store.New(historyPath)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "打开历史失败:", err)
+		return 1
+	}
+
+	onEvent := func(e store.Event) {
+		ts := e.Time.Format("15:04:05")
+		switch e.Kind {
+		case "switch":
+			fmt.Fprintf(os.Stderr, "%s SWITCH %s -> %s  (%s)\n", ts, e.From, e.To, e.Reason)
+		case "rollback":
+			fmt.Fprintf(os.Stderr, "%s ROLLBACK %s -> %s  (%s)\n", ts, e.From, e.To, e.Reason)
+		case "error":
+			fmt.Fprintf(os.Stderr, "%s ERROR %s\n", ts, e.Reason)
+		default:
+			fmt.Fprintf(os.Stderr, "%s cycle %s: current=%s best=%s (%.2f vs %.2f)  %s\n",
+				ts, e.Group, e.From, e.Best, e.BestScore, e.CurScore, e.Reason)
+		}
+	}
+
+	d := daemon.New(client, daemon.Options{
+		Group:       *group,
+		Interval:    *interval,
+		Rounds:      *rounds,
+		Concurrency: *concurrency,
+		TestURL:     *testURL,
+		Timeout:     *timeout,
+		Margin:      *margin,
+		Confirm:     *confirm,
+		MinSuccess:  *minSuccess,
+		Once:        *once,
+		DryRun:      *dryRun,
+		Store:       st,
+		OnEvent:     onEvent,
+	})
+
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	fmt.Fprintf(os.Stderr, "守护进程启动：group=%s interval=%s rounds=%d margin=%.0f%% confirm=%d\n",
+		orAuto(*group), *interval, *rounds, *margin*100, *confirm)
+	if err := d.Run(ctx); err != nil {
+		if errors.Is(err, context.Canceled) {
+			return 0
+		}
+		fmt.Fprintln(os.Stderr, "守护进程退出:", err)
+		return 1
+	}
+	return 0
+}
+
+func orAuto(s string) string {
+	if s == "" {
+		return "auto"
+	}
+	return s
+}
+
+func cmdStatus(args []string) int {
+	fs := flag.NewFlagSet("status", flag.ContinueOnError)
+	fs.SetOutput(os.Stderr)
+	api := fs.String("api", "", "Clash 控制口，如 http://127.0.0.1:9090")
+	secret := fs.String("secret", "", "Clash 控制口 secret")
+	group := fs.String("group", "", "只看某个组")
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+	if *api == "" {
+		fmt.Fprintln(os.Stderr, "缺少 --api <http://127.0.0.1:9090>")
+		return 2
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	client := clash.New(*api, *secret)
+	proxies, err := client.Proxies(ctx)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "查询失败:", err)
+		return 1
+	}
+
+	keys := make([]string, 0, len(proxies))
+	for name := range proxies {
+		keys = append(keys, name)
+	}
+	sort.Strings(keys)
+
+	w := tabwriter.NewWriter(os.Stdout, 0, 4, 2, ' ', 0)
+	fmt.Fprintln(w, "GROUP\tTYPE\tNOW\tMEMBERS")
+	for _, name := range keys {
+		info := proxies[name]
+		if !isGroupType(info.Type) {
+			continue
+		}
+		if *group != "" && name != *group {
+			continue
+		}
+		fmt.Fprintf(w, "%s\t%s\t%s\t%d\n", name, info.Type, info.Now, len(info.All))
+	}
+	w.Flush()
+
+	if *group != "" {
+		info, ok := proxies[*group]
+		if !ok {
+			fmt.Fprintf(os.Stderr, "组 %q 不存在\n", *group)
+			return 1
+		}
+		fmt.Printf("\n组 %s 的成员（当前: %s）:\n", *group, info.Now)
+		for _, name := range info.All {
+			mark := " "
+			if name == info.Now {
+				mark = "*"
+			}
+			fmt.Printf(" %s %s\n", mark, name)
+		}
+	}
+	return 0
+}
+
+func isGroupType(t string) bool {
+	switch strings.ToLower(t) {
+	case "selector", "urltest", "fallback", "loadbalance":
+		return true
+	}
+	return false
+}
+
+func cmdHistory(args []string) int {
+	fs := flag.NewFlagSet("history", flag.ContinueOnError)
+	fs.SetOutput(os.Stderr)
+	n := fs.Int("n", 20, "显示最近多少条")
+	history := fs.String("history", "", "历史文件路径")
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+	path := *history
+	if path == "" {
+		path = store.DefaultPath()
+	}
+	st, err := store.New(path)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "打开历史失败:", err)
+		return 1
+	}
+	events, err := st.Recent(*n)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "读取历史失败:", err)
+		return 1
+	}
+	if len(events) == 0 {
+		fmt.Println("暂无历史记录")
+		return 0
+	}
+	w := tabwriter.NewWriter(os.Stdout, 0, 4, 2, ' ', 0)
+	fmt.Fprintln(w, "TIME\tKIND\tFROM\tTO\tREASON")
+	for _, e := range events {
+		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n",
+			e.Time.Format("01-02 15:04:05"), e.Kind, e.From, e.To, e.Reason)
+	}
+	w.Flush()
+	return 0
 }

@@ -1,6 +1,7 @@
 package clash
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -131,4 +132,42 @@ func (c *Client) authorize(req *http.Request) {
 	if c.secret != "" {
 		req.Header.Set("Authorization", "Bearer "+c.secret)
 	}
+}
+
+// Current returns the proxy currently selected by the named group.
+func (c *Client) Current(ctx context.Context, group string) (string, error) {
+	proxies, err := c.Proxies(ctx)
+	if err != nil {
+		return "", err
+	}
+	info, ok := proxies[group]
+	if !ok {
+		return "", fmt.Errorf("group %q not found", group)
+	}
+	return info.Now, nil
+}
+
+// Switch selects node in a Selector group.
+func (c *Client) Switch(ctx context.Context, group, node string) error {
+	body, err := json.Marshal(map[string]string{"name": node})
+	if err != nil {
+		return err
+	}
+	endpoint := fmt.Sprintf("%s/proxies/%s", c.baseURL, url.PathEscape(group))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPut, endpoint, bytes.NewReader(body))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	c.authorize(req)
+	resp, err := c.hc.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusNoContent && resp.StatusCode != http.StatusOK {
+		data, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
+		return fmt.Errorf("switch %s -> %s: HTTP %d: %s", group, node, resp.StatusCode, strings.TrimSpace(string(data)))
+	}
+	return nil
 }
