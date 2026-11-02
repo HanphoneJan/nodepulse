@@ -20,6 +20,8 @@ type Result struct {
 
 	// Latencies is optional and can be omitted from CLI output with --no-raw.
 	Latencies []int `json:"latencies,omitempty"`
+	// LastError is the last transport/controller error seen for this node.
+	LastError string `json:"last_error,omitempty"`
 }
 
 // SuccessRate returns success / total as a fraction.

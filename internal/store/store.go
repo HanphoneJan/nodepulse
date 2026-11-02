@@ -11,16 +11,24 @@ import (
 
 // Event is one daemon decision or notable occurrence.
 type Event struct {
-	Time      time.Time `json:"time"`
-	Kind      string    `json:"kind"` // cycle | switch | rollback | error
-	Group     string    `json:"group,omitempty"`
-	From      string    `json:"from,omitempty"`
-	To        string    `json:"to,omitempty"`
-	Reason    string    `json:"reason,omitempty"`
-	Best      string    `json:"best,omitempty"`
-	BestScore float64   `json:"best_score,omitempty"`
-	CurScore  float64   `json:"current_score,omitempty"`
-	OK        bool      `json:"ok,omitempty"`
+	Time              time.Time `json:"time"`
+	Kind              string    `json:"kind"` // cycle | switch | rollback | error
+	Group             string    `json:"group,omitempty"`
+	From              string    `json:"from,omitempty"`
+	To                string    `json:"to,omitempty"`
+	Reason            string    `json:"reason,omitempty"`
+	ReasonCode        string    `json:"reason_code,omitempty"`
+	Best              string    `json:"best,omitempty"`
+	BestScore         float64   `json:"best_score,omitempty"`
+	CurScore          float64   `json:"current_score,omitempty"`
+	Confidence        string    `json:"confidence,omitempty"`
+	Candidates        int       `json:"candidates,omitempty"`
+	NestedSkipped     int       `json:"nested_skipped,omitempty"`
+	RollbackAttempted bool      `json:"rollback_attempted,omitempty"`
+	RollbackOK        bool      `json:"rollback_ok,omitempty"`
+	Verified          bool      `json:"verified,omitempty"`
+	DurationMs        int64     `json:"duration_ms,omitempty"`
+	OK                bool      `json:"ok,omitempty"`
 }
 
 // Store appends events to a JSONL file. It is deliberately simple; a SQLite

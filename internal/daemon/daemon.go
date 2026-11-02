@@ -3,13 +3,11 @@ package daemon
 import (
 	"context"
 	"fmt"
-	"sort"
-	"strings"
 	"time"
 
 	"github.com/HanphoneJan/nodepulse/internal/clash"
-	"github.com/HanphoneJan/nodepulse/internal/config"
 	"github.com/HanphoneJan/nodepulse/internal/score"
+	"github.com/HanphoneJan/nodepulse/internal/selector"
 	"github.com/HanphoneJan/nodepulse/internal/store"
 	"github.com/HanphoneJan/nodepulse/internal/tester"
 )
@@ -24,19 +22,22 @@ type API interface {
 
 // Options controls the daemon.
 type Options struct {
-	Group       string
-	Interval    time.Duration
-	Rounds      int
-	Concurrency int
-	TestURL     string
-	Timeout     time.Duration
-	Margin      float64
-	Confirm     int
-	MinSuccess  float64
-	Once        bool
-	DryRun      bool
-	Store       *store.Store
-	OnEvent     func(store.Event)
+	Group        string
+	Interval     time.Duration
+	Rounds       int
+	Concurrency  int
+	TestURL      string
+	Timeout      time.Duration
+	Margin       float64
+	Confirm      int
+	MinSuccess   float64
+	VerifyDelay  time.Duration
+	VerifyRounds int
+	Baseline     bool
+	Once         bool
+	DryRun       bool
+	Store        *store.Store
+	OnEvent      func(store.Event)
 }
 
 // Daemon periodically tests nodes and switches the selector group when the
@@ -66,14 +67,22 @@ func New(api API, opts Options) *Daemon {
 		opts.TestURL = "https://www.gstatic.com/generate_204"
 	}
 	if opts.Margin <= 0 {
-		opts.Margin = 0.2
+		opts.Margin = selector.DefaultMargin
 	}
 	if opts.Confirm <= 0 {
-		opts.Confirm = 2
+		opts.Confirm = selector.DefaultConfirm
 	}
 	if opts.MinSuccess <= 0 {
-		opts.MinSuccess = 0.8
+		opts.MinSuccess = selector.DefaultMinSuccess
 	}
+	if opts.VerifyDelay <= 0 {
+		opts.VerifyDelay = 300 * time.Millisecond
+	}
+	if opts.VerifyRounds <= 0 {
+		opts.VerifyRounds = 1
+	}
+	// Baseline diagnostics are always on; they only run when no node passes.
+	opts.Baseline = true
 	t := tester.New(api, tester.Options{
 		Rounds:      opts.Rounds,
 		Concurrency: opts.Concurrency,
@@ -88,7 +97,9 @@ func New(api API, opts Options) *Daemon {
 func (d *Daemon) Run(ctx context.Context) error {
 	for {
 		if err := d.RunOnce(ctx); err != nil {
-			d.emit(store.Event{Kind: "error", Reason: err.Error()})
+			if ctx.Err() != nil {
+				return ctx.Err()
+			}
 			if d.opts.Once {
 				return err
 			}
@@ -104,189 +115,181 @@ func (d *Daemon) Run(ctx context.Context) error {
 	}
 }
 
-// RunOnce executes one test/switch cycle.
+// RunOnce executes one test/switch cycle and emits a structured transaction.
 func (d *Daemon) RunOnce(ctx context.Context) error {
+	started := time.Now()
 	proxies, err := d.api.Proxies(ctx)
 	if err != nil {
+		d.emit(store.Event{Kind: "error", ReasonCode: "controller-error", Reason: fmt.Sprintf("读取控制口失败: %v", err), OK: false})
 		return fmt.Errorf("list proxies: %w", err)
 	}
-	group, err := d.resolveGroup(proxies)
+	group, err := selector.ResolveGroup(proxies, d.opts.Group)
 	if err != nil {
+		d.emit(store.Event{Kind: "error", ReasonCode: "group-error", Reason: err.Error(), OK: false})
 		return err
 	}
 	info := proxies[group]
 	current := info.Now
 
-	nodes := candidates(info, proxies)
-	if len(nodes) == 0 {
-		return fmt.Errorf("group %q has no testable nodes", group)
+	nodes, meta, err := selector.Candidates(proxies, group)
+	if err != nil {
+		d.emit(store.Event{Kind: "error", Group: group, ReasonCode: "no-candidates", Reason: err.Error(), Candidates: 0, NestedSkipped: meta.NestedSkipped, OK: false})
+		return err
 	}
+
 	results := d.tester.Test(ctx, nodes)
 	if ctx.Err() != nil {
 		return ctx.Err()
 	}
 	ranked := score.Rank(results)
+	currentResult, _ := selector.ResultFor(results, current)
 
-	var currentResult score.Result
-	foundCurrent := false
-	for _, r := range results {
-		if r.Name == current {
-			currentResult = r
-			foundCurrent = true
-			break
-		}
+	decision := selector.Decide(current, currentResult, ranked, selector.Options{
+		MinSuccess: d.opts.MinSuccess,
+		Margin:     d.opts.Margin,
+		Confirm:    d.opts.Confirm,
+		Streak:     d.streak,
+	})
+	d.streak = decision.Streak
+
+	to := ""
+	if decision.Switch {
+		to = decision.Best.Name
 	}
-	if !foundCurrent {
-		currentResult = score.Result{Name: current}
-	}
-
-	best, bestOK := firstQualified(ranked, d.opts.MinSuccess)
-	to, reason, streak := d.decide(current, currentResult, best, bestOK)
-	d.streak = streak
-
 	ev := store.Event{
-		Kind:      "cycle",
-		Group:     group,
-		From:      current,
-		To:        to,
-		Reason:    reason,
-		Best:      best.Name,
-		BestScore: best.Score,
-		CurScore:  currentResult.Score,
-		OK:        true,
+		Time:          time.Now(),
+		Kind:          "cycle",
+		Group:         group,
+		From:          current,
+		To:            to,
+		Reason:        decision.Reason,
+		ReasonCode:    decision.ReasonCode,
+		Best:          decision.Best.Name,
+		BestScore:     decision.Best.Score,
+		CurScore:      currentResult.Score,
+		Confidence:    selector.Confidence(d.opts.Rounds),
+		Candidates:    len(nodes),
+		NestedSkipped: meta.NestedSkipped,
+		OK:            true,
+		DurationMs:    time.Since(started).Milliseconds(),
 	}
-	if to == "" {
+
+	if !decision.BestOK {
+		base := selector.BaselineResult{}
+		if d.opts.Baseline {
+			base = selector.Baseline(ctx, d.api, proxies, d.opts.TestURL, d.opts.Timeout)
+		}
+		switch {
+		case base.Available && !base.OK:
+			ev.OK = false
+			ev.ReasonCode = "baseline-failed"
+			ev.Reason = fmt.Sprintf("本地 DIRECT 基线失败，可能是网络或测试 URL 问题: %v", base.Err)
+		case len(ranked) > 0 && ranked[0].LastError != "":
+			ev.OK = false
+			ev.ReasonCode = "all-nodes-failed"
+			ev.Reason = "没有节点达标；最近错误: " + ranked[0].LastError
+		}
+		d.emit(ev)
+		return nil
+	}
+
+	if !decision.Switch {
 		d.emit(ev)
 		return nil
 	}
 	if d.opts.DryRun {
-		ev.Reason = "[dry-run] " + reason
+		ev.To = ""
+		ev.ReasonCode = "dry-run"
+		ev.Reason = "[dry-run] " + decision.Reason
 		d.emit(ev)
 		return nil
 	}
 
-	if err := d.api.Switch(ctx, group, to); err != nil {
+	if err := d.api.Switch(ctx, group, decision.Best.Name); err != nil {
+		ev.Kind = "error"
 		ev.OK = false
-		ev.Reason = reason + "; switch failed: " + err.Error()
+		ev.ReasonCode = "switch-failed"
+		ev.Reason = fmt.Sprintf("%s；切换失败: %v", decision.Reason, err)
+		ev.DurationMs = time.Since(started).Milliseconds()
 		d.emit(ev)
-		return fmt.Errorf("switch %s -> %s: %w", group, to, err)
+		return fmt.Errorf("switch %s -> %s: %w", group, decision.Best.Name, err)
 	}
-	// Verify the switch. Some controllers accept the call but keep the old
-	// selection, so never trust the response alone.
-	time.Sleep(200 * time.Millisecond)
-	now, err := d.api.Current(ctx, group)
-	if err != nil || now != to {
+
+	if err := d.wait(ctx, d.opts.VerifyDelay); err != nil {
+		return err
+	}
+	now, currentErr := d.api.Current(ctx, group)
+	verifyErr := currentErr
+	if verifyErr == nil && now != decision.Best.Name {
+		verifyErr = fmt.Errorf("控制器仍显示 %q", now)
+	}
+	if verifyErr == nil {
+		verifyErr = d.verifyNode(ctx, decision.Best.Name)
+	}
+	if verifyErr != nil {
 		ev.Kind = "rollback"
 		ev.OK = false
-		ev.Reason = fmt.Sprintf("%s; verify failed (now=%q err=%v), rolling back", reason, now, err)
+		ev.ReasonCode = "verify-failed"
+		ev.RollbackAttempted = current != ""
 		if current != "" {
-			_ = d.api.Switch(ctx, group, current)
+			rollbackErr := d.api.Switch(ctx, group, current)
+			ev.RollbackOK = rollbackErr == nil
+			if rollbackErr != nil {
+				ev.ReasonCode = "rollback-failed"
+				ev.Reason = fmt.Sprintf("%s；切换验证失败: %v；回滚也失败: %v", decision.Reason, verifyErr, rollbackErr)
+			} else {
+				ev.Reason = fmt.Sprintf("%s；切换验证失败: %v；已回滚到 %s", decision.Reason, verifyErr, current)
+			}
+		} else {
+			ev.Reason = fmt.Sprintf("%s；切换验证失败: %v；没有可回滚的节点", decision.Reason, verifyErr)
 		}
+		ev.DurationMs = time.Since(started).Milliseconds()
+		d.streak = 0
 		d.emit(ev)
-		return fmt.Errorf("verify switch to %q failed: now=%q err=%v", to, now, err)
+		return fmt.Errorf("verify switch to %q failed: %v", decision.Best.Name, verifyErr)
 	}
+
 	ev.Kind = "switch"
-	d.emit(ev)
+	ev.To = decision.Best.Name
+	ev.From = current
+	ev.Verified = true
+	ev.Reason = decision.Reason
+	ev.DurationMs = time.Since(started).Milliseconds()
 	d.streak = 0
+	d.emit(ev)
 	return nil
 }
 
-func (d *Daemon) decide(current string, cur, best score.Result, bestOK bool) (to, reason string, streak int) {
-	if !bestOK {
-		return "", "no node passes min-success", 0
-	}
-	if current == "" {
-		return best.Name, "no current node", 0
-	}
-	if cur.Success == 0 || cur.SuccessRate() < d.opts.MinSuccess {
-		return best.Name, fmt.Sprintf("current below min-success (%d/%d)", cur.Success, cur.Total), 0
-	}
-	if best.Name == current {
-		return "", "current is already the best qualified node", 0
-	}
-	if best.Score > cur.Score*(1+d.opts.Margin) {
-		n := d.streak + 1
-		if n >= d.opts.Confirm {
-			return best.Name, fmt.Sprintf("candidate score %.3f > current %.3f by >%.0f%% for %d cycles",
-				best.Score, cur.Score, d.opts.Margin*100, n), 0
-		}
-		return "", fmt.Sprintf("candidate better, waiting for confirmation (%d/%d)", n, d.opts.Confirm), n
-	}
-	return "", "no candidate exceeds the switch margin", 0
-}
-
-func (d *Daemon) resolveGroup(proxies map[string]clash.ProxyInfo) (string, error) {
-	if d.opts.Group != "" {
-		if _, ok := proxies[d.opts.Group]; !ok {
-			return "", fmt.Errorf("group %q not found", d.opts.Group)
-		}
-		return d.opts.Group, nil
-	}
-	preferred := []string{"🚀节点选择", "节点选择", "Proxy", "PROXY", "一分机场", "赔钱机场", "GLOBAL"}
-	for _, name := range preferred {
-		if info, ok := proxies[name]; ok && isSelector(info) {
-			return name, nil
-		}
-	}
-	names := make([]string, 0, len(proxies))
-	for name, info := range proxies {
-		if isSelector(info) {
-			names = append(names, name)
-		}
-	}
-	sort.Strings(names)
-	if len(names) > 0 {
-		return names[0], nil
-	}
-	return "", fmt.Errorf("no selector group found; pass --group")
-}
-
-func isSelector(info clash.ProxyInfo) bool {
-	return strings.EqualFold(info.Type, "Selector")
-}
-
-func isTestable(info clash.ProxyInfo) bool {
-	switch strings.ToLower(info.Type) {
-	case "selector", "urltest", "fallback", "loadbalance", "direct", "reject", "rejectdrop", "compatible", "pass", "dns":
-		return false
-	}
-	return true
-}
-
-func candidates(group clash.ProxyInfo, proxies map[string]clash.ProxyInfo) []config.Proxy {
-	seen := map[string]bool{}
-	out := make([]config.Proxy, 0, len(group.All))
-	for _, name := range group.All {
-		if seen[name] {
-			continue
-		}
-		seen[name] = true
-		info, ok := proxies[name]
-		if !ok || !isTestable(info) {
-			continue
-		}
-		out = append(out, config.Proxy{Name: name, Type: info.Type})
-	}
-	// Some controllers omit `all` for selector groups; fall back to every
-	// testable proxy.
-	if len(out) == 0 {
-		for name, info := range proxies {
-			if isTestable(info) {
-				out = append(out, config.Proxy{Name: name, Type: info.Type})
+func (d *Daemon) verifyNode(ctx context.Context, name string) error {
+	for i := 0; i < d.opts.VerifyRounds; i++ {
+		if i > 0 {
+			if err := d.wait(ctx, d.opts.VerifyDelay); err != nil {
+				return err
 			}
 		}
-		sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
-	}
-	return out
-}
-
-func firstQualified(ranked []score.Result, minSuccess float64) (score.Result, bool) {
-	for _, r := range ranked {
-		if r.Success > 0 && r.SuccessRate() >= minSuccess {
-			return r, true
+		ms, err := d.api.Delay(ctx, name, d.opts.TestURL, d.opts.Timeout)
+		if err != nil {
+			return fmt.Errorf("验证 %s 失败: %w", name, err)
+		}
+		if ms <= 0 {
+			return fmt.Errorf("验证 %s 返回无效延迟", name)
 		}
 	}
-	return score.Result{}, false
+	return nil
+}
+
+func (d *Daemon) wait(ctx context.Context, delay time.Duration) error {
+	if delay <= 0 {
+		return nil
+	}
+	timer := time.NewTimer(delay)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-timer.C:
+		return nil
+	}
 }
 
 func (d *Daemon) emit(ev store.Event) {

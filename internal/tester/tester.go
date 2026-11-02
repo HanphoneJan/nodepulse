@@ -110,17 +110,22 @@ func (t *Tester) Test(ctx context.Context, nodes []config.Proxy) []score.Result 
 
 func (t *Tester) testNode(ctx context.Context, node config.Proxy) score.Result {
 	latencies := make([]int, 0, t.opts.Rounds)
+	var lastErr error
 	for i := 0; i < t.opts.Rounds; i++ {
 		if ctx.Err() != nil {
 			break
 		}
 		ms, err := t.delayer.Delay(ctx, node.Name, t.opts.URL, t.opts.Timeout)
 		if err != nil {
+			lastErr = err
 			continue
 		}
 		latencies = append(latencies, ms)
 	}
 	result := score.FromLatencies(node.Name, node.Type, latencies, t.opts.Rounds)
+	if lastErr != nil && result.Success == 0 {
+		result.LastError = lastErr.Error()
+	}
 	t.emit(int(t.done.Add(1)), t.total, result)
 	return result
 }

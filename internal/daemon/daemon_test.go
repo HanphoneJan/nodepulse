@@ -8,6 +8,7 @@ import (
 
 	"github.com/HanphoneJan/nodepulse/internal/clash"
 	"github.com/HanphoneJan/nodepulse/internal/score"
+	"github.com/HanphoneJan/nodepulse/internal/selector"
 )
 
 type fakeAPI struct {
@@ -96,27 +97,25 @@ func TestRunOnceDryRunDoesNotSwitch(t *testing.T) {
 }
 
 func TestDecideNeedsConfirmations(t *testing.T) {
-	d := New(newFake("B"), Options{Margin: 0.2, Confirm: 2, MinSuccess: 0.8})
 	cur := score.Result{Name: "B", Success: 10, Total: 10, Score: 0.5}
 	best := score.Result{Name: "A", Success: 10, Total: 10, Score: 0.9}
+	ranked := []score.Result{best, cur}
 
-	to, _, streak := d.decide("B", cur, best, true)
-	if to != "" || streak != 1 {
-		t.Fatalf("first cycle: to=%q streak=%d, want no switch and streak 1", to, streak)
+	first := selector.Decide("B", cur, ranked, selector.Options{Margin: 0.2, Confirm: 2, MinSuccess: 0.8})
+	if first.Switch || first.Streak != 1 {
+		t.Fatalf("first cycle: switch=%v streak=%d, want no switch and streak 1", first.Switch, first.Streak)
 	}
-	d.streak = streak
-	to, _, streak = d.decide("B", cur, best, true)
-	if to != "A" || streak != 0 {
-		t.Fatalf("second cycle: to=%q streak=%d, want A and streak 0", to, streak)
+	second := selector.Decide("B", cur, ranked, selector.Options{Margin: 0.2, Confirm: 2, MinSuccess: 0.8, Streak: first.Streak})
+	if !second.Switch || second.Best.Name != "A" || second.Streak != 0 {
+		t.Fatalf("second cycle: %+v, want switch A and streak 0", second)
 	}
 }
 
 func TestDecideKeepsCurrentWithinMargin(t *testing.T) {
-	d := New(newFake("B"), Options{Margin: 0.2, Confirm: 1})
 	cur := score.Result{Name: "B", Success: 10, Total: 10, Score: 0.90}
 	best := score.Result{Name: "A", Success: 10, Total: 10, Score: 0.95}
-	to, _, _ := d.decide("B", cur, best, true)
-	if to != "" {
-		t.Fatalf("to = %q, want no switch", to)
+	decision := selector.Decide("B", cur, []score.Result{best, cur}, selector.Options{Margin: 0.2, Confirm: 1})
+	if decision.Switch {
+		t.Fatalf("decision = %+v, want no switch", decision)
 	}
 }
