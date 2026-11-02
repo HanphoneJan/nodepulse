@@ -1,0 +1,37 @@
+mixed-port: 7890
+allow-lan: false
+mode: rule
+log-level: info
+
+proxies:
+  - name: "Node A"
+    type: ss
+    server: 127.0.0.1
+    port: 8388
+    cipher: aes-128-gcm
+    password: test
+  - name: "Node B"
+    type: hysteria2
+    server: 127.0.0.1
+    port: 443
+    password: test
+    sni: example.com
+    skip-cert-verify: true
+  - name: "剩余流量：100 GB"
+    type: ss
+    server: 127.0.0.1
+    port: 8388
+    cipher: aes-128-gcm
+    password: test
+
+proxy-groups:
+  - name: Auto
+    type: url-test
+    url: https://www.gstatic.com/generate_204
+    interval: 300
+    proxies:
+      - "Node A"
+      - "Node B"
+
+rules:
+  - MATCH,Auto

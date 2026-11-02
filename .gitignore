@@ -1,0 +1,9 @@
+bin/
+dist/
+*.out
+results.json
+stable.yaml
+.DS_Store
+.idea/
+.vscode/
+*.test

@@ -1,0 +1,93 @@
+# 开发与发布
+
+## 环境
+
+- Go 1.24+
+- `mihomo` 可执行文件（集成测试 / sidecar）
+- `make`、`gcc`（交叉编译时可选）
+
+国内网络建议设置模块代理：
+
+```bash
+go env -w GOPROXY=https://goproxy.cn,direct
+```
+
+## 常用命令
+
+```bash
+make build     # 输出 bin/nodepulse
+make test      # go test ./...
+make vet       # go vet ./...
+make fmt       # gofmt
+make clean
+```
+
+## 本地验证
+
+### 用测试配置
+
+```bash
+./bin/nodepulse nodes -f testdata/subscription.yaml
+```
+
+### 用真实订阅 + sidecar
+
+```bash
+./bin/nodepulse test \
+  -f ~/my-subscription.yaml \
+  --mihomo /path/to/mihomo \
+  --rounds 5 \
+  --out results.json
+
+./bin/nodepulse rank -i results.json
+./bin/nodepulse export -f ~/my-subscription.yaml -i results.json -o stable.yaml
+```
+
+### 用已有控制口
+
+```bash
+./bin/nodepulse test \
+  -f ~/my-subscription.yaml \
+  --api http://127.0.0.1:9090 \
+  --secret your-secret \
+  --rounds 10
+```
+
+## 测试
+
+```bash
+go test ./...
+go test -race ./...
+```
+
+- `internal/score`：评分、百分位、排序
+- `internal/subscription`：解析、去重、信息节点
+- `internal/clash`：用 `httptest` 模拟控制口
+- `internal/tester`：用 fake `Delayer` 验成功率
+- `internal/export`：过滤与导出
+
+## 发布（Phase 3）
+
+计划使用 GoReleaser + nfpm + appimagetool：
+
+```bash
+goreleaser release --clean
+```
+
+产物：
+
+- `nodepulse_<version>_linux_amd64.deb`
+- `nodepulse_<version>_linux_arm64.deb`
+- `NodePulse-<version>-x86_64.AppImage`
+- `nodepulse_<version>_linux_amd64.tar.gz`
+- `checksums.txt`
+
+GitHub Actions 在 tag 上执行，发布到 GitHub Releases。
+
+## 代码约定
+
+- 核心包不依赖 CLI/GUI；
+- 错误带上下文（`fmt.Errorf("...: %w", err)`）；
+- 日志不打印订阅 URL、UUID、密码；
+- 新增客户端适配器实现 `Delayer`（和可选的 `Switcher`）；
+- 新功能先补文档，再补测试。
