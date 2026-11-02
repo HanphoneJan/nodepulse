@@ -44,7 +44,7 @@ make build
 # 或
 go build -o bin/nodepulse ./cmd/nodepulse
 
-# GUI（需要 GTK3 + WebKit2GTK 4.1 开发库）
+# GUI（需要 GTK3 + WebKit2GTK 4.1 开发库，带系统托盘）
 make gui
 ./bin/nodepulse-gui
 

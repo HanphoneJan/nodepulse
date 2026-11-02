@@ -13,6 +13,7 @@ var assets embed.FS
 
 func main() {
 	app := NewApp()
+	go app.startTray()
 	err := wails.Run(&options.App{
 		Title:     "NodePulse",
 		Width:     1180,
