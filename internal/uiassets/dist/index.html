@@ -6,7 +6,7 @@
   <title>NodePulse</title>
   <script>
     (function () {
-      var mode = localStorage.getItem("nodepulse.theme") || "system";
+      var mode = localStorage.getItem("nodepulse.themeMode.v2") || "system";
       var light = window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches;
       var dark = mode === "dark" || (mode === "system" && !light);
       document.documentElement.dataset.theme = dark ? "dark" : "light";
@@ -42,7 +42,7 @@
         <button class="rail-item" data-view="history"><svg class="icon"><use href="#i-history"/></svg><span>历史</span></button>
       </nav>
       <div class="rail-bottom">
-        <button id="themeToggle" class="rail-item" title="切换主题"><svg class="icon"><use href="#i-sun"/></svg><span>主题</span></button>
+        <button id="themeToggle" class="rail-item" title="切换主题" aria-label="切换主题"><svg class="icon"><use href="#i-sun"/></svg><span>主题</span></button>
       </div>
     </aside>
 
@@ -81,14 +81,14 @@
             </div>
           </div>
           <div class="hero-score">
-            <div id="scoreRing" class="score-ring">
+            <div id="scoreRing" class="score-ring" hidden>
               <svg viewBox="0 0 100 100" aria-hidden="true">
                 <circle class="ring-track" cx="50" cy="50" r="44"></circle>
                 <circle id="scoreArc" class="ring-value" cx="50" cy="50" r="44"></circle>
               </svg>
               <div class="score-text"><span id="scoreValue">--</span><small>评分</small></div>
             </div>
-            <div id="bestName" class="best-name"></div>
+            <div id="bestName" class="best-name">尚未测速</div>
           </div>
         </div>
 
@@ -106,11 +106,11 @@
             <div class="divider"></div>
             <div class="card-title small"><svg class="icon"><use href="#i-download"/></svg>订阅</div>
             <div class="row mt sub-row">
-              <select id="subSelect" class="text-field-input"></select>
+              <select id="subSelect" class="text-field-input" aria-label="订阅文件"></select>
               <button id="useSub" class="md-button tonal small">使用</button>
             </div>
             <div class="row mt sub-row">
-              <input id="subURL" class="text-field-input" placeholder="https://…/subscribe?token=…" />
+              <input id="subURL" class="text-field-input" placeholder="https://…/subscribe?token=…" aria-label="订阅 URL" />
               <button id="importSub" class="md-button tonal small">导入</button>
             </div>
             <p id="subPath" class="muted mt"></p>
@@ -121,11 +121,11 @@
             <p class="muted">当前节点明显变差时自动切换，失败会回滚。</p>
             <div class="row between mt">
               <span>自动优化</span>
-              <label class="switch"><input type="checkbox" id="daemonToggle"><span class="track"><span class="thumb"></span></span></label>
+              <label class="switch"><input type="checkbox" id="daemonToggle" aria-label="后台自动优化"><span class="track"><span class="thumb"></span></span></label>
             </div>
             <div class="row between mt">
               <span class="muted">检查间隔</span>
-              <select id="daemonInterval" class="text-field-input small">
+              <select id="daemonInterval" class="text-field-input small" aria-label="自动优化检查间隔">
                 <option value="300">5 分钟</option>
                 <option value="600">10 分钟</option>
                 <option value="1800">30 分钟</option>
@@ -199,7 +199,7 @@
     <button class="bottom-item" data-view="nodes"><svg class="icon"><use href="#i-list"/></svg><span>节点</span></button>
     <button class="bottom-item" data-view="settings"><svg class="icon"><use href="#i-settings"/></svg><span>设置</span></button>
     <button class="bottom-item" data-view="history"><svg class="icon"><use href="#i-history"/></svg><span>历史</span></button>
-    <button id="themeToggleMobile" class="bottom-item" title="主题"><svg class="icon"><use href="#i-monitor"/></svg><span>主题</span></button>
+    <button id="themeToggleMobile" class="bottom-item" title="主题" aria-label="切换主题"><svg class="icon"><use href="#i-monitor"/></svg><span>主题</span></button>
   </nav>
 
   <script src="web-shim.js"></script>

@@ -127,6 +127,16 @@ NodePulse 的 GUI 与本地 Web UI 共用同一套 UI 资源（`internal/uiasset
 - 断点驱动的密度变化（隐藏次要列）；
 - 不使用装饰性渐变，层级靠 surface 色阶与描边/阴影。
 
+## 对比度与可访问性
+
+- 暗色：正文 `12.68:1`、次要文字 `9.60:1`、描边 `5.14:1`；
+- 亮色：正文 `14.74:1`、次要文字 `8.01:1`、主按钮 `6.39:1`；
+- 亮色警告色已从 `#8a6d00` 调到 `#7a5f00`（卡片上 `5.23:1`），满足 4.5:1；
+- `color-scheme: dark/light` 让原生 `<select>`、滚动条、输入控件跟随主题；
+- `:focus-visible` 统一 2px primary 焦点环，不再出现浏览器默认黄色；
+- `prefers-reduced-motion: reduce` 关闭非必要过渡；
+- 移动端操作按钮高度提升到 44px，底部导航项 ≥ 48px。
+
 ## 参考
 
 - Material Design 3：color roles / typescale / shape / navigation rail / switch / snackbar；

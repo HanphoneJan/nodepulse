@@ -202,8 +202,10 @@ function renderBest(res) {
   const circumference = 2 * Math.PI * 44;
   const arc = $("scoreArc");
   if (arc) arc.style.strokeDashoffset = String(circumference * (1 - score));
+  const ring = $("scoreRing");
+  if (ring) ring.hidden = !res.best;
   $("scoreValue").textContent = res.best ? p : "--";
-  $("bestName").textContent = res.best ? res.best.name : "";
+  $("bestName").textContent = res.best ? res.best.name : "尚未测速";
   if (res.current) {
     $("currentNode").textContent = res.current;
     $("currentMeta").textContent = `${res.group || "自动"} · ${res.source === "controller" ? "客户端" : "sidecar"}`;
@@ -356,7 +358,7 @@ function bindScroll() {
   update();
 }
 
-const THEME_KEY = "nodepulse.theme";
+const THEME_KEY = "nodepulse.themeMode.v2";
 const THEME_MODES = ["system", "light", "dark"];
 
 function systemDark() {
@@ -438,6 +440,7 @@ async function init() {
     setTimeout(init, 80);
     return;
   }
+  document.querySelectorAll("svg.icon").forEach((el) => el.setAttribute("aria-hidden", "true"));
   initTheme();
   wire();
   bindScroll();
