@@ -210,7 +210,8 @@ system-ui, -apple-system, "Segoe UI", "Noto Sans SC", "PingFang SC", "Microsoft 
 
 - 滚动区域中的卡片不再使用大范围模糊 `box-shadow`，保留边框和表面分层；
 - 菜单/提示等浮层保留轻量阴影；
-- 不引入装饰性渐变，保持现有 Material 3 表面层次。
+- 不引入装饰性渐变，保持现有 Material 3 表面层次；
+- Linux Wayland 默认关闭 WebKitGTK DMA-BUF 渲染以规避部分 Intel 驱动的滚动卡顿；需要恢复时设置 `NODEPULSE_WEBKIT_DMABUF=1`。
 
 ## 交互
 

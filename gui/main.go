@@ -13,6 +13,7 @@ func main() {
 	background := flag.Bool("background", false, "start hidden in the system tray")
 	flag.Parse()
 
+	tuneWebKit()
 	app := NewApp()
 	app.startHidden = *background
 	installSignalHandler()
