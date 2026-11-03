@@ -94,6 +94,24 @@ and 连续 confirm 轮成立
 - 切换环境时停止旧 daemon，按新环境决定是否恢复；
 - 手动测速与自动优化互斥，避免两套决策同时操作同一个组。
 
+## 4.1 多订阅联合测速
+
+FlClash / Clash Verge 的 Clash 控制口只暴露**当前激活配置**；未激活订阅不在 `/proxies` 或 `/providers/proxies` 中。因此“获取客户端里的全部订阅”必须分两条路：
+
+- 激活配置：通过控制口读取，可测试、可切换；
+- 未激活 profile：只读客户端本地的 profile YAML（FlClash `profiles/*.yaml`、Clash Verge profiles 目录、Mihomo 配置），合并后用临时 mihomo sidecar 测速。
+
+联合测速的行为：
+
+1. 扫描已知客户端的 profile 文件，去重；
+2. 每个 profile 读取 `proxies`，只保留可测试节点；
+3. 节点同名时加订阅来源后缀，避免测速/展示冲突；
+4. 用同一 URL、轮数、并发和超时，在同一个 sidecar 中测试；
+5. 结果带来源标签，给跨订阅总排名；
+6. **只推荐，不自动切换未激活订阅**：客户端没有公开 API 让 NodePulse 切换 profile，强行改数据库/配置不可接受。
+
+如果没有本地 profile 文件，则回退到当前控制口的所有直接节点；如果只有激活订阅，行为与普通全量测速一致。FlClash 的 profile 文件本身不保存订阅显示名，标签会回退到该 profile 的首个分组名。
+
 ## 5. 驻留、通知与开机自启
 
 自动选择只有在后台持续运行时才有价值，但常驻能力不能变成打扰。

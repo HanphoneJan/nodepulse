@@ -163,6 +163,13 @@ GUI 与 Web 共用的结果文件：
 - 关闭窗口隐藏到托盘，daemon 继续运行；
 - 切换/回滚/失败时发送系统通知，窗口在前台时不重复打扰。
 
+### `internal/discover` / 多订阅联合测速
+
+- 扫描 FlClash、Clash Verge、Mihomo 的本地 profile；
+- 控制口只提供激活订阅，未激活 profile 只读文件；
+- `internal/optimize` 合并节点、标注来源，用同一个 sidecar 测速；
+- 跨订阅只推荐，不切换未激活 profile。
+
 ### `internal/health`
 
 首启/环境检查：

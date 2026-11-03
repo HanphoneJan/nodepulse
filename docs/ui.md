@@ -187,6 +187,13 @@ system-ui, -apple-system, "Segoe UI", "Noto Sans SC", "PingFang SC", "Microsoft 
 - 恢复前自动备份当前设置；导入完成后重新加载环境和自动优化状态；
 - 设置备份包含 secret，界面明确提示妥善保管。
 
+## 多订阅联合测速
+
+- 仪表盘提供“全部订阅”测速入口，不需要先把两个机场塞进同一个 Selector；
+- 结果表在节点名下显示来源（FlClash/Verge profile 或订阅文件名）；
+- 只做跨订阅排名和推荐，不自动切换未激活 profile；
+- 未激活订阅通过本机 profile 文件读取，控制口只负责当前激活配置。
+
 ## 结果持久化
 
 - GUI 重启后恢复上次测速结果；
