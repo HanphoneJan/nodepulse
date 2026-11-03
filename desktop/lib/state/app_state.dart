@@ -128,13 +128,14 @@ class AppState extends ChangeNotifier {
         if (!ready || _sidecar == null) return;
         try {
           final next = await api!.history();
-          if (next.length != history.length) {
+          final latest = next.isNotEmpty && next.first is Map
+              ? next.first as Map
+              : null;
+          final key = latest == null ? null : _eventKey(latest);
+          if (key != _lastEventKey) {
             history = next;
-            if (next.isNotEmpty && next.first is Map) {
-              final latest = next.first as Map;
-              final key = _eventKey(latest);
+            if (latest != null) {
               if (_lastEventKey != null &&
-                  key != _lastEventKey &&
                   settings['notify_on_switch'] != false) {
                 _notifyEvent(latest);
               }
