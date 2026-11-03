@@ -193,6 +193,25 @@ system-ui, -apple-system, "Segoe UI", "Noto Sans SC", "PingFang SC", "Microsoft 
 - 只有结果文件中的配置路径与当前环境一致时才恢复；
 - 切换环境或清除结果会删除结果文件。
 
+## 环境检查
+
+- 设置页“环境检查”卡片显示控制口、订阅、mihomo、Selector 组的状态；
+- 每项给出 ok/warn/error 和可执行建议；
+- 可手动重新检查，不在每次打开页面时阻塞；
+- 控制口不可达但存在本地订阅时，提示可以走 sidecar 测速。
+
+## daemon 互斥
+
+- GUI、Web、CLI 共用 `~/.local/share/nodepulse/daemon.lock`；
+- 已有实例运行时，新 daemon 启动直接报错，不静默重复运行；
+- 进程崩溃遗留锁会按 PID 存活情况清理。
+
+## GUI 性能
+
+- 滚动区域中的卡片不再使用大范围模糊 `box-shadow`，保留边框和表面分层；
+- 菜单/提示等浮层保留轻量阴影；
+- 不引入装饰性渐变，保持现有 Material 3 表面层次。
+
 ## 交互
 
 - **一键优化**：测速 → 评分 → 自动切换 → Snackbar + 评分环；

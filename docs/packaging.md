@@ -21,15 +21,17 @@ VERSION=0.3.0 make appimage
 
 ## Windows
 
-CI 在 `windows-latest` 上运行 `packaging/build-windows.ps1`：
+CI 在 `windows-latest` 上安装 Wails 后运行 `packaging/build-windows.ps1`：
 
 ```powershell
 Push-Location gui
-go build -trimpath -tags "production,desktop" `
-  -ldflags "-s -w -H windowsgui -X github.com/HanphoneJan/nodepulse/internal/version.Version=$env:VERSION" `
-  -o ../dist/nodepulse.exe .
+wails build -platform windows/amd64 -s -skipbindings -m -tags production `
+  -ldflags "-s -w -H windowsgui -X github.com/HanphoneJan/nodepulse/internal/version.Version=$env:VERSION"
+Copy-Item build\bin\nodepulse.exe ../dist/nodepulse.exe
 Pop-Location
 ```
+
+Wails 会用 `gui/build/appicon.png` 生成 `icon.ico` 和清单，因此 exe 带图标。没有 Wails 时脚本回退到纯 Go 构建，但不嵌入图标。
 
 产物是 zip 内的单个 `nodepulse.exe`。当前不做 MSI/安装器；代码签名需要发布者证书，未签名时 SmartScreen 会提示。
 
@@ -50,8 +52,11 @@ CI 在 `macos-latest` 上运行 `packaging/build-macos.sh`：
 
 ## 图标与元数据
 
-- Windows/macOS 使用与托盘一致的 `gui/tray-icon.png` 作为当前图标源；
-- 正式发布前应补充 `.ico` / `.icns` 和多尺寸图标；
+- 图标源：`packaging/nodepulse-1024.png`，由 `go run packaging/genicon.go` 生成；
+- Linux 使用 `packaging/nodepulse.svg`；
+- Windows 使用 Wails 从 `gui/build/appicon.png` 生成 exe 图标，并在 zip 内附带 `packaging/nodepulse.ico`；
+- macOS 脚本用 `sips` + `iconutil` 从 1024 PNG 生成 `.icns` 并写入 `Info.plist`；
+- 托盘图标为 `gui/tray-icon.png`，与主图标同一套形状和配色；
 - 版本号统一由 `internal/version.Version` 注入。
 
 ## CI
