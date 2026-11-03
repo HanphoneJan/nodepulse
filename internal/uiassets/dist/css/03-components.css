@@ -5,7 +5,6 @@
   background: var(--color-bg-card);
   border: 1px solid var(--color-border);
   border-radius: var(--card-radius);
-  box-shadow: var(--elev-1);
 }
 .grid-2 {
   display: grid;
@@ -661,6 +660,8 @@
 .node-row {
   min-height: var(--table-row-h);
   padding: 0 var(--table-pad-x);
+  content-visibility: auto;
+  contain-intrinsic-size: auto var(--table-row-h);
   border-radius: var(--radius-sm);
   color: var(--color-fg);
   font-size: var(--text-sm);
@@ -1073,3 +1074,42 @@
   cursor: pointer;
 }
 .file-button input { display: none; }
+
+/* Environment health */
+.health-list {
+  display: grid;
+  gap: var(--space-1);
+  margin-top: var(--space-3);
+}
+.health-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-inset);
+}
+.health-dot {
+  width: 8px;
+  height: 8px;
+  margin-top: 6px;
+  border-radius: var(--radius-circle);
+  background: var(--color-success);
+}
+.health-row--warn .health-dot { background: var(--color-warning); }
+.health-row--error .health-dot { background: var(--color-error); }
+.health-body { min-width: 0; display: grid; gap: 2px; }
+.health-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  font-size: var(--text-sm);
+}
+.health-head span { color: var(--color-fg-muted); font-size: var(--text-xs); }
+.health-detail, .health-hint {
+  color: var(--color-fg-muted);
+  font-size: var(--text-xs);
+  overflow-wrap: anywhere;
+}
+.health-hint { color: var(--color-fg-placeholder); }

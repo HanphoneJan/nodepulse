@@ -265,6 +265,7 @@ export function Settings({
   onSettings, onSeed, onResetSeed, onMode, onSave, onTest, onSwitch, onExport, canSwitch, canExport,
   exportImpact, exportMinimal, onConfirmExport, onCancelExport, onExportMinimal,
   desktop, autostart, onAutostart, onBackup, onRestore,
+  health, healthBusy, onHealth,
   profiles, activeProfile, onActivateProfile, onRenameProfile, onProfileNameBlur, onSaveProfile, onNewProfile, onDeleteProfile,
 }) {
   const currentProfile = profiles.find((profile) => profile.id === activeProfile) || profiles[0];
@@ -335,6 +336,26 @@ export function Settings({
         <${Field} label="连续确认 (轮)" id="autoConfirm" type="number" value=${settings.autoConfirm} onChange=${(value) => onSettings({ autoConfirm: Math.max(1, Number(value) || 2) })} />
         <${Field} label="最低成功率 (%)" id="autoMin" type="number" value=${Math.round(settings.autoMinSuccess * 100)} onChange=${(value) => onSettings({ autoMinSuccess: Math.max(1, Math.min(100, Number(value) || 80)) / 100 })} />
         <${Field} label="检查间隔 (秒)" id="daemonInterval" type="number" value=${settings.daemonInterval} onChange=${(value) => onSettings({ daemonInterval: Math.max(30, Number(value) || 300) })} />
+      </div>
+    </div>
+
+    <div class="md-card">
+      <div class="card-title"><${Icon} name="checkCircle" />环境检查</div>
+      <p class="muted">检查控制口、订阅、mihomo 和自动选择组。检查只读，不会修改配置。</p>
+      ${health && Array.isArray(health.checks)
+        ? html`<div class="health-list">
+            ${health.checks.map((check) => html`<div class=${"health-row health-row--" + check.status}>
+              <span class="health-dot" aria-hidden="true"></span>
+              <div class="health-body">
+                <div class="health-head"><strong>${check.label}</strong><span>${check.status === "ok" ? "正常" : check.status === "warn" ? "注意" : "异常"}</span></div>
+                ${check.detail ? html`<div class="health-detail">${check.detail}</div>` : null}
+                ${check.hint ? html`<div class="health-hint">${check.hint}</div>` : null}
+              </div>
+            </div>`)}
+          </div>`
+        : html`<p class="muted mt">${healthBusy ? "正在检查…" : "尚未检查"}</p>`}
+      <div class="settings-actions mt">
+        <${Button} variant="outlined" icon="refresh" loading=${healthBusy} onClick=${onHealth}>重新检查<//>
       </div>
     </div>
 

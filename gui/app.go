@@ -4,9 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
-	"net/http"
-	"net/url"
 	"os"
 	"path/filepath"
 	"sort"
@@ -21,6 +18,9 @@ import (
 	"github.com/HanphoneJan/nodepulse/internal/daemon"
 	"github.com/HanphoneJan/nodepulse/internal/discover"
 	"github.com/HanphoneJan/nodepulse/internal/export"
+	"github.com/HanphoneJan/nodepulse/internal/health"
+	"github.com/HanphoneJan/nodepulse/internal/lock"
+	"github.com/HanphoneJan/nodepulse/internal/netfetch"
 	"github.com/HanphoneJan/nodepulse/internal/optimize"
 	"github.com/HanphoneJan/nodepulse/internal/progress"
 	"github.com/HanphoneJan/nodepulse/internal/results"
@@ -48,6 +48,7 @@ type App struct {
 	daemonRunning bool
 	daemonSeq     uint64
 	daemonDone    chan struct{}
+	daemonLock    *lock.Lock
 
 	progress    *progress.Tracker
 	testCancel  context.CancelFunc
@@ -245,6 +246,22 @@ func (a *App) Settings() (settings.Settings, error) {
 	return settings.Load("")
 }
 
+// Health checks the current environment without modifying it.
+func (a *App) Health(api, secret, group, configPath, mihomoPath, testURL string) health.Report {
+	s := settings.Defaults()
+	s.API = api
+	s.Secret = secret
+	s.Group = group
+	s.ConfigPath = configPath
+	s.MihomoPath = mihomoPath
+	if testURL != "" {
+		s.URL = testURL
+	}
+	ctx, cancel := context.WithTimeout(a.ctx, 10*time.Second)
+	defer cancel()
+	return health.Run(ctx, s)
+}
+
 // SaveSettings persists the settings.
 func (a *App) SaveSettings(s settings.Settings) error {
 	return settings.Save("", s)
@@ -413,22 +430,11 @@ func (a *App) ImportSubscription(rawURL string) (string, error) {
 	if rawURL == "" {
 		return "", fmt.Errorf("请填写订阅 URL")
 	}
-	parsed, err := url.Parse(rawURL)
-	if err != nil || parsed.Host == "" || (parsed.Scheme != "http" && parsed.Scheme != "https") {
-		return "", fmt.Errorf("订阅 URL 必须是 http 或 https")
-	}
-	client := &http.Client{Timeout: 45 * time.Second}
-	resp, err := client.Get(rawURL)
+	ctx, cancel := context.WithTimeout(a.ctx, 50*time.Second)
+	defer cancel()
+	data, err := netfetch.Download(ctx, rawURL)
 	if err != nil {
 		return "", fmt.Errorf("下载订阅失败: %w", err)
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return "", fmt.Errorf("下载订阅失败: HTTP %d", resp.StatusCode)
-	}
-	data, err := io.ReadAll(io.LimitReader(resp.Body, 10<<20))
-	if err != nil {
-		return "", err
 	}
 	if _, err := subscription.LoadReader(strings.NewReader(string(data))); err != nil {
 		return "", fmt.Errorf("订阅内容无法解析: %w", err)
@@ -459,6 +465,19 @@ func (a *App) StartDaemon(api, secret, group string, intervalSec, rounds int, ma
 		a.mu.Unlock()
 		return fmt.Errorf("后台自动优化已经在运行")
 	}
+	a.mu.Unlock()
+
+	daemonLock, err := lock.Acquire(lock.DefaultPath())
+	if err != nil {
+		return err
+	}
+
+	a.mu.Lock()
+	if a.daemonRunning {
+		a.mu.Unlock()
+		_ = daemonLock.Release()
+		return fmt.Errorf("后台自动优化已经在运行")
+	}
 	ctx, cancel := context.WithCancel(a.ctx)
 	a.daemonSeq++
 	id := a.daemonSeq
@@ -466,6 +485,7 @@ func (a *App) StartDaemon(api, secret, group string, intervalSec, rounds int, ma
 	a.daemonCancel = cancel
 	a.daemonRunning = true
 	a.daemonDone = done
+	a.daemonLock = daemonLock
 	a.mu.Unlock()
 
 	st, err := store.New(store.DefaultPath())
@@ -479,6 +499,7 @@ func (a *App) StartDaemon(api, secret, group string, intervalSec, rounds int, ma
 		close(done)
 		a.mu.Unlock()
 		cancel()
+		_ = daemonLock.Release()
 		return err
 	}
 	d := daemon.New(clash.New(api, secret), daemon.Options{
@@ -506,8 +527,10 @@ func (a *App) StartDaemon(api, secret, group string, intervalSec, rounds int, ma
 			a.daemonRunning = false
 			a.daemonCancel = nil
 			a.daemonDone = nil
+			a.daemonLock = nil
 		}
 		a.mu.Unlock()
+		_ = daemonLock.Release()
 		close(done)
 	}()
 	return nil
@@ -519,22 +542,23 @@ func (a *App) StopDaemon() error {
 	a.mu.Lock()
 	cancel := a.daemonCancel
 	done := a.daemonDone
-	if cancel == nil {
-		a.mu.Unlock()
-		return nil
-	}
+	daemonLock := a.daemonLock
 	a.daemonCancel = nil
 	a.daemonRunning = false
 	a.daemonDone = nil
+	a.daemonLock = nil
 	a.mu.Unlock()
 
-	cancel()
+	if cancel != nil {
+		cancel()
+	}
 	if done != nil {
 		select {
 		case <-done:
 		case <-time.After(3 * time.Second):
 		}
 	}
+	_ = daemonLock.Release()
 	return nil
 }
 

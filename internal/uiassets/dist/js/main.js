@@ -154,6 +154,8 @@ function App() {
   const [selected, setSelected] = useState(null);
   const [daemon, setDaemon] = useState(false);
   const [autostartEnabled, setAutostartEnabled] = useState(false);
+  const [health, setHealth] = useState(null);
+  const [healthBusy, setHealthBusy] = useState(false);
   const [events, setEvents] = useState([]);
   const [busy, setBusy] = useState(false);
   const [busyKind, setBusyKind] = useState("");
@@ -389,6 +391,7 @@ function App() {
         }
         hydratedRef.current = true;
         await refreshStatus(normalized);
+        refreshHealth();
         if (normalized.autoOptimize && normalized.api && !running) {
           try {
             await api.startDaemon(normalized);
@@ -604,6 +607,18 @@ function App() {
       notify(errText(error), "error");
     } finally {
       finishBusy();
+    }
+  }
+
+  async function refreshHealth() {
+    if (healthBusy) return;
+    setHealthBusy(true);
+    try {
+      setHealth(await api.health(settingsRef.current));
+    } catch (error) {
+      notify(errText(error), "error");
+    } finally {
+      setHealthBusy(false);
     }
   }
 
@@ -888,6 +903,9 @@ function App() {
                   onAutostart=${toggleAutostart}
                   onBackup=${backupSettings}
                   onRestore=${restoreSettings}
+                  health=${health}
+                  healthBusy=${healthBusy}
+                  onHealth=${refreshHealth}
                   canSwitch=${canSwitch}
                   canExport=${canExport}
                   profiles=${settings.profiles}

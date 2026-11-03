@@ -75,6 +75,20 @@ export const api = {
     return get("/api/bootstrap");
   },
 
+  async health(s) {
+    if (wails()) {
+      return wails().Health(s.api, s.secret, s.group, s.configPath, s.mihomoPath, s.url);
+    }
+    return post("/api/health", {
+      api: s.api,
+      secret: s.secret,
+      group: s.group,
+      config_path: s.configPath,
+      mihomo_path: s.mihomoPath,
+      url: s.url,
+    });
+  },
+
   async saveSettings(s) {
     if (wails()) return wails().SaveSettings(settingsPayload(s));
     return post("/api/settings", settingsPayload(s));

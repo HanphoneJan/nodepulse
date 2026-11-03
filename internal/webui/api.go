@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -18,6 +17,9 @@ import (
 	"github.com/HanphoneJan/nodepulse/internal/daemon"
 	"github.com/HanphoneJan/nodepulse/internal/discover"
 	"github.com/HanphoneJan/nodepulse/internal/export"
+	"github.com/HanphoneJan/nodepulse/internal/health"
+	"github.com/HanphoneJan/nodepulse/internal/lock"
+	"github.com/HanphoneJan/nodepulse/internal/netfetch"
 	"github.com/HanphoneJan/nodepulse/internal/optimize"
 	"github.com/HanphoneJan/nodepulse/internal/results"
 	"github.com/HanphoneJan/nodepulse/internal/score"
@@ -284,25 +286,13 @@ func (s *Server) handleImport(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "url is required")
 		return
 	}
-	parsed, err := url.Parse(rawURL)
-	if err != nil || parsed.Host == "" || (parsed.Scheme != "http" && parsed.Scheme != "https") {
-		writeError(w, http.StatusBadRequest, "订阅 URL 必须是 http 或 https")
+	if _, err := netfetch.ValidateURL(rawURL); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	client := &http.Client{Timeout: 45 * time.Second}
-	resp, err := client.Get(rawURL)
+	data, err := netfetch.Download(r.Context(), rawURL)
 	if err != nil {
 		writeError(w, http.StatusBadGateway, "下载订阅失败: "+err.Error())
-		return
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		writeError(w, http.StatusBadGateway, fmt.Sprintf("下载订阅失败: HTTP %d", resp.StatusCode))
-		return
-	}
-	data, err := io.ReadAll(io.LimitReader(resp.Body, 10<<20))
-	if err != nil {
-		writeError(w, http.StatusBadGateway, err.Error())
 		return
 	}
 	if _, err := subscription.LoadReader(strings.NewReader(string(data))); err != nil {
@@ -475,6 +465,22 @@ func (s *Server) handleDaemonStart(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusConflict, "daemon already running")
 		return
 	}
+	s.mu.Unlock()
+
+	lockPath := s.opts.LockPath
+	daemonLock, err := lock.Acquire(lockPath)
+	if err != nil {
+		writeError(w, http.StatusConflict, err.Error())
+		return
+	}
+
+	s.mu.Lock()
+	if s.daemonRunning {
+		s.mu.Unlock()
+		_ = daemonLock.Release()
+		writeError(w, http.StatusConflict, "daemon already running")
+		return
+	}
 	ctx, cancel := context.WithCancel(context.Background())
 	s.daemonSeq++
 	id := s.daemonSeq
@@ -482,6 +488,7 @@ func (s *Server) handleDaemonStart(w http.ResponseWriter, r *http.Request) {
 	s.daemonCancel = cancel
 	s.daemonRunning = true
 	s.daemonDone = done
+	s.daemonLock = daemonLock
 	s.mu.Unlock()
 
 	st, err := store.New(s.opts.HistoryPath)
@@ -495,6 +502,7 @@ func (s *Server) handleDaemonStart(w http.ResponseWriter, r *http.Request) {
 		close(done)
 		s.mu.Unlock()
 		cancel()
+		_ = daemonLock.Release()
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
@@ -517,8 +525,10 @@ func (s *Server) handleDaemonStart(w http.ResponseWriter, r *http.Request) {
 			s.daemonRunning = false
 			s.daemonCancel = nil
 			s.daemonDone = nil
+			s.daemonLock = nil
 		}
 		s.mu.Unlock()
+		_ = daemonLock.Release()
 		close(done)
 	}()
 	writeJSON(w, map[string]bool{"ok": true})
@@ -537,22 +547,23 @@ func (s *Server) stopDaemon() {
 	s.mu.Lock()
 	cancel := s.daemonCancel
 	done := s.daemonDone
-	if cancel == nil {
-		s.mu.Unlock()
-		return
-	}
+	daemonLock := s.daemonLock
 	s.daemonCancel = nil
 	s.daemonRunning = false
 	s.daemonDone = nil
+	s.daemonLock = nil
 	s.mu.Unlock()
 
-	cancel()
+	if cancel != nil {
+		cancel()
+	}
 	if done != nil {
 		select {
 		case <-done:
 		case <-time.After(3 * time.Second):
 		}
 	}
+	_ = daemonLock.Release()
 }
 
 func (s *Server) handleDaemonStatus(w http.ResponseWriter, r *http.Request) {
@@ -572,4 +583,39 @@ func exportDir() string {
 		base = filepath.Join(home, ".local", "share")
 	}
 	return filepath.Join(base, "nodepulse", "exports")
+}
+
+func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet && r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	st, err := settings.Load("")
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	if r.Method == http.MethodPost {
+		var req struct {
+			API        string `json:"api"`
+			Secret     string `json:"secret"`
+			Group      string `json:"group"`
+			ConfigPath string `json:"config_path"`
+			MihomoPath string `json:"mihomo_path"`
+			URL        string `json:"url"`
+		}
+		if err := json.NewDecoder(io.LimitReader(r.Body, 1<<20)).Decode(&req); err == nil {
+			st.API = req.API
+			st.Secret = req.Secret
+			st.Group = req.Group
+			st.ConfigPath = req.ConfigPath
+			st.MihomoPath = req.MihomoPath
+			if req.URL != "" {
+				st.URL = req.URL
+			}
+		}
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+	defer cancel()
+	writeJSON(w, health.Run(ctx, st))
 }

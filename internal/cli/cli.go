@@ -21,6 +21,7 @@ import (
 	"github.com/HanphoneJan/nodepulse/internal/config"
 	"github.com/HanphoneJan/nodepulse/internal/daemon"
 	"github.com/HanphoneJan/nodepulse/internal/export"
+	"github.com/HanphoneJan/nodepulse/internal/lock"
 	"github.com/HanphoneJan/nodepulse/internal/mcp"
 	"github.com/HanphoneJan/nodepulse/internal/score"
 	"github.com/HanphoneJan/nodepulse/internal/share"
@@ -483,6 +484,13 @@ func cmdDaemon(args []string) int {
 		Store:       st,
 		OnEvent:     onEvent,
 	})
+
+	daemonLock, err := lock.Acquire(lock.DefaultPath())
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "无法启动自动选择:", err)
+		return 1
+	}
+	defer daemonLock.Release()
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()

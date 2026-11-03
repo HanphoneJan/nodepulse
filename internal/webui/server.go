@@ -16,6 +16,7 @@ import (
 
 	"github.com/HanphoneJan/nodepulse/internal/clash"
 	"github.com/HanphoneJan/nodepulse/internal/config"
+	"github.com/HanphoneJan/nodepulse/internal/lock"
 	"github.com/HanphoneJan/nodepulse/internal/progress"
 	"github.com/HanphoneJan/nodepulse/internal/results"
 	"github.com/HanphoneJan/nodepulse/internal/score"
@@ -35,6 +36,7 @@ type Options struct {
 	Secret      string
 	ConfigPath  string
 	MihomoPath  string
+	LockPath    string
 }
 
 // Server is the local web dashboard.
@@ -53,6 +55,8 @@ type Server struct {
 	progress    *progress.Tracker
 	testCancel  context.CancelFunc
 	testRunning bool
+
+	daemonLock *lock.Lock
 }
 
 // New creates a server with defaults.
@@ -87,6 +91,7 @@ func New(opts Options) *Server {
 	s.mux.HandleFunc("/api/switch", s.handleSwitch)
 	s.mux.HandleFunc("/api/bootstrap", s.handleBootstrap)
 	s.mux.HandleFunc("/api/settings", s.handleSettings)
+	s.mux.HandleFunc("/api/health", s.handleHealth)
 	s.mux.HandleFunc("/api/settings/backup", s.handleSettingsBackup)
 	s.mux.HandleFunc("/api/settings/restore", s.handleSettingsRestore)
 	s.mux.HandleFunc("/api/oneclick", s.handleOneClick)
