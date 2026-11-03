@@ -19,7 +19,7 @@ Future<void> main() async {
 
   const windowOptions = WindowOptions(
     size: Size(1180, 780),
-    minimumSize: Size(860, 600),
+    minimumSize: Size(720, 560),
     center: true,
     title: 'NodePulse',
     backgroundColor: Colors.transparent,
