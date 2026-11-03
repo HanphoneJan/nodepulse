@@ -94,6 +94,26 @@ export const api = {
     return post("/api/settings", settingsPayload(s));
   },
 
+  async downloadMode(s, targetURL) {
+    if (wails()) {
+      return wails().DownloadMode(s.api, s.secret, s.group, s.configPath, s.mihomoPath, targetURL, s.rounds, s.concurrency, s.timeoutMs);
+    }
+    return post("/api/download-mode", {
+      api: s.api,
+      secret: s.secret,
+      group: s.group,
+      config_path: s.configPath,
+      mihomo_path: s.mihomoPath,
+      target_url: targetURL,
+      rounds: s.rounds,
+      concurrency: s.concurrency,
+      timeout_ms: s.timeoutMs,
+      probe_bytes: 3 << 20,
+      probe_seconds: 5,
+      probe_top_k: 5,
+    });
+  },
+
   async testAllSubscriptions(s) {
     if (wails()) {
       return wails().TestAllSubscriptions(s.api, s.secret, s.mihomoPath, s.url, s.rounds, s.concurrency, s.timeoutMs);

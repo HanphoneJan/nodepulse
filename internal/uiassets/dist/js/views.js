@@ -35,6 +35,7 @@ function Field({ label, id, value, onChange, onBlur, placeholder, type = "text",
 export function Dashboard({
   settings, status, results, best, selected, busy, busyKind, elapsed, progress, onCancel, lastTestAt,
   controllers, subscriptions, daemon, daemonInterval, latestEvent, groups, subURL,
+  downloadUrl, onDownloadUrl, downloadResult, onDownloadMode,
   onOneClick, onTest, onTestAll, onSelectNode, onRefresh, onController, onSettings,
   onRounds, onDaemon, onInterval, onSubURL, onImport,
 }) {
@@ -193,6 +194,39 @@ export function Dashboard({
         </div>
         <div class="status-line mt" aria-live="polite">${daemon ? `运行中 · 每 ${daemonInterval < 60 ? `${daemonInterval} 秒` : `${Math.round(daemonInterval / 60)} 分钟`}检查` : "未开启"}</div>
       </div>
+    </div>
+
+    <div class="md-card">
+      <div class="card-title"><${Icon} name="download" />下载模式</div>
+      <p class="muted">粘贴直接文件 URL。先按常规评分选前 5 个候选，再对目标站点做 3 MiB / 5 秒的小范围下载探测；不可达节点淘汰，只在开始前切换一次。</p>
+      <div class="download-row mt">
+        <${Field}
+          label="目标文件 URL"
+          id="downloadUrl"
+          value=${downloadUrl}
+          placeholder="https://example.com/file.apk"
+          onChange=${onDownloadUrl}
+        />
+        <${Button} variant="filled" icon="download" loading=${busy && busyKind === "download"} onClick=${() => onDownloadMode()}>测速并选节点<//>
+      </div>
+      ${downloadResult
+        ? html`<div class=${"download-result" + (downloadResult.reason_code === "download-unreachable" ? " download-result--error" : "")}>
+            <div class="download-result-head">
+              <strong>${downloadResult.reason_code === "download-unreachable" ? "没有可用节点" : `已选择 ${downloadResult.best?.name || "—"}`}</strong>
+              ${downloadResult.download?.cache_hits ? html`<span class="muted">缓存 ${downloadResult.download.cache_hits}/${downloadResult.download.top_k}</span>` : null}
+            </div>
+            <div class="download-result-main">${downloadResult.message}</div>
+            ${downloadResult.download?.probes?.length
+              ? html`<div class="probe-list">
+                  ${downloadResult.download.probes.map((probe) => html`<div class=${"probe-row" + (probe.ok ? "" : " probe-row--bad")}>
+                    <span class="probe-node">${probe.node}</span>
+                    <span>${probe.ok ? `${Math.round(probe.p25_kibps)} KiB/s · ${probe.ttfb_ms}ms` : (probe.error || "不可达")}</span>
+                    <span class="muted">${probe.cached ? "缓存" : `${Math.round(probe.bytes / 1024)} KiB`}</span>
+                  </div>`)}
+                </div>`
+              : null}
+          </div>`
+        : null}
     </div>
 
     <div class="md-card">

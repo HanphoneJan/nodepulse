@@ -3,11 +3,15 @@ package optimize
 import (
 	"context"
 	"fmt"
+	"math"
+	"sort"
 	"time"
 
 	"github.com/HanphoneJan/nodepulse/internal/clash"
 	"github.com/HanphoneJan/nodepulse/internal/config"
 	"github.com/HanphoneJan/nodepulse/internal/discover"
+	"github.com/HanphoneJan/nodepulse/internal/probe"
+	"github.com/HanphoneJan/nodepulse/internal/probecache"
 	"github.com/HanphoneJan/nodepulse/internal/score"
 	"github.com/HanphoneJan/nodepulse/internal/selector"
 	"github.com/HanphoneJan/nodepulse/internal/sidecar"
@@ -28,7 +32,31 @@ type Request struct {
 	TimeoutMs        int
 	Switch           bool
 	AllSubscriptions bool
+	DownloadMode     bool
+	TargetURL        string
+	ProbeBytes       int64
+	ProbeSeconds     int
+	ProbeTopK        int
 	OnProgress       func(done, total int, result score.Result)
+}
+
+// DownloadProbe is one candidate's target-site download measurement.
+type DownloadProbe struct {
+	probe.Result
+	DownloadScore float64 `json:"download_score"`
+	BaseScore     float64 `json:"base_score"`
+}
+
+// DownloadInfo is the download-mode report.
+type DownloadInfo struct {
+	TargetHost string          `json:"target_host"`
+	TargetPath string          `json:"target_path"`
+	TopK       int             `json:"top_k"`
+	CacheHits  int             `json:"cache_hits"`
+	Excluded   int             `json:"excluded"`
+	Fallback   bool            `json:"fallback,omitempty"`
+	Probes     []DownloadProbe `json:"probes"`
+	Best       DownloadProbe   `json:"best"`
 }
 
 // SourceInfo describes one subscription/profile used by a merged test.
@@ -60,6 +88,7 @@ type Result struct {
 	RollbackOK        bool           `json:"rollback_ok,omitempty"`
 	Scope             string         `json:"scope,omitempty"`
 	Sources           []SourceInfo   `json:"sources,omitempty"`
+	Download          *DownloadInfo  `json:"download,omitempty"`
 }
 
 // Run executes the one-click flow: resolve a controller (or sidecar), test the
@@ -79,6 +108,9 @@ func Run(ctx context.Context, req Request) (*Result, error) {
 	}
 	if req.AllSubscriptions {
 		return runAll(ctx, req)
+	}
+	if req.DownloadMode {
+		return runDownload(ctx, req)
 	}
 
 	res := &Result{Source: "sidecar", Confidence: selector.Confidence(req.Rounds)}
@@ -295,6 +327,287 @@ func Run(ctx context.Context, req Request) (*Result, error) {
 	res.Reason = fmt.Sprintf("已切换到 %s（评分 %.3f，%s置信）", best.Name, best.Score, confidenceLabel(res.Confidence))
 	res.Message = res.Reason
 	return res, nil
+}
+
+func runDownload(ctx context.Context, req Request) (*Result, error) {
+	target, err := probe.ParseTarget(req.TargetURL)
+	if err != nil {
+		return nil, err
+	}
+	if req.ProbeBytes <= 0 {
+		req.ProbeBytes = 3 << 20
+	}
+	if req.ProbeSeconds <= 0 {
+		req.ProbeSeconds = 5
+	}
+	if req.ProbeTopK <= 0 {
+		req.ProbeTopK = 5
+	}
+	if req.ConfigPath == "" {
+		return nil, fmt.Errorf("下载模式需要本地订阅配置来构建测速 sidecar；请先在设置里选择订阅文件")
+	}
+	cfg, err := subscription.Load(req.ConfigPath)
+	if err != nil {
+		return nil, err
+	}
+
+	// First run the normal latency/stability test. It gives the candidate pool
+	// and keeps browser-oriented scoring unchanged.
+	baseReq := req
+	baseReq.DownloadMode = false
+	baseReq.TargetURL = ""
+	baseReq.Switch = false
+	base, err := Run(ctx, baseReq)
+	if err != nil {
+		return nil, err
+	}
+	if base.Controller == "" || base.Group == "" {
+		return nil, fmt.Errorf("下载模式需要连接客户端并选定一个可管理的 Selector 组")
+	}
+	baseByName := make(map[string]score.Result, len(base.Results))
+	for _, result := range base.Results {
+		baseByName[result.Name] = result
+	}
+	candidateLimit := req.ProbeTopK * 2
+	candidates := make([]score.Result, 0, candidateLimit)
+	for _, result := range base.Results {
+		if result.Success == 0 || result.SuccessRate() < selector.DefaultMinSuccess {
+			continue
+		}
+		candidates = append(candidates, result)
+		if len(candidates) >= candidateLimit {
+			break
+		}
+	}
+	if len(candidates) == 0 {
+		return nil, fmt.Errorf("没有达到最低成功率的候选节点，无法进行下载模式")
+	}
+	proxies := make([]config.Proxy, 0, len(candidates))
+	for _, candidate := range candidates {
+		proxy, ok := cfg.FindProxy(candidate.Name)
+		if ok {
+			proxies = append(proxies, proxy)
+		}
+	}
+	if len(proxies) == 0 {
+		return nil, fmt.Errorf("控制口节点在本地订阅中找不到对应定义，无法做真实吞吐探测")
+	}
+
+	cache, _ := probecache.Open(probecache.DefaultPath())
+	missing := cache == nil
+	if cache != nil {
+		for _, proxy := range proxies {
+			key := probecache.Key(proxy.Name, target.Host, target.Path)
+			if _, ok := cache.Get(key); !ok {
+				missing = true
+				break
+			}
+		}
+	}
+	var sc *sidecar.Sidecar
+	if missing {
+		mihomoPath := req.MihomoPath
+		if mihomoPath == "" {
+			if path, err := discover.MihomoBinary(); err == nil {
+				mihomoPath = path
+			}
+		}
+		if mihomoPath == "" {
+			return nil, fmt.Errorf("下载模式需要 mihomo 作为临时探测内核；请在设置里填写 mihomo 路径")
+		}
+		sc, err = sidecar.StartProbe(ctx, proxies, mihomoPath)
+		if err != nil {
+			return nil, err
+		}
+		defer sc.Close()
+	}
+
+	probes := make([]DownloadProbe, 0, len(proxies))
+	cacheHits := 0
+	excluded := 0
+	probeOne := func(proxy config.Proxy) DownloadProbe {
+		key := probecache.Key(proxy.Name, target.Host, target.Path)
+		var result probe.Result
+		cached := false
+		if cache != nil {
+			if hit, ok := cache.Get(key); ok {
+				result = hit
+				cached = true
+				cacheHits++
+			}
+		}
+		if !cached {
+			if sc == nil {
+				result = probe.Result{Node: proxy.Name, Err: "probe sidecar unavailable"}
+			} else if err := sc.Select(ctx, proxy.Name); err != nil {
+				result = probe.Result{Node: proxy.Name, Err: err.Error()}
+			} else {
+				time.Sleep(200 * time.Millisecond)
+				result, err = probe.Measure(ctx, fmt.Sprintf("127.0.0.1:%d", sc.MixedPort), target, req.ProbeBytes, time.Duration(req.ProbeSeconds)*time.Second)
+				if err != nil {
+					result.Err = err.Error()
+				}
+			}
+			result.Node = proxy.Name
+			if cache != nil {
+				cache.Put(key, result)
+			}
+		}
+		result.Node = proxy.Name
+		if !result.OK {
+			excluded++
+		}
+		baseScore := baseByName[proxy.Name].Score
+		probeResult := DownloadProbe{Result: result, BaseScore: baseScore}
+		if result.OK {
+			probeResult.DownloadScore = downloadScore(result, baseScore)
+		}
+		return probeResult
+	}
+	probeBatch := func(batch []config.Proxy) []DownloadProbe {
+		if len(batch) == 0 {
+			return nil
+		}
+		if req.OnProgress != nil {
+			req.OnProgress(0, len(batch), score.Result{})
+		}
+		out := make([]DownloadProbe, 0, len(batch))
+		for index, proxy := range batch {
+			out = append(out, probeOne(proxy))
+			if req.OnProgress != nil {
+				req.OnProgress(index+1, len(batch), score.Result{Name: "探测 " + proxy.Name})
+			}
+		}
+		return out
+	}
+	probed := 0
+	firstEnd := req.ProbeTopK
+	if firstEnd > len(proxies) {
+		firstEnd = len(proxies)
+	}
+	probes = append(probes, probeBatch(proxies[:firstEnd])...)
+	probed = len(probes)
+	fallback := false
+	anyOK := false
+	for _, result := range probes {
+		if result.OK {
+			anyOK = true
+			break
+		}
+	}
+	if !anyOK && len(proxies) > firstEnd {
+		fallback = true
+		probes = append(probes, probeBatch(proxies[firstEnd:])...)
+		probed = len(probes)
+	}
+	if cache != nil {
+		_ = cache.Save()
+	}
+	sort.SliceStable(probes, func(i, j int) bool {
+		if probes[i].OK != probes[j].OK {
+			return probes[i].OK
+		}
+		return probes[i].DownloadScore > probes[j].DownloadScore
+	})
+
+	info := &DownloadInfo{
+		TargetHost: target.Host,
+		TargetPath: target.Path,
+		TopK:       probed,
+		CacheHits:  cacheHits,
+		Excluded:   excluded,
+		Fallback:   fallback,
+		Probes:     probes,
+	}
+	if len(probes) > 0 {
+		info.Best = probes[0]
+	}
+	base.Download = info
+	base.Scope = "download"
+	res := base
+	if len(probes) == 0 || !probes[0].OK {
+		res.Best = base.Best
+		res.ReasonCode = "download-unreachable"
+		res.Reason = "所有候选节点都无法访问目标站点（TLS/EOF/超时/HTTP 错误）"
+		res.Message = res.Reason
+		return res, nil
+	}
+	best := probes[0]
+	bestBase := baseByName[best.Node]
+	if bestBase.Name == "" {
+		bestBase = score.Result{Name: best.Node, Success: 1, Total: 1, Score: best.BaseScore}
+	}
+	res.Best = bestBase
+	res.ReasonCode = "download-selected"
+	summary := fmt.Sprintf("p25 %.0f KiB/s，首字节 %dms", best.P25KiBps, best.TTFBMs)
+	if best.Cached {
+		summary += "，缓存命中"
+	}
+	if excluded > 0 {
+		summary += fmt.Sprintf("，淘汰 %d 个不可达节点", excluded)
+	}
+	if fallback {
+		summary += "，已补测下一批候选"
+	}
+	if best.Node == res.Current {
+		res.Reason = "当前节点 " + best.Node + " 已是下载模式最优（" + summary + "）"
+		res.Message = res.Reason
+		return res, nil
+	}
+
+	controller := clash.New(res.Controller, req.Secret)
+	if err := controller.Switch(ctx, res.Group, best.Node); err != nil {
+		res.ReasonCode = "switch-failed"
+		res.Reason = fmt.Sprintf("切换到 %s 失败: %v", best.Node, err)
+		return res, fmt.Errorf("%s", res.Reason)
+	}
+	time.Sleep(300 * time.Millisecond)
+	now, currentErr := controller.Current(ctx, res.Group)
+	verifyErr := currentErr
+	if verifyErr == nil && now != best.Node {
+		verifyErr = fmt.Errorf("控制器仍显示 %q", now)
+	}
+	if verifyErr == nil {
+		if _, err := controller.Delay(ctx, best.Node, req.URL, time.Duration(req.TimeoutMs)*time.Millisecond); err != nil {
+			verifyErr = fmt.Errorf("验证 %s 失败: %w", best.Node, err)
+		}
+	}
+	if verifyErr != nil {
+		res.ReasonCode = "verify-failed"
+		res.Reason = fmt.Sprintf("下载模式切换验证失败: %v", verifyErr)
+		res.RollbackAttempted = res.Current != ""
+		if res.Current != "" {
+			rollbackErr := controller.Switch(ctx, res.Group, res.Current)
+			res.RollbackOK = rollbackErr == nil
+			if rollbackErr != nil {
+				res.ReasonCode = "rollback-failed"
+				res.Reason = fmt.Sprintf("下载模式切换验证失败: %v；回滚也失败: %v", verifyErr, rollbackErr)
+			} else {
+				res.Reason = fmt.Sprintf("下载模式切换验证失败: %v；已回滚到 %s", verifyErr, res.Current)
+			}
+		}
+		return res, fmt.Errorf("%s", res.Reason)
+	}
+	res.Switched = true
+	res.Verified = true
+	res.Current = now
+	res.Reason = fmt.Sprintf("下载模式：已选择 %s（%s）", best.Node, summary)
+	res.Message = res.Reason
+	return res, nil
+}
+
+func downloadScore(result probe.Result, base float64) float64 {
+	throughput := 0.0
+	if result.P25KiBps > 0 {
+		throughput = math.Log1p(result.P25KiBps) / math.Log1p(1024*1024)
+	}
+	throughput = math.Max(0, math.Min(1, throughput))
+	stability := 1.0
+	if result.MedianKiBps > 0 {
+		stability = math.Max(0, math.Min(1, result.P25KiBps/result.MedianKiBps))
+	}
+	ttfb := 1 / (1 + float64(result.TTFBMs)/1000)
+	return 0.60*throughput + 0.15*stability + 0.15*base + 0.10*ttfb
 }
 
 func runAll(ctx context.Context, req Request) (*Result, error) {

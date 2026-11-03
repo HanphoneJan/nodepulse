@@ -162,6 +162,8 @@ function App() {
   const [progress, setProgress] = useState(null);
   const [exportImpact, setExportImpact] = useState(null);
   const [resultScope, setResultScope] = useState("group");
+  const [downloadUrl, setDownloadUrl] = useState("");
+  const [downloadResult, setDownloadResult] = useState(null);
   const [exportMinimal, setExportMinimal] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   const [lastTestAt, setLastTestAt] = useState(readLastTest);
@@ -446,7 +448,7 @@ function App() {
   }, []);
 
   useEffect(() => {
-    if (!busy || !["oneclick", "test", "all"].includes(busyKind)) {
+    if (!busy || !["oneclick", "test", "all", "download"].includes(busyKind)) {
       setProgress(null);
       return undefined;
     }
@@ -601,6 +603,41 @@ function App() {
     }
   }
 
+  async function runDownloadMode() {
+    if (busy) return;
+    if (daemon) {
+      notify("后台自动优化运行中，请先暂停再测下载模式", "error");
+      return;
+    }
+    const target = downloadUrl.trim();
+    if (!/^https?:\/\//i.test(target)) {
+      notify("请填写可直接访问的 http/https 文件 URL", "error");
+      return;
+    }
+    canceledRef.current = false;
+    clearRunState();
+    startBusy("download");
+    try {
+      const result = await api.downloadMode(settingsRef.current, target);
+      setDownloadResult(result);
+      const list = result?.results || [];
+      setResults(list);
+      setBest(result?.best || null);
+      setSelected(result?.best?.name || null);
+      setResultScope("download");
+      markTest();
+      await refreshStatus(settingsRef.current);
+      const failed = result?.reason_code === "download-unreachable";
+      notify(result?.message || (failed ? "目标站点在当前节点均不可达" : "下载模式完成"), failed ? "error" : "info");
+    } catch (error) {
+      if (canceledRef.current) notify("已取消测速", "info");
+      else notify(errText(error), "error");
+      api.clearResults().catch(() => {});
+    } finally {
+      finishBusy();
+    }
+  }
+
   async function cancelCurrentTest() {
     try {
       const canceled = await api.cancelTest();
@@ -703,7 +740,7 @@ function App() {
   }
 
   async function switchSelected() {
-    if (resultScope === "all" || results.some((row) => row.source)) {
+    if (resultScope !== "group" || results.some((row) => row.source)) {
       notify("联合测速只给推荐；请在客户端切换到对应订阅后再操作", "error");
       return;
     }
@@ -828,7 +865,7 @@ function App() {
     ["cycle", "switch", "rollback", "error"].includes(event.kind)
     && (!event.group || !status.groupName || event.group === status.groupName)
   ) || null;
-  const canSwitch = !!selected && resultScope !== "all" && !results.some((row) => row.source);
+  const canSwitch = !!selected && resultScope === "group" && !results.some((row) => row.source);
   const canExport = !!settings.configPath && results.length > 0;
 
   return html`<div class="app">
@@ -890,6 +927,10 @@ function App() {
               onOneClick=${runOneClick}
               onTest=${() => runTest(false)}
               onTestAll=${runAllSubscriptions}
+              downloadUrl=${downloadUrl}
+              onDownloadUrl=${setDownloadUrl}
+              downloadResult=${downloadResult}
+              onDownloadMode=${runDownloadMode}
               onSelectNode=${setSelected}
               onRefresh=${() => refreshStatus()}
               onController=${(url) => { updateSettings({ api: url }); refreshStatus({ ...settingsRef.current, api: url }); }}

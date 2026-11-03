@@ -10,6 +10,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/HanphoneJan/nodepulse/internal/probe"
 )
 
 func TestRunSwitchesToBest(t *testing.T) {
@@ -232,5 +234,13 @@ func TestRunAllSubscriptionsFallsBackToController(t *testing.T) {
 	}
 	if len(res.Sources) != 1 || res.Sources[0].Nodes != 2 {
 		t.Fatalf("sources = %+v", res.Sources)
+	}
+}
+
+func TestDownloadScorePrefersThroughput(t *testing.T) {
+	fast := downloadScore(probe.Result{OK: true, P25KiBps: 900, MedianKiBps: 950, TTFBMs: 120}, 0.7)
+	slow := downloadScore(probe.Result{OK: true, P25KiBps: 6, MedianKiBps: 8, TTFBMs: 10000}, 0.95)
+	if fast <= slow {
+		t.Fatalf("fast=%f slow=%f", fast, slow)
 	}
 }

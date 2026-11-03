@@ -635,6 +635,46 @@ func (a *App) TestAllSubscriptions(api, secret, mihomoPath, testURL string, roun
 	return res, nil
 }
 
+// DownloadMode tests the top candidates against a target file and switches
+// once, before a download starts. It never changes nodes during the download.
+func (a *App) DownloadMode(api, secret, group, configPath, mihomoPath, targetURL string, rounds, concurrency, timeoutMs int) (res *optimize.Result, err error) {
+	ctx, finish, err := a.beginTest("download")
+	if err != nil {
+		return nil, err
+	}
+	defer func() { finish(err) }()
+
+	res, err = optimize.Run(ctx, optimize.Request{
+		API:          api,
+		Secret:       secret,
+		Group:        group,
+		ConfigPath:   configPath,
+		MihomoPath:   mihomoPath,
+		TargetURL:    targetURL,
+		Rounds:       rounds,
+		Concurrency:  concurrency,
+		TimeoutMs:    timeoutMs,
+		DownloadMode: true,
+		ProbeBytes:   3 << 20,
+		ProbeSeconds: 5,
+		ProbeTopK:    5,
+		OnProgress: func(done, total int, result score.Result) {
+			a.progress.Update(done, total, result.Name)
+		},
+	})
+	if err != nil {
+		return nil, err
+	}
+	a.mu.Lock()
+	a.lastResults = res.Results
+	a.lastConfigPath = configPath
+	a.mu.Unlock()
+	if len(res.Results) > 0 {
+		a.persistResults(configPath, "", rounds)
+	}
+	return res, nil
+}
+
 // Test runs a stability test via controller or sidecar.
 func (a *App) Test(api, secret, configPath, mihomoPath, testURL string, rounds, concurrency, timeoutMs int) (ranked []score.Result, err error) {
 	ctx, finish, err := a.beginTest("test")

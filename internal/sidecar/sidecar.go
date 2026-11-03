@@ -19,10 +19,14 @@ import (
 	"github.com/HanphoneJan/nodepulse/internal/config"
 )
 
+// ProbeGroup is the selector group created by StartProbe.
+const ProbeGroup = "NodePulseProbe"
+
 // Sidecar is a temporary mihomo process used purely as a local test lab.
 type Sidecar struct {
-	BaseURL string
-	Secret  string
+	BaseURL   string
+	Secret    string
+	MixedPort int
 
 	cmd  *exec.Cmd
 	dir  string
@@ -33,6 +37,19 @@ type Sidecar struct {
 // to loopback and uses random free ports so it never conflicts with a client
 // already running on the machine.
 func Start(ctx context.Context, cfg *config.Config, mihomoPath string) (*Sidecar, error) {
+	return start(ctx, cfg.RealProxies(), mihomoPath, "")
+}
+
+// StartProbe starts a sidecar with a selector group so download-mode probes can
+// switch between candidate nodes through one mixed-port.
+func StartProbe(ctx context.Context, proxies []config.Proxy, mihomoPath string) (*Sidecar, error) {
+	return start(ctx, proxies, mihomoPath, ProbeGroup)
+}
+
+func start(ctx context.Context, proxies []config.Proxy, mihomoPath, groupName string) (*Sidecar, error) {
+	if len(proxies) == 0 {
+		return nil, fmt.Errorf("no proxies for sidecar")
+	}
 	mixedPort, err := freePort()
 	if err != nil {
 		return nil, fmt.Errorf("allocate mixed-port: %w", err)
@@ -51,7 +68,6 @@ func Start(ctx context.Context, cfg *config.Config, mihomoPath string) (*Sidecar
 		return nil, fmt.Errorf("create temp dir: %w", err)
 	}
 
-	proxies := cfg.RealProxies()
 	minimal := map[string]any{
 		"mixed-port":          mixedPort,
 		"allow-lan":           false,
@@ -62,6 +78,18 @@ func Start(ctx context.Context, cfg *config.Config, mihomoPath string) (*Sidecar
 		"dns":                 map[string]any{"enable": false},
 		"proxies":             proxies,
 		"rules":               []string{"MATCH,DIRECT"},
+	}
+	if groupName != "" {
+		names := make([]string, 0, len(proxies))
+		for _, proxy := range proxies {
+			names = append(names, proxy.Name)
+		}
+		minimal["proxy-groups"] = []map[string]any{{
+			"name":    groupName,
+			"type":    "select",
+			"proxies": names,
+		}}
+		minimal["rules"] = []string{"MATCH," + groupName}
 	}
 	data, err := yaml.Marshal(minimal)
 	if err != nil {
@@ -84,11 +112,12 @@ func Start(ctx context.Context, cfg *config.Config, mihomoPath string) (*Sidecar
 	}
 
 	s := &Sidecar{
-		BaseURL: fmt.Sprintf("http://127.0.0.1:%d", controlPort),
-		Secret:  secret,
-		cmd:     cmd,
-		dir:     dir,
-		logs:    logs,
+		BaseURL:   fmt.Sprintf("http://127.0.0.1:%d", controlPort),
+		Secret:    secret,
+		MixedPort: mixedPort,
+		cmd:       cmd,
+		dir:       dir,
+		logs:      logs,
 	}
 
 	if err := s.waitReady(ctx); err != nil {
@@ -174,4 +203,9 @@ func (b *lockedBuffer) Last(n int) string {
 		data = data[len(data)-n:]
 	}
 	return string(data)
+}
+
+// Select switches the probe selector group to a candidate node.
+func (s *Sidecar) Select(ctx context.Context, node string) error {
+	return clash.New(s.BaseURL, s.Secret).Switch(ctx, ProbeGroup, node)
 }
