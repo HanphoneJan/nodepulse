@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="color-scheme" content="dark light" />
-  <meta name="theme-color" content="#0b57d0" />
+  <meta name="theme-color" content="#007aff" />
   <title>NodePulse</title>
   <link rel="icon" href="favicon.svg" type="image/svg+xml" />
   <link rel="stylesheet" href="css/00-tokens.css" />
@@ -24,9 +24,9 @@
       document.documentElement.dataset.theme = dark ? "dark" : "light";
       document.documentElement.dataset.themeMode = mode;
       try {
-        var seed = localStorage.getItem("nodepulse.seed.v1");
+        var seed = localStorage.getItem("nodepulse.seed.v2");
         if (seed) document.documentElement.dataset.seed = seed;
-        var cached = localStorage.getItem("nodepulse.seedCss.v1");
+        var cached = localStorage.getItem("nodepulse.seedCss.v2");
         if (cached) {
           var style = document.createElement("style");
           style.id = "seed-theme-cache";

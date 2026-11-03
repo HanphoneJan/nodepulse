@@ -860,16 +860,6 @@
 
 .daemon-card { display: flex; flex-direction: column; }
 .daemon-card .status-line { margin-top: var(--space-3); }
-.meta-list { display: grid; gap: var(--space-1); margin-top: var(--space-3); }
-.meta-item {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  color: var(--color-fg-muted);
-  font-size: var(--text-sm);
-}
-.meta-item .icon { width: var(--icon-sm); height: var(--icon-sm); color: var(--color-success); }
-
 .help { margin-top: var(--space-2); color: var(--color-fg-muted); font-size: var(--text-sm); }
 .help summary { width: fit-content; cursor: pointer; border-radius: var(--radius-xs); }
 .help p { margin: var(--space-2) 0 0; line-height: var(--leading-24); }

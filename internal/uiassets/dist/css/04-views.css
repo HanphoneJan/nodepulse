@@ -32,12 +32,6 @@
 .nodes-selection strong { color: var(--color-fg); font-weight: var(--weight-medium); }
 .nodes-empty { margin-top: var(--space-2); }
 
-.sub-path {
-  margin: var(--space-2) 0 0;
-  color: var(--color-fg-muted);
-  font-size: var(--text-xs);
-}
-
 .settings-actions {
   display: flex;
   flex-wrap: wrap;

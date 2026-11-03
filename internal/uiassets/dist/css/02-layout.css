@@ -106,15 +106,6 @@
   font-weight: var(--weight-semibold);
   letter-spacing: -.01em;
 }
-.topbar-sub {
-  margin: 1px 0 0;
-  font-size: var(--text-xs);
-  line-height: var(--leading-16);
-  color: var(--color-fg-muted);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
 .topbar-actions {
   display: flex;
   align-items: center;

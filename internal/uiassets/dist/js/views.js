@@ -42,10 +42,12 @@ export function Dashboard({
 }) {
   const connected = !!status.connected;
   const current = status.current || "—";
-  const meta = status.groupName ? `${status.groupName} · ${status.members} 个成员` : "连接客户端后显示";
+  const meta = status.groupName ? `${status.groupName} · ${status.members} 个成员` : "";
   const heroLoading = busy && ["oneclick", "test", "all"].includes(busyKind);
   const testing = heroLoading;
   const canImport = !!subURL.trim();
+  const runningClients = clients.filter((client) => client.running);
+  const showControllerChips = controllers.length > 1 || runningClients.length === 0;
   const intervalOptions = [
     { value: "300", label: "5 分钟" },
     { value: "600", label: "10 分钟" },
@@ -67,7 +69,7 @@ export function Dashboard({
           <span class=${"status-chip " + (status.error ? "error" : connected ? "ok" : "warn")}>${status.error ? "连接失败" : connected ? "已连接" : "未连接"}</span>
         </div>
         <div class="hero-node" title=${current}>${current}</div>
-        <div class="hero-meta" title=${meta}>${meta}</div>
+        ${meta ? html`<div class="hero-meta" title=${meta}>${meta}</div>` : null}
         <div class="hero-actions">
           <${Button} variant="filled" icon="play" loading=${busy && busyKind === "oneclick"} onClick=${onOneClick}>
             ${busy && busyKind === "oneclick" ? "优化中…" : "一键优化"}
@@ -105,26 +107,25 @@ export function Dashboard({
         <div class="card-title"><${Icon} name="link" />连接
           <button type="button" class="card-action" disabled=${detecting} onClick=${onDetect}>${detecting ? "检测中…" : "重新检测"}</button>
         </div>
-        <p class="muted">${controllers.length
-          ? "已自动检测本机 Clash 控制口"
-          : clients.some((client) => client.running)
-            ? "已检测到客户端，但控制口没有响应。请先在客户端里打开外部控制。"
-            : "没检测到客户端。也可以只选订阅，用 mihomo 测速。"}</p>
-        ${clients.length
+        ${controllers.length === 0
+          ? html`<p class="muted">${runningClients.length ? "控制口未开启，请到客户端打开外部控制。" : "未检测到客户端。"}</p>`
+          : null}
+        ${runningClients.length
           ? html`<div class="client-list" aria-label="检测到的客户端">
-              ${clients.map((client) => html`<div class=${"client-row" + (client.running ? " on" : "")}>
+              ${runningClients.map((client) => html`<div class="client-row on">
                 <span class="client-dot" aria-hidden="true"></span>
                 <span class="client-body">
                   <strong>${client.name}</strong>
-                  <small>${client.hint || (client.controller ? `控制口 ${client.controller}` : "已安装")}</small>
+                  <small>${client.hint || (client.controller ? "控制口已就绪" : "已运行")}</small>
                 </span>
-                <span class="client-state">${client.running ? "运行中" : "未运行"}</span>
+                <span class="client-state">运行中</span>
               </div>`)}
             </div>`
           : null}
-        <div class="chips" role="group" aria-label="Clash 控制口">
+        ${showControllerChips
+          ? html`<div class="chips" role="group" aria-label="Clash 控制口">
           ${controllers.length === 0
-            ? html`<span class="muted">未发现可用控制口</span>`
+            ? null
             : controllers.map((controller) => {
                 const needSecret = controller.auth_required && !settings.secret;
                 const label = needSecret ? `${controller.url}（需要 secret）` : controller.url + (controller.version ? ` · ${controller.version}` : "");
@@ -135,13 +136,14 @@ export function Dashboard({
                   onClick=${() => onController(controller.url, controller.secret)}
                 ><span class="dot"></span>${label}</button>`;
               })}
-        </div>
+        </div>`
+          : null}
 
         <details class="help">
           <summary>没检测到？</summary>
-          <p><b>FlClash</b>：设置 → 网络 → 外部控制，填 <code>127.0.0.1:9090</code>。<br />
-          <b>Clash Verge</b>：设置 → Clash → 外部控制。<br />
-          不开也能用：选订阅 + mihomo，只测速不切换。</p>
+          <p><b>FlClash</b>：设置 → 网络 → 外部控制<br />
+          <b>Clash Verge</b>：设置 → 外部控制<br />
+          只测速可不接控制口。</p>
         </details>
 
         <div class="divider"></div>
@@ -151,7 +153,7 @@ export function Dashboard({
             label="订阅文件"
             value=${settings.configPath}
             options=${(() => {
-              const options = subscriptions.map((path) => ({ value: path, label: path }));
+              const options = subscriptions.map((path) => ({ value: path, label: baseName(path) }));
               if (settings.configPath && !subscriptions.includes(settings.configPath)) {
                 options.unshift({ value: settings.configPath, label: settings.configPath });
               }
@@ -174,12 +176,11 @@ export function Dashboard({
           />
           <${Button} variant="tonal" size="small" loading=${busy && busyKind === "import"} disabled=${!canImport} onClick=${onImport}>导入<//>
         </div>
-        <p class="sub-path clamp-2" title=${settings.configPath}>${settings.configPath ? `当前订阅: ${settings.configPath}` : "当前没有选择订阅文件"}</p>
       </div>
 
       <div class="md-card daemon-card">
         <div class="card-title"><${Icon} name="settings" />后台自动优化</div>
-        <p class="muted">当前节点明显变差时自动切换，失败会回滚。</p>
+        <p class="muted">变差时切换，失败回滚。${settings.autoConfirm} 次确认，余量 ${Math.round(settings.autoMargin * 100)}%。</p>
         <div class="mt">
           <${SwitchRow} label="自动优化" checked=${daemon} onChange=${onDaemon} />
         </div>
@@ -191,11 +192,6 @@ export function Dashboard({
             options=${intervalOptions}
             onChange=${(value) => onInterval(Number(value))}
           />
-        </div>
-        <div class="meta-list">
-          <div class="meta-item"><${Icon} name="checkCircle" />连续 ${settings.autoConfirm} 次确认后切换</div>
-          <div class="meta-item"><${Icon} name="checkCircle" />切换后验证，失败自动回滚</div>
-          <div class="meta-item"><${Icon} name="checkCircle" />评分滞后 ${Math.round(settings.autoMargin * 100)}% 才行动</div>
         </div>
         <div class=${"auto-decision" + (latestEvent && (!latestEvent.ok || ["rollback", "error"].includes(latestEvent.kind)) ? " auto-decision--error" : "")}>
           <div class="auto-decision-head"><${Icon} name="monitoring" />最近自动选择</div>
@@ -209,15 +205,15 @@ export function Dashboard({
                 ${latestEvent.rollback_attempted
                   ? html`<div class="auto-decision-rollback">${latestEvent.rollback_ok ? "已回滚到原节点" : "回滚失败，请手动检查"}</div>`
                   : null}`
-            : html`<div class="muted">开启后，每次检查会在这里显示“为什么切换”。</div>`}
+            : html`<div class="muted">还没有决策记录。</div>`}
         </div>
-        <div class="status-line mt" aria-live="polite">${daemon ? `运行中 · 每 ${daemonInterval < 60 ? `${daemonInterval} 秒` : `${Math.round(daemonInterval / 60)} 分钟`}检查` : "未开启"}</div>
+        ${daemon ? html`<div class="status-line mt" aria-live="polite">每 ${daemonInterval < 60 ? `${daemonInterval} 秒` : `${Math.round(daemonInterval / 60)} 分钟`}检查</div>` : null}
       </div>
     </div>
 
     <div class="md-card">
       <div class="card-title"><${Icon} name="download" />下载模式</div>
-      <p class="muted">粘贴直接文件 URL。先按常规评分选前 5 个候选，再对目标站点做 3 MiB / 5 秒的小范围下载探测；不可达节点淘汰，只在开始前切换一次。</p>
+      <p class="muted">先测速选前 5 个，再小范围下载探测；只在开始前切换一次。</p>
       <div class="download-row mt">
         <${Field}
           label="目标文件 URL"
@@ -271,8 +267,7 @@ export function Dashboard({
           : html`<${State}
               icon="speed"
               title="还没有测速结果"
-              body="点“一键优化”开始，或先检查控制口和订阅。"
-              actions=${html`<${Button} variant="tonal" size="small" onClick=${onTest}>只测速<//>`}
+              body="点「一键优化」开始。"
             />`}
     </div>
   </section>`;
@@ -307,9 +302,9 @@ export function Nodes({ results, best, selected, onSelect, onRefresh, onSwitch, 
       ${busy
         ? html`<${LoadingRows} label="正在刷新节点状态" />`
         : results.length === 0
-          ? html`<${State} icon="monitoring" title="还没有测试结果" body="先在仪表盘点“一键优化”，这里会显示完整排名。" />`
+          ? html`<${State} icon="monitoring" title="还没有测试结果" body="点「一键优化」开始。" />`
           : filtered.length === 0
-            ? html`<${State} icon="search" title="没有匹配的节点" body="换一个关键词试试。" />`
+            ? html`<${State} icon="search" title="没有匹配的节点" body="换个关键词。" />`
             : html`<${NodeTable} rows=${filtered} best=${best} selected=${selected} onSelect=${onSelect} label="节点排名" />`}
 
       ${filtered.length > 0 && selected
@@ -336,7 +331,6 @@ export function Settings({
   return html`<section id="view-settings" class="view active">
     <div class="md-card">
       <div class="card-title">外观</div>
-      <p class="muted">主题色会生成整套 Material 3 明暗色板；默认跟随系统主题，字体使用系统字体。</p>
       <div class="appearance-row">
         <${SeedPicker} seed=${seed} onSeed=${onSeed} onReset=${onResetSeed} />
         <div class="mode-block">
@@ -357,7 +351,7 @@ export function Settings({
 
     <div class="md-card">
       <div class="card-title"><${Icon} name="swap" />环境</div>
-      <p class="muted">环境会同时切换控制口、Secret、订阅、Selector 组和测速参数；顶栏的切换按钮可在任意页面快速切换。</p>
+      <p class="muted">同时切换控制口、订阅和测速参数。</p>
       <div class="text-field-grid mt">
         <${Field} label="环境名称" id="profileName" className="span-2" value=${currentProfile ? currentProfile.name : ""} placeholder="例如：FlClash + 日本订阅" onChange=${onRenameProfile} onBlur=${onProfileNameBlur} />
       </div>
@@ -393,7 +387,7 @@ export function Settings({
 
     <div class="md-card">
       <div class="card-title"><${Icon} name="monitoring" />自动选择</div>
-      <p class="muted">只有当前节点明显变差时才切换；余量越大越保守。修改后在下一次开启或重启自动优化时生效。</p>
+      <p class="muted">余量越大越保守，重启自动优化后生效。</p>
       <div class="text-field-grid mt">
         <${Field} label="切换余量 (%)" id="autoMargin" type="number" value=${Math.round(settings.autoMargin * 100)} onChange=${(value) => onSettings({ autoMargin: Math.max(1, Math.min(100, Number(value) || 20)) / 100 })} />
         <${Field} label="连续确认 (轮)" id="autoConfirm" type="number" value=${settings.autoConfirm} onChange=${(value) => onSettings({ autoConfirm: Math.max(1, Number(value) || 2) })} />
@@ -404,7 +398,7 @@ export function Settings({
 
     <div class="md-card">
       <div class="card-title"><${Icon} name="checkCircle" />环境检查</div>
-      <p class="muted">检查控制口、订阅、mihomo 和自动选择组。检查只读，不会修改配置。</p>
+      <p class="muted">只读检查，不会修改配置。</p>
       ${health && Array.isArray(health.checks)
         ? html`<div class="health-list">
             ${health.checks.map((check) => html`<div class=${"health-row health-row--" + check.status}>
@@ -425,19 +419,17 @@ export function Settings({
     ${desktop
       ? html`<div class="md-card">
           <div class="card-title"><${Icon} name="monitoring" />后台与通知</div>
-          <p class="muted">自动选择在后台运行时，只把需要你知道的变化发成系统通知。修改立即生效。</p>
           <div class="switch-list">
             <${SwitchRow} label="关闭窗口时驻留托盘" checked=${settings.closeToTray} onChange=${(value) => onSettings({ closeToTray: value })} />
             <${SwitchRow} label="切换、回滚时发送系统通知" checked=${settings.notifyOnSwitch} onChange=${(value) => onSettings({ notifyOnSwitch: value })} />
             <${SwitchRow} label="开机自动启动（隐藏到托盘）" checked=${autostart} onChange=${onAutostart} />
           </div>
-          <p class="muted">设置文件在覆盖前会自动备份到 ~/.local/share/nodepulse/backups。</p>
         </div>`
       : null}
 
     <div class="md-card">
       <div class="card-title"><${Icon} name="download" />备份与迁移</div>
-      <p class="muted">保存设置前会自动留一份最近 20 次的备份；导出的配置文件在覆盖前也会备份。</p>
+      <p class="muted">覆盖前自动备份最近 20 次。</p>
       <div class="settings-actions mt">
         <${Button} variant="outlined" icon="download" onClick=${onBackup}>导出设置备份<//>
         <label class="md-button outlined file-button">
@@ -452,7 +444,7 @@ export function Settings({
           }} />
         </label>
       </div>
-      <p class="impact-warn mt">备份包含控制口 secret，请妥善保管，不要提交到代码仓库。</p>
+      <p class="impact-warn mt">备份包含 secret，请妥善保管。</p>
     </div>
 
     <div class="md-card">
@@ -532,7 +524,7 @@ export function History({ events }) {
     <div class="md-card">
       <div class="card-title">自动优化事件</div>
       ${events.length === 0
-        ? html`<${State} icon="history" title="暂无事件" body="开启自动优化后，这里会显示切换、回滚和错误记录。" />`
+        ? html`<${State} icon="history" title="暂无事件" body="开启自动优化后显示记录。" />`
         : html`<ol class="history">
             ${events.map((event, index) => {
               const cur = Number(event.current_score) || 0;

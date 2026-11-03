@@ -441,7 +441,7 @@ export function HeroPending({ members, rounds, concurrency, lastTestAt }) {
   return html`<div class="hero-pending">
     <div class="pending-kicker"><span class="pending-dot"></span>待测速</div>
     <div class="pending-figure"><strong>${members || "—"}</strong><span>个节点</span></div>
-    <div class="pending-meta">每节点 ${rounds} 轮 · 并发 ${concurrency}</div>
-    <div class="pending-last">${lastTestAt ? `上次测速 ${lastTestAt}` : "尚未测速"}</div>
+    <div class="pending-meta">${rounds} 轮 · 并发 ${concurrency}</div>
+    <div class="pending-last">${lastTestAt ? `上次 ${lastTestAt}` : "尚未测速"}</div>
   </div>`;
 }

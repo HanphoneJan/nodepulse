@@ -34,11 +34,11 @@
   /* type */
   --font-sans: system-ui, -apple-system, "Segoe UI", "Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
-  --text-2xs: .625rem;
-  --text-label: .78125rem;
-  --text-xs: .6875rem;
-  --text-sm: .75rem;
-  --text-md: .8125rem;
+  --text-2xs: .6875rem;
+  --text-label: .8125rem;
+  --text-xs: .75rem;
+  --text-sm: .8125rem;
+  --text-md: .875rem;
   --text-base: .875rem;
   --text-lg: 1rem;
   --text-xl: 1.25rem;
@@ -100,43 +100,43 @@
   /* safe area */
   --safe-bottom: env(safe-area-inset-bottom, 0px);
 
-  /* M3 dark fallbacks */
-  --md-primary: #b2c5ff;
-  --md-on-primary: #002b72;
-  --md-primary-container: #0040a1;
-  --md-on-primary-container: #dae2ff;
-  --md-secondary: #c0c6dd;
-  --md-on-secondary: #2a3042;
-  --md-secondary-container: #404659;
-  --md-on-secondary-container: #dce2f9;
-  --md-tertiary: #c6c4dd;
-  --md-on-tertiary: #2f2f45;
-  --md-tertiary-container: #45455c;
-  --md-on-tertiary-container: #e2e0f9;
+  /* FlClash dark fallbacks (seed #007AFF) */
+  --md-primary: #2f83ff;
+  --md-on-primary: #ffffff;
+  --md-primary-container: #0e448e;
+  --md-on-primary-container: #d8e2ff;
+  --md-secondary: #adc6ff;
+  --md-on-secondary: #0f2f66;
+  --md-secondary-container: #26467d;
+  --md-on-secondary-container: #98b5f3;
+  --md-tertiary: #eeb1ff;
+  --md-on-tertiary: #4b005f;
+  --md-tertiary-container: #6b1388;
+  --md-on-tertiary-container: #ffd7fe;
   --md-error: #ffb4ab;
   --md-on-error: #690005;
   --md-error-container: #93000a;
   --md-on-error-container: #ffdad6;
-  --md-surface: #1b1b1f;
-  --md-surface-dim: #131316;
-  --md-surface-bright: #39393c;
-  --md-surface-container-lowest: #0d0e11;
-  --md-surface-container-low: #1b1b1f;
-  --md-surface-container: #1f1f23;
-  --md-surface-container-high: #292a2d;
-  --md-surface-container-highest: #343438;
-  --md-on-surface: #e4e2e6;
-  --md-on-surface-variant: #c5c6d0;
-  --md-outline: #8f909a;
-  --md-outline-variant: #45464f;
-  --md-inverse-surface: #e4e2e6;
-  --md-inverse-on-surface: #303034;
-  --md-inverse-primary: #0856cf;
-  --md-success: #6dd58c;
-  --md-warning: #fdd663;
+  --md-surface: #131314;
+  --md-surface-dim: #131315;
+  --md-surface-bright: #39393a;
+  --md-surface-container-lowest: #0d0e10;
+  --md-surface-container-low: #1b1b1e;
+  --md-surface-container: #252628;
+  --md-surface-container-high: #323235;
+  --md-surface-container-highest: #404042;
+  --md-on-surface: #f5f6ff;
+  --md-on-surface-variant: #c1c6d7;
+  --md-outline: #8b90a0;
+  --md-outline-variant: #46464a;
+  --md-inverse-surface: #e0e2ed;
+  --md-inverse-on-surface: #2d3039;
+  --md-inverse-primary: #005bc1;
+  --md-success: #53e16f;
+  --md-warning: #ffb874;
 
   /* semantic dark */
-  --color-bg-page: var(--md-surface-dim);
+  --color-bg-page: var(--md-surface);
   --color-bg-card: var(--md-surface-container);
   --color-bg-block: var(--md-surface-container-high);
   --color-bg-inset: var(--md-surface-container-highest);
@@ -184,7 +184,7 @@
   --rail-indicator-h: 16px;
   --rail-radius: 16px;
 
-  --topbar-min-h: 64px;
+  --topbar-min-h: 56px;
   --topbar-min-h-sm: 56px;
   --topbar-min-h-xs: 52px;
   --topbar-pad-y: 10px;
@@ -278,40 +278,40 @@
 }
 
 html[data-theme="light"] {
-  /* M3 light fallbacks */
-  --md-primary: #0856cf;
+  /* FlClash light fallbacks (seed #007AFF) */
+  --md-primary: #007aff;
   --md-on-primary: #ffffff;
-  --md-primary-container: #dae2ff;
-  --md-on-primary-container: #001847;
-  --md-secondary: #585e71;
+  --md-primary-container: #d8e2ff;
+  --md-on-primary-container: #0e448e;
+  --md-secondary: #405e96;
   --md-on-secondary: #ffffff;
-  --md-secondary-container: #dce2f9;
-  --md-on-secondary-container: #151b2c;
-  --md-tertiary: #585d71;
+  --md-secondary-container: #a1befd;
+  --md-on-secondary-container: #2d4c83;
+  --md-tertiary: #8e2cb1;
   --md-on-tertiary: #ffffff;
-  --md-tertiary-container: #dce2f8;
-  --md-on-tertiary-container: #151b2c;
+  --md-tertiary-container: #f9d7ff;
+  --md-on-tertiary-container: #360047;
   --md-error: #ba1a1a;
   --md-on-error: #ffffff;
   --md-error-container: #ffdad6;
   --md-on-error-container: #410002;
-  --md-surface: #fefbff;
-  --md-surface-dim: #dbd9dd;
-  --md-surface-bright: #fbf8fd;
+  --md-surface: #fcf8f9;
+  --md-surface-dim: #dbd9dc;
+  --md-surface-bright: #fcf8f9;
   --md-surface-container-lowest: #ffffff;
-  --md-surface-container-low: #f5f3f7;
-  --md-surface-container: #efedf1;
-  --md-surface-container-high: #e9e7ec;
-  --md-surface-container-highest: #e4e2e6;
-  --md-on-surface: #1b1b1f;
-  --md-on-surface-variant: #45464f;
-  --md-outline: #757780;
-  --md-outline-variant: #c5c6d0;
-  --md-inverse-surface: #303034;
-  --md-inverse-on-surface: #f3eff4;
-  --md-inverse-primary: #b2c5ff;
-  --md-success: #146c2e;
-  --md-warning: #7a5f00;
+  --md-surface-container-low: #f5f3f6;
+  --md-surface-container: #efedf0;
+  --md-surface-container-high: #eae7ea;
+  --md-surface-container-highest: #e4e2e4;
+  --md-on-surface: #181c23;
+  --md-on-surface-variant: #414755;
+  --md-outline: #717786;
+  --md-outline-variant: #c7c6ca;
+  --md-inverse-surface: #2d3039;
+  --md-inverse-on-surface: #eef0fc;
+  --md-inverse-primary: #adc6ff;
+  --md-success: #006e28;
+  --md-warning: #8c5000;
 
   /* semantic light: cards sit above the page (FlClash) */
   --color-bg-page: var(--md-surface-container);

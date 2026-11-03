@@ -24,10 +24,10 @@ const NAV = [
   { view: "history", label: "历史", icon: "history" },
 ];
 const VIEW_META = {
-  dashboard: ["仪表盘", "找到最稳的节点，自动保持连接质量"],
-  nodes: ["节点", "按成功率、P90 和抖动综合排序"],
-  settings: ["设置", "连接、订阅与高级参数"],
-  history: ["历史", "自动优化与切换记录"],
+  dashboard: ["仪表盘"],
+  nodes: ["节点"],
+  settings: ["设置"],
+  history: ["历史"],
 };
 
 function defaultSettings() {
@@ -927,7 +927,6 @@ function App() {
       <header class=${"topbar" + (scrolled ? " scrolled" : "")}>
         <div class="topbar-title">
           <h1 aria-live="polite">${meta[0]}</h1>
-          <p class="topbar-sub">${meta[1]}</p>
         </div>
         <div class="topbar-actions">
           <${ProfileMenu}

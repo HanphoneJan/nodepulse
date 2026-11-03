@@ -91,11 +91,12 @@
     --content-pad-x: var(--space-4);
     --table-cols-nodes: var(--table-cols-nodes-sm);
   }
-  .topbar .topbar-sub { display: none; }
   .topbar { min-height: var(--topbar-min-h-xs); }
   .hero { grid-template-columns: minmax(0, 1fr); }
   .hero-node { font-size: var(--text-xl); line-height: var(--leading-28); }
-  .hero-actions { gap: var(--space-2); }
+  .hero-actions { gap: 6px; }
+  .hero-actions .md-button { padding: 0 10px; font-size: 13px; }
+  .hero-actions .md-button .icon { width: 16px; height: 16px; }
   .strength { width: 100%; }
   .strength .m3-select { width: 160px; }
   .hero .score-ring { width: var(--hero-ring-xs); height: var(--hero-ring-xs); }
