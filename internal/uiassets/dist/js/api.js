@@ -58,6 +58,8 @@ function settingsPayload(s) {
     auto_margin: s.autoMargin,
     auto_confirm: s.autoConfirm,
     auto_min_success: s.autoMinSuccess,
+    close_to_tray: !!s.closeToTray,
+    notify_on_switch: !!s.notifyOnSwitch,
   };
 }
 
@@ -125,9 +127,14 @@ export const api = {
     return post("/api/switch", { api: s.api, secret: s.secret, group: s.group, node });
   },
 
-  async exportConfig(out, minSuccess) {
-    if (wails()) return wails().Export(out, minSuccess);
-    const data = await post("/api/export", { out, min_success: minSuccess });
+  async exportPreview(minSuccess, minimal) {
+    if (wails()) return wails().PreviewExport(minSuccess, !!minimal);
+    return post("/api/export/preview", { min_success: minSuccess, minimal: !!minimal });
+  },
+
+  async exportConfig(out, minSuccess, minimal) {
+    if (wails()) return wails().Export(out, minSuccess, !!minimal);
+    const data = await post("/api/export", { out, min_success: minSuccess, minimal: !!minimal });
     return (data && data.message) || "已导出稳定配置";
   },
 
@@ -135,6 +142,41 @@ export const api = {
     if (wails()) return wails().ImportSubscription(url);
     const data = await post("/api/import", { url });
     return data.path;
+  },
+
+  async exportSettingsBackup() {
+    if (wails() && wails().ExportSettingsBackup) return wails().ExportSettingsBackup();
+    const a = document.createElement("a");
+    a.href = "/api/settings/backup";
+    a.download = "nodepulse-settings.json";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    return "已下载设置备份";
+  },
+
+  async restoreSettings(rawText) {
+    let parsed;
+    try {
+      parsed = JSON.parse(rawText);
+    } catch (_) {
+      throw new Error("备份文件不是有效的 JSON");
+    }
+    if (wails() && wails().RestoreSettings) {
+      await wails().RestoreSettings(parsed);
+      return "设置已恢复";
+    }
+    return post("/api/settings/restore", parsed);
+  },
+
+  async autostart() {
+    if (wails() && wails().Autostart) return wails().Autostart();
+    return false;
+  },
+
+  async setAutostart(enabled) {
+    if (wails() && wails().SetAutostart) return wails().SetAutostart(!!enabled);
+    throw new Error("只有桌面版支持开机启动");
   },
 
   async startDaemon(s) {

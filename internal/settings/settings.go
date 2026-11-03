@@ -1,12 +1,15 @@
 package settings
 
 import (
+	"bytes"
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
+
+	"github.com/HanphoneJan/nodepulse/internal/backup"
 )
 
 // Profile is one switchable environment: a client endpoint, a subscription,
@@ -52,6 +55,11 @@ type Settings struct {
 	AutoMargin     float64 `json:"auto_margin,omitempty"`
 	AutoConfirm    int     `json:"auto_confirm,omitempty"`
 	AutoMinSuccess float64 `json:"auto_min_success,omitempty"`
+
+	// Desktop behavior. Defaults are true; omitted legacy settings therefore
+	// keep the safe "stay in tray and notify on changes" behavior.
+	CloseToTray    bool `json:"close_to_tray"`
+	NotifyOnSwitch bool `json:"notify_on_switch"`
 }
 
 // DefaultPath is ~/.config/nodepulse/settings.json.
@@ -78,6 +86,8 @@ func Defaults() Settings {
 		AutoMargin:     0.2,
 		AutoConfirm:    2,
 		AutoMinSuccess: 0.8,
+		CloseToTray:    true,
+		NotifyOnSwitch: true,
 	}
 }
 
@@ -309,8 +319,35 @@ func Save(path string, s Settings) error {
 	if err != nil {
 		return fmt.Errorf("marshal settings: %w", err)
 	}
-	if err := os.WriteFile(path, data, 0o600); err != nil {
-		return fmt.Errorf("write settings: %w", err)
+	if existing, err := os.ReadFile(path); err == nil && bytes.Equal(existing, data) {
+		return nil
+	}
+	_, _ = backup.Snapshot(path, backup.DefaultKeep)
+
+	dir := filepath.Dir(path)
+	tmp, err := os.CreateTemp(dir, ".settings-*.json")
+	if err != nil {
+		return fmt.Errorf("create temporary settings: %w", err)
+	}
+	tmpName := tmp.Name()
+	defer os.Remove(tmpName)
+	if err := tmp.Chmod(0o600); err != nil {
+		tmp.Close()
+		return fmt.Errorf("chmod temporary settings: %w", err)
+	}
+	if _, err := tmp.Write(data); err != nil {
+		tmp.Close()
+		return fmt.Errorf("write temporary settings: %w", err)
+	}
+	if err := tmp.Sync(); err != nil {
+		tmp.Close()
+		return fmt.Errorf("sync temporary settings: %w", err)
+	}
+	if err := tmp.Close(); err != nil {
+		return fmt.Errorf("close temporary settings: %w", err)
+	}
+	if err := os.Rename(tmpName, path); err != nil {
+		return fmt.Errorf("replace settings: %w", err)
 	}
 	_ = os.Chmod(path, 0o600)
 	return nil

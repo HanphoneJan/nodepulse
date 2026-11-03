@@ -17,6 +17,7 @@ import (
 	"github.com/HanphoneJan/nodepulse/internal/clash"
 	"github.com/HanphoneJan/nodepulse/internal/config"
 	"github.com/HanphoneJan/nodepulse/internal/progress"
+	"github.com/HanphoneJan/nodepulse/internal/results"
 	"github.com/HanphoneJan/nodepulse/internal/score"
 	"github.com/HanphoneJan/nodepulse/internal/sidecar"
 	"github.com/HanphoneJan/nodepulse/internal/store"
@@ -86,9 +87,12 @@ func New(opts Options) *Server {
 	s.mux.HandleFunc("/api/switch", s.handleSwitch)
 	s.mux.HandleFunc("/api/bootstrap", s.handleBootstrap)
 	s.mux.HandleFunc("/api/settings", s.handleSettings)
+	s.mux.HandleFunc("/api/settings/backup", s.handleSettingsBackup)
+	s.mux.HandleFunc("/api/settings/restore", s.handleSettingsRestore)
 	s.mux.HandleFunc("/api/oneclick", s.handleOneClick)
 	s.mux.HandleFunc("/api/import", s.handleImport)
 	s.mux.HandleFunc("/api/export", s.handleExport)
+	s.mux.HandleFunc("/api/export/preview", s.handleExportPreview)
 	s.mux.HandleFunc("/api/daemon/start", s.handleDaemonStart)
 	s.mux.HandleFunc("/api/daemon/stop", s.handleDaemonStop)
 	s.mux.HandleFunc("/api/daemon/status", s.handleDaemonStatus)
@@ -409,7 +413,7 @@ func (s *Server) runTest(ctx context.Context, req testRequest) ([]score.Result, 
 		Results:     ranked,
 		ConfigPath:  req.ConfigPath,
 	}
-	if err := writeJSONFile(s.opts.ResultsPath, rf); err != nil {
+	if err := results.Save(s.opts.ResultsPath, rf); err != nil {
 		return nil, err
 	}
 	return ranked, nil
@@ -447,13 +451,7 @@ func (s *Server) handleSwitch(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, map[string]string{"ok": "switched", "group": req.Group, "node": req.Node})
 }
 
-type resultsFile struct {
-	GeneratedAt string         `json:"generated_at"`
-	URL         string         `json:"url"`
-	Rounds      int            `json:"rounds"`
-	ConfigPath  string         `json:"config_path,omitempty"`
-	Results     []score.Result `json:"results"`
-}
+type resultsFile = results.File
 
 func readFile(path string) ([]byte, error) {
 	if path == "" {

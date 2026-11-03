@@ -6,6 +6,17 @@ import (
 	"testing"
 )
 
+func TestMain(m *testing.M) {
+	dir, err := os.MkdirTemp("", "nodepulse-settings-test-*")
+	if err != nil {
+		panic(err)
+	}
+	_ = os.Setenv("XDG_DATA_HOME", dir)
+	code := m.Run()
+	_ = os.RemoveAll(dir)
+	os.Exit(code)
+}
+
 func TestSaveLoad(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "settings.json")
 	s := Defaults()

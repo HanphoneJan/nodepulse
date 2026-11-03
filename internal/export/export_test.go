@@ -129,3 +129,62 @@ func TestStablePreserveAddsRuleWhenMissing(t *testing.T) {
 		t.Fatalf("rules = %v", sel.Config.Rules)
 	}
 }
+
+func TestPreviewPreserveReportsImpact(t *testing.T) {
+	cfg := &config.Config{
+		Proxies: []config.Proxy{
+			{Name: "A", Type: "ss", Server: "127.0.0.1", Port: 1},
+			{Name: "B", Type: "ss", Server: "127.0.0.1", Port: 2},
+		},
+		ProxyGroups: []config.Group{
+			{Name: "PROXY", Type: "select", Proxies: []string{"A", "B"}},
+			{Name: "Streaming", Type: "select", Proxies: []string{"B"}},
+		},
+		Rules: []string{"MATCH,PROXY"},
+		Extra: map[string]any{
+			"dns":            map[string]any{"enable": true},
+			"tun":            map[string]any{"enable": true},
+			"rule-providers": map[string]any{"ads": map[string]any{}},
+		},
+	}
+	results := []score.Result{
+		score.FromLatencies("A", "ss", repeat(100, 10), 10),
+		score.FromLatencies("B", "ss", []int{900, 900}, 10),
+	}
+	impact, err := Preview(cfg, results, Options{MinSuccess: 0.8, Preserve: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !impact.Preserve || impact.Included != 1 || len(impact.Excluded) != 1 || impact.Excluded[0] != "B" {
+		t.Fatalf("impact = %+v", impact)
+	}
+	if !impact.DNS || !impact.TUN || impact.RuleProviders != 1 {
+		t.Fatalf("extra flags = %+v", impact)
+	}
+	if len(impact.DirectFallback) != 1 || impact.DirectFallback[0] != "Streaming" {
+		t.Fatalf("fallbacks = %v", impact.DirectFallback)
+	}
+	if len(impact.Warnings) == 0 {
+		t.Fatal("expected warnings")
+	}
+}
+
+func TestPreviewMinimalWarnsAboutDroppedRules(t *testing.T) {
+	cfg := &config.Config{
+		Proxies:     []config.Proxy{{Name: "A", Type: "ss", Server: "127.0.0.1", Port: 1}},
+		ProxyGroups: []config.Group{{Name: "PROXY", Proxies: []string{"A"}}},
+		Rules:       []string{"MATCH,PROXY"},
+		Extra:       map[string]any{"dns": map[string]any{"enable": true}},
+	}
+	results := []score.Result{score.FromLatencies("A", "ss", repeat(100, 10), 10)}
+	impact, err := Preview(cfg, results, Options{MinSuccess: 0.8})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if impact.Preserve {
+		t.Fatal("minimal preview should not be preserved")
+	}
+	if len(impact.Warnings) < 2 {
+		t.Fatalf("warnings = %v", impact.Warnings)
+	}
+}

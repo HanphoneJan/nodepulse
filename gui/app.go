@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -13,6 +14,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/HanphoneJan/nodepulse/internal/autostart"
+	"github.com/HanphoneJan/nodepulse/internal/backup"
 	"github.com/HanphoneJan/nodepulse/internal/clash"
 	"github.com/HanphoneJan/nodepulse/internal/config"
 	"github.com/HanphoneJan/nodepulse/internal/daemon"
@@ -20,6 +23,7 @@ import (
 	"github.com/HanphoneJan/nodepulse/internal/export"
 	"github.com/HanphoneJan/nodepulse/internal/optimize"
 	"github.com/HanphoneJan/nodepulse/internal/progress"
+	"github.com/HanphoneJan/nodepulse/internal/results"
 	"github.com/HanphoneJan/nodepulse/internal/score"
 	"github.com/HanphoneJan/nodepulse/internal/settings"
 	"github.com/HanphoneJan/nodepulse/internal/sidecar"
@@ -48,15 +52,115 @@ type App struct {
 	progress    *progress.Tracker
 	testCancel  context.CancelFunc
 	testRunning bool
+
+	startHidden     bool
+	windowHidden    bool
+	quitting        bool
+	lastErrorNotify time.Time
 }
 
 // NewApp creates the binding object.
 func NewApp() *App {
-	return &App{progress: progress.New()}
+	a := &App{progress: progress.New()}
+	a.restoreResults()
+	return a
+}
+
+func (a *App) restoreResults() {
+	file, err := results.Load(results.DefaultPath())
+	if err != nil {
+		return
+	}
+	// Do not resurrect results from a different subscription/environment.
+	if file.ConfigPath != "" {
+		if s, err := settings.Load(""); err == nil && s.ConfigPath != "" && s.ConfigPath != file.ConfigPath {
+			return
+		}
+	}
+	a.lastResults = file.Results
+	a.lastConfigPath = file.ConfigPath
+}
+
+func (a *App) persistResults(configPath, testURL string, rounds int) {
+	if len(a.lastResults) == 0 {
+		return
+	}
+	if testURL == "" {
+		testURL = defaultTestURL
+	}
+	_ = results.Save(results.DefaultPath(), results.File{
+		GeneratedAt: time.Now().Format(time.RFC3339),
+		URL:         testURL,
+		Rounds:      rounds,
+		ConfigPath:  configPath,
+		Results:     append([]score.Result(nil), a.lastResults...),
+	})
 }
 
 func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
+	if a.startHidden {
+		a.mu.Lock()
+		a.windowHidden = true
+		a.mu.Unlock()
+		runtime.WindowHide(ctx)
+	}
+}
+
+// beforeClose keeps the daemon alive in the tray unless the user explicitly
+// quits from the tray or disabled the setting.
+func (a *App) beforeClose(ctx context.Context) bool {
+	a.mu.Lock()
+	quitting := a.quitting
+	a.mu.Unlock()
+	if quitting {
+		return false
+	}
+	s, err := settings.Load("")
+	if err != nil || !s.CloseToTray {
+		return false
+	}
+	a.mu.Lock()
+	a.windowHidden = true
+	a.mu.Unlock()
+	runtime.WindowHide(ctx)
+	return true
+}
+
+func (a *App) showWindow() {
+	a.mu.Lock()
+	a.windowHidden = false
+	a.mu.Unlock()
+	if a.ctx != nil {
+		runtime.WindowUnminimise(a.ctx)
+		runtime.WindowShow(a.ctx)
+	}
+}
+
+func (a *App) quitApp() {
+	a.mu.Lock()
+	a.quitting = true
+	a.mu.Unlock()
+	if a.ctx != nil {
+		runtime.Quit(a.ctx)
+	}
+}
+
+// Autostart reports whether NodePulse is enabled at login.
+func (a *App) Autostart() bool {
+	return autostart.Enabled()
+}
+
+// SetAutostart enables or disables the login item.
+func (a *App) SetAutostart(enabled bool) error {
+	if err := autostart.Set(enabled); err != nil {
+		return err
+	}
+	setTrayAutostart(enabled)
+	if a.ctx != nil {
+		runtime.EventsEmit(a.ctx, "nodepulse:autostart", enabled)
+	}
+	return nil
 }
 
 // Version returns the GUI version.
@@ -71,6 +175,7 @@ func (a *App) ClearResults() {
 	a.lastResults = nil
 	a.lastConfigPath = ""
 	a.mu.Unlock()
+	_ = results.Remove(results.DefaultPath())
 }
 
 // Results returns the last ranked results held by this GUI process.
@@ -96,6 +201,7 @@ type BootstrapResult struct {
 	Mihomo        string                `json:"mihomo,omitempty"`
 	Subscriptions []string              `json:"subscriptions"`
 	Settings      settings.Settings     `json:"settings"`
+	Autostart     bool                  `json:"autostart"`
 	MihomoError   string                `json:"mihomo_error,omitempty"`
 }
 
@@ -126,6 +232,7 @@ func (a *App) Bootstrap() (BootstrapResult, error) {
 		Mihomo:        mihomo,
 		Subscriptions: discover.SubscriptionFiles(),
 		Settings:      s,
+		Autostart:     autostart.Enabled(),
 	}
 	if mihomoErr != nil {
 		out.MihomoError = mihomoErr.Error()
@@ -141,6 +248,59 @@ func (a *App) Settings() (settings.Settings, error) {
 // SaveSettings persists the settings.
 func (a *App) SaveSettings(s settings.Settings) error {
 	return settings.Save("", s)
+}
+
+// RestoreSettings replaces settings from a backup. A running daemon is
+// stopped first so the reloaded UI cannot race an old environment.
+func (a *App) RestoreSettings(s settings.Settings) error {
+	a.mu.Lock()
+	running := a.testRunning
+	a.mu.Unlock()
+	if running {
+		return fmt.Errorf("测速进行中，完成后再恢复设置")
+	}
+	old, _ := settings.Load("")
+	_ = a.StopDaemon()
+	if old.ConfigPath != s.ConfigPath {
+		a.ClearResults()
+	}
+	return settings.Save("", s)
+}
+
+// ExportSettingsBackup writes a portable copy of settings, including profiles.
+// The file contains the controller secret, so it stays 0600.
+func (a *App) ExportSettingsBackup() (string, error) {
+	s, err := settings.Load("")
+	if err != nil {
+		return "", err
+	}
+	data, err := json.MarshalIndent(s, "", "  ")
+	if err != nil {
+		return "", err
+	}
+	out := fmt.Sprintf("nodepulse-settings-%s.json", time.Now().Format("20060102-150405"))
+	if a.ctx != nil {
+		chosen, err := runtime.SaveFileDialog(a.ctx, runtime.SaveDialogOptions{
+			Title:           "导出 NodePulse 设置备份",
+			DefaultFilename: out,
+			Filters: []runtime.FileFilter{
+				{DisplayName: "JSON (*.json)", Pattern: "*.json"},
+			},
+		})
+		if err != nil {
+			return "", err
+		}
+		if chosen == "" {
+			return "", fmt.Errorf("已取消导出")
+		}
+		out = chosen
+	}
+	_, _ = backup.Snapshot(out, backup.DefaultKeep)
+	if err := os.WriteFile(out, data, 0o600); err != nil {
+		return "", err
+	}
+	_ = os.Chmod(out, 0o600)
+	return out, nil
 }
 
 // Detect re-runs environment detection.
@@ -221,6 +381,9 @@ func (a *App) OneClick(api, secret, group, configPath, mihomoPath, testURL strin
 	a.lastResults = res.Results
 	a.lastConfigPath = configPath
 	a.mu.Unlock()
+	if len(res.Results) > 0 {
+		a.persistResults(configPath, testURL, rounds)
+	}
 
 	// Persist whatever worked so the next launch is one click away.
 	s, _ := settings.Load("")
@@ -333,6 +496,7 @@ func (a *App) StartDaemon(api, secret, group string, intervalSec, rounds int, ma
 			if a.ctx != nil {
 				runtime.EventsEmit(a.ctx, "nodepulse:daemon", e)
 			}
+			a.notifyEvent(e)
 		},
 	})
 	go func() {
@@ -508,6 +672,7 @@ func (a *App) Test(api, secret, configPath, mihomoPath, testURL string, rounds, 
 	a.lastResults = ranked
 	a.lastConfigPath = configPath
 	a.mu.Unlock()
+	a.persistResults(configPath, testURL, rounds)
 	return ranked, nil
 }
 
@@ -521,17 +686,27 @@ func (a *App) Switch(api, secret, group, node string) error {
 	return clash.New(api, secret).Switch(ctx, group, node)
 }
 
-// Export writes a filtered Clash config from the last test.
-func (a *App) Export(out string, minSuccess float64) (string, error) {
-	a.mu.Lock()
-	results := append([]score.Result(nil), a.lastResults...)
-	configPath := a.lastConfigPath
-	a.mu.Unlock()
-	if len(results) == 0 {
-		return "", fmt.Errorf("请先测试一次")
+// PreviewExport reports what an export would change without writing anything.
+func (a *App) PreviewExport(minSuccess float64, minimal bool) (*export.Impact, error) {
+	cfg, results, err := a.exportInputs()
+	if err != nil {
+		return nil, err
 	}
-	if configPath == "" {
-		return "", fmt.Errorf("当前结果不是从订阅配置测试的，无法导出")
+	if minSuccess <= 0 {
+		minSuccess = 0.8
+	}
+	return export.Preview(cfg, results, export.Options{
+		MinSuccess: minSuccess,
+		TestURL:    defaultTestURL,
+		Preserve:   !minimal,
+	})
+}
+
+// Export writes a filtered Clash config from the last test.
+func (a *App) Export(out string, minSuccess float64, minimal bool) (string, error) {
+	cfg, results, err := a.exportInputs()
+	if err != nil {
+		return "", err
 	}
 	if out == "" {
 		out = "stable.yaml"
@@ -539,11 +714,11 @@ func (a *App) Export(out string, minSuccess float64) (string, error) {
 	if minSuccess <= 0 {
 		minSuccess = 0.8
 	}
-	cfg, err := subscription.Load(configPath)
-	if err != nil {
-		return "", err
-	}
-	sel, err := export.Stable(cfg, results, export.Options{MinSuccess: minSuccess, TestURL: defaultTestURL, Preserve: true})
+	sel, err := export.Stable(cfg, results, export.Options{
+		MinSuccess: minSuccess,
+		TestURL:    defaultTestURL,
+		Preserve:   !minimal,
+	})
 	if err != nil {
 		return "", err
 	}
@@ -563,10 +738,33 @@ func (a *App) Export(out string, minSuccess float64) (string, error) {
 		}
 		out = chosen
 	}
+	_, _ = backup.Snapshot(out, backup.DefaultKeep)
 	if err := sel.Config.Write(out); err != nil {
 		return "", err
 	}
-	return fmt.Sprintf("已写入 %s（保留原规则/分组）：保留 %d 个，排除 %d 个", out, len(sel.Included), len(sel.Excluded)), nil
+	mode := "保留原规则/分组"
+	if !sel.Preserved {
+		mode = "最小配置"
+	}
+	return fmt.Sprintf("已写入 %s（%s）：保留 %d 个，排除 %d 个", out, mode, len(sel.Included), len(sel.Excluded)), nil
+}
+
+func (a *App) exportInputs() (*config.Config, []score.Result, error) {
+	a.mu.Lock()
+	results := append([]score.Result(nil), a.lastResults...)
+	configPath := a.lastConfigPath
+	a.mu.Unlock()
+	if len(results) == 0 {
+		return nil, nil, fmt.Errorf("请先测试一次")
+	}
+	if configPath == "" {
+		return nil, nil, fmt.Errorf("当前结果不是从订阅配置测试的，无法导出")
+	}
+	cfg, err := subscription.Load(configPath)
+	if err != nil {
+		return nil, nil, err
+	}
+	return cfg, results, nil
 }
 
 // ChooseConfig opens a file dialog for the subscription config.

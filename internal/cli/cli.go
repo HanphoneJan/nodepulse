@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/HanphoneJan/nodepulse/internal/adapters/v2raya"
+	"github.com/HanphoneJan/nodepulse/internal/backup"
 	"github.com/HanphoneJan/nodepulse/internal/clash"
 	"github.com/HanphoneJan/nodepulse/internal/config"
 	"github.com/HanphoneJan/nodepulse/internal/daemon"
@@ -327,6 +328,7 @@ func cmdExport(args []string) int {
 	}
 	switch strings.ToLower(*format) {
 	case "", "clash":
+		_, _ = backup.Snapshot(*out, backup.DefaultKeep)
 		if err := sel.Config.Write(*out); err != nil {
 			fmt.Fprintln(os.Stderr, "写入失败:", err)
 			return 1

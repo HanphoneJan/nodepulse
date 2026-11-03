@@ -263,6 +263,8 @@ export function Nodes({ results, best, selected, onSelect, onRefresh, onSwitch, 
 export function Settings({
   settings, groups, seed, mode, busy, busyKind, progress, onCancel, lastTestAt,
   onSettings, onSeed, onResetSeed, onMode, onSave, onTest, onSwitch, onExport, canSwitch, canExport,
+  exportImpact, exportMinimal, onConfirmExport, onCancelExport, onExportMinimal,
+  desktop, autostart, onAutostart, onBackup, onRestore,
   profiles, activeProfile, onActivateProfile, onRenameProfile, onProfileNameBlur, onSaveProfile, onNewProfile, onDeleteProfile,
 }) {
   const currentProfile = profiles.find((profile) => profile.id === activeProfile) || profiles[0];
@@ -336,6 +338,39 @@ export function Settings({
       </div>
     </div>
 
+    ${desktop
+      ? html`<div class="md-card">
+          <div class="card-title"><${Icon} name="monitoring" />后台与通知</div>
+          <p class="muted">自动选择在后台运行时，只把需要你知道的变化发成系统通知。修改立即生效。</p>
+          <div class="switch-list">
+            <${SwitchRow} label="关闭窗口时驻留托盘" checked=${settings.closeToTray} onChange=${(value) => onSettings({ closeToTray: value })} />
+            <${SwitchRow} label="切换、回滚时发送系统通知" checked=${settings.notifyOnSwitch} onChange=${(value) => onSettings({ notifyOnSwitch: value })} />
+            <${SwitchRow} label="开机自动启动（隐藏到托盘）" checked=${autostart} onChange=${onAutostart} />
+          </div>
+          <p class="muted">设置文件在覆盖前会自动备份到 ~/.local/share/nodepulse/backups。</p>
+        </div>`
+      : null}
+
+    <div class="md-card">
+      <div class="card-title"><${Icon} name="download" />备份与迁移</div>
+      <p class="muted">保存设置前会自动留一份最近 20 次的备份；导出的配置文件在覆盖前也会备份。</p>
+      <div class="settings-actions mt">
+        <${Button} variant="outlined" icon="download" onClick=${onBackup}>导出设置备份<//>
+        <label class="md-button outlined file-button">
+          <${Icon} name="refresh" />
+          <span>从备份恢复</span>
+          <input type="file" accept="application/json,.json" hidden onChange=${async (event) => {
+            const file = event.currentTarget.files && event.currentTarget.files[0];
+            if (!file) return;
+            const text = await file.text();
+            event.currentTarget.value = "";
+            await onRestore(text);
+          }} />
+        </label>
+      </div>
+      <p class="impact-warn mt">备份包含控制口 secret，请妥善保管，不要提交到代码仓库。</p>
+    </div>
+
     <div class="md-card">
       <div class="card-title">连接设置</div>
       <div class="text-field-grid mt">
@@ -353,10 +388,49 @@ export function Settings({
         <${Button} variant="tonal" loading=${busy && busyKind === "test"} onClick=${onTest}>测速<//>
         ${busy && busyKind === "test" ? html`<${Button} variant="text" onClick=${onCancel}>取消测速<//>` : null}
         <${Button} variant="tonal" disabled=${!canSwitch || busy} onClick=${onSwitch}>切换选中节点<//>
-        <${Button} variant="outlined" disabled=${!canExport || busy} onClick=${onExport}>导出稳定配置<//>
+        <${Button} variant="outlined" disabled=${!canExport || busy} onClick=${() => onExport()}>导出稳定配置<//>
       </div>
       ${busy && busyKind === "test"
         ? html`<p class="status-line mt" role="status" aria-live="polite">测速中 ${progress && progress.total ? `${progress.done || 0}/${progress.total}` : ""}${progress && progress.current ? ` · ${progress.current}` : ""}</p>`
+        : null}
+      ${exportImpact
+        ? html`<div class="export-preview" role="region" aria-label="导出影响预览">
+            <div class="export-preview-head">
+              <${Icon} name="search" />
+              <strong>导出影响</strong>
+              <span class="muted">${exportImpact.preserve ? "保留原规则/分组" : "最小配置"}</span>
+            </div>
+            <div class="impact-grid">
+              <div><strong>${exportImpact.included}</strong><span>保留节点</span></div>
+              <div><strong>${(exportImpact.excluded || []).length}</strong><span>排除节点</span></div>
+              <div><strong>${exportImpact.groups}</strong><span>分组</span></div>
+              <div><strong>${exportImpact.rules}</strong><span>规则</span></div>
+            </div>
+            <div class="impact-flags">
+              <span class=${"impact-flag" + (exportImpact.dns ? "" : " dropped")}>DNS ${exportImpact.dns ? "保留" : "丢弃"}</span>
+              <span class=${"impact-flag" + (exportImpact.tun ? "" : " dropped")}>TUN ${exportImpact.tun ? "保留" : "丢弃"}</span>
+              <span class=${"impact-flag" + (exportImpact.rule_providers ? "" : " dropped")}>规则集 ${exportImpact.rule_providers ? `保留 ${exportImpact.rule_providers} 个` : "无/丢弃"}</span>
+            </div>
+            ${(exportImpact.excluded || []).length
+              ? html`<p class="impact-line">排除示例：${exportImpact.excluded.slice(0, 5).join("、")}${exportImpact.excluded.length > 5 ? ` 等 ${exportImpact.excluded.length} 个` : ""}</p>`
+              : null}
+            ${(exportImpact.changed_groups || []).length
+              ? html`<div class="impact-groups">
+                  <div class="impact-line">受影响分组</div>
+                  ${exportImpact.changed_groups.slice(0, 6).map((group) => html`<div class="impact-group">
+                    <span>${group.name}</span>
+                    <span class=${group.fallback ? "impact-warn" : "muted"}>${group.fallback ? "空组 → DIRECT" : `移除 ${group.removed.length} 个`}</span>
+                  </div>`)}
+                  ${exportImpact.changed_groups.length > 6 ? html`<div class="impact-line muted">还有 ${exportImpact.changed_groups.length - 6} 个分组…</div>` : null}
+                </div>`
+              : null}
+            ${(exportImpact.warnings || []).map((warning) => html`<p class="impact-warn">${warning}</p>`)}
+            <${SwitchRow} label="最小配置（替换规则、分组、DNS/TUN）" checked=${exportMinimal} onChange=${onExportMinimal} />
+            <div class="export-preview-actions">
+              <${Button} variant="filled" icon="download" loading=${busy && busyKind === "export"} onClick=${onConfirmExport}>确认导出<//>
+              <${Button} variant="text" onClick=${onCancelExport}>取消<//>
+            </div>
+          </div>`
         : null}
       <div class="divider"></div>
       <div class="card-title small">控制口状态</div>

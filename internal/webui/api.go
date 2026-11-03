@@ -13,11 +13,13 @@ import (
 	"strings"
 	"time"
 
+	"github.com/HanphoneJan/nodepulse/internal/backup"
 	"github.com/HanphoneJan/nodepulse/internal/clash"
 	"github.com/HanphoneJan/nodepulse/internal/daemon"
 	"github.com/HanphoneJan/nodepulse/internal/discover"
 	"github.com/HanphoneJan/nodepulse/internal/export"
 	"github.com/HanphoneJan/nodepulse/internal/optimize"
+	"github.com/HanphoneJan/nodepulse/internal/results"
 	"github.com/HanphoneJan/nodepulse/internal/score"
 	"github.com/HanphoneJan/nodepulse/internal/settings"
 	"github.com/HanphoneJan/nodepulse/internal/store"
@@ -89,6 +91,64 @@ func (s *Server) handleBootstrap(w http.ResponseWriter, r *http.Request) {
 		out.MihomoError = mihomoErr.Error()
 	}
 	writeJSON(w, out)
+}
+
+func (s *Server) handleSettingsBackup(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	st, err := settings.Load("")
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	data, err := json.MarshalIndent(st, "", "  ")
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	name := fmt.Sprintf("nodepulse-settings-%s.json", time.Now().Format("20060102-150405"))
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%q", name))
+	_, _ = w.Write(data)
+}
+
+func (s *Server) handleSettingsRestore(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	var st settings.Settings
+	if err := json.NewDecoder(io.LimitReader(r.Body, 2<<20)).Decode(&st); err != nil {
+		writeError(w, http.StatusBadRequest, "设置备份无法解析: "+err.Error())
+		return
+	}
+	if len(st.Profiles) == 0 && st.API == "" && st.ConfigPath == "" {
+		writeError(w, http.StatusBadRequest, "设置备份里没有可恢复的内容")
+		return
+	}
+	s.mu.Lock()
+	testRunning := s.testRunning
+	s.mu.Unlock()
+	if testRunning {
+		writeError(w, http.StatusConflict, "测速进行中，完成后再恢复设置")
+		return
+	}
+	old, _ := settings.Load("")
+	if err := settings.Save("", st); err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	s.stopDaemon()
+	if old.ConfigPath != st.ConfigPath {
+		s.mu.Lock()
+		s.lastResults = nil
+		s.lastConfigPath = ""
+		s.mu.Unlock()
+		_ = results.Remove(s.opts.ResultsPath)
+	}
+	writeJSON(w, map[string]string{"message": "设置已恢复；当前设置已自动备份"})
 }
 
 func (s *Server) handleSettings(w http.ResponseWriter, r *http.Request) {
@@ -177,7 +237,7 @@ func (s *Server) handleOneClick(w http.ResponseWriter, r *http.Request) {
 		if url == "" {
 			url = "https://www.gstatic.com/generate_204"
 		}
-		_ = writeJSONFile(s.opts.ResultsPath, resultsFile{
+		_ = results.Save(s.opts.ResultsPath, resultsFile{
 			GeneratedAt: time.Now().Format(time.RFC3339),
 			URL:         url,
 			Rounds:      req.Rounds,
@@ -281,6 +341,45 @@ func (s *Server) handleResultsClear(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, map[string]bool{"ok": true})
 }
 
+func (s *Server) handleExportPreview(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	var req struct {
+		MinSuccess float64 `json:"min_success"`
+		Minimal    bool    `json:"minimal"`
+	}
+	_ = json.NewDecoder(io.LimitReader(r.Body, 1<<20)).Decode(&req)
+	s.mu.Lock()
+	results := append([]score.Result(nil), s.lastResults...)
+	configPath := s.lastConfigPath
+	s.mu.Unlock()
+	if configPath == "" {
+		if st, err := settings.Load(""); err == nil {
+			configPath = st.ConfigPath
+		}
+	}
+	if len(results) == 0 || configPath == "" {
+		writeError(w, http.StatusBadRequest, "请先测试一次")
+		return
+	}
+	if req.MinSuccess <= 0 {
+		req.MinSuccess = 0.8
+	}
+	cfg, err := subscription.Load(configPath)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	impact, err := export.Preview(cfg, results, export.Options{MinSuccess: req.MinSuccess, Preserve: !req.Minimal})
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	writeJSON(w, impact)
+}
+
 func (s *Server) handleExport(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -331,6 +430,7 @@ func (s *Server) handleExport(w http.ResponseWriter, r *http.Request) {
 		name = "stable.yaml"
 	}
 	outPath := filepath.Join(dir, name)
+	_, _ = backup.Snapshot(outPath, backup.DefaultKeep)
 	if err := sel.Config.Write(outPath); err != nil {
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -429,12 +529,16 @@ func (s *Server) handleDaemonStop(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
+	s.stopDaemon()
+	writeJSON(w, map[string]bool{"ok": true})
+}
+
+func (s *Server) stopDaemon() {
 	s.mu.Lock()
 	cancel := s.daemonCancel
 	done := s.daemonDone
 	if cancel == nil {
 		s.mu.Unlock()
-		writeJSON(w, map[string]bool{"ok": true})
 		return
 	}
 	s.daemonCancel = nil
@@ -449,7 +553,6 @@ func (s *Server) handleDaemonStop(w http.ResponseWriter, r *http.Request) {
 		case <-time.After(3 * time.Second):
 		}
 	}
-	writeJSON(w, map[string]bool{"ok": true})
 }
 
 func (s *Server) handleDaemonStatus(w http.ResponseWriter, r *http.Request) {

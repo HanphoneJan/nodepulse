@@ -1,7 +1,7 @@
 import { html } from "./html.js";
 import { render } from "../vendor/preact.module.js";
 import { useCallback, useEffect, useRef, useState } from "../vendor/hooks.module.js";
-import { api } from "./api.js";
+import { api, isWails } from "./api.js";
 import { subscribeDaemon } from "./events.js";
 import {
   currentMode,
@@ -51,6 +51,8 @@ function defaultSettings() {
     autoMargin: 0.2,
     autoConfirm: 2,
     autoMinSuccess: 0.8,
+    closeToTray: true,
+    notifyOnSwitch: true,
   };
 }
 
@@ -114,6 +116,8 @@ function mapSettings(raw) {
     autoMargin: Number(raw.auto_margin) || 0.2,
     autoConfirm: Number(raw.auto_confirm) || 2,
     autoMinSuccess: Number(raw.auto_min_success) || 0.8,
+    closeToTray: raw.close_to_tray !== false,
+    notifyOnSwitch: raw.notify_on_switch !== false,
   };
 }
 
@@ -149,10 +153,13 @@ function App() {
   const [best, setBest] = useState(null);
   const [selected, setSelected] = useState(null);
   const [daemon, setDaemon] = useState(false);
+  const [autostartEnabled, setAutostartEnabled] = useState(false);
   const [events, setEvents] = useState([]);
   const [busy, setBusy] = useState(false);
   const [busyKind, setBusyKind] = useState("");
   const [progress, setProgress] = useState(null);
+  const [exportImpact, setExportImpact] = useState(null);
+  const [exportMinimal, setExportMinimal] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   const [lastTestAt, setLastTestAt] = useState(readLastTest);
   const [snack, setSnack] = useState(null);
@@ -363,6 +370,7 @@ function App() {
         if (cancelled) return;
         setVersion(v || "");
         setDaemon(!!running);
+        setAutostartEnabled(!!bootstrap.autostart);
         setControllers(bootstrap.controllers || []);
         setSubscriptions(bootstrap.subscriptions || []);
         const normalized = mapSettings(bootstrap.settings || {});
@@ -426,6 +434,14 @@ function App() {
   }, [view]);
 
   useEffect(() => {
+    if (!isWails() || !window.runtime || !window.runtime.EventsOn) return undefined;
+    window.runtime.EventsOn("nodepulse:autostart", setAutostartEnabled);
+    return () => {
+      if (window.runtime.EventsOff) window.runtime.EventsOff("nodepulse:autostart");
+    };
+  }, []);
+
+  useEffect(() => {
     if (!busy || !["oneclick", "test"].includes(busyKind)) {
       setProgress(null);
       return undefined;
@@ -480,6 +496,7 @@ function App() {
     setResults([]);
     setBest(null);
     setSelected(null);
+    setExportImpact(null);
     setLastTestAt("");
     try { localStorage.removeItem(LAST_TEST_KEY); } catch (_) {}
   }
@@ -563,6 +580,43 @@ function App() {
     }
   }
 
+  async function backupSettings() {
+    if (busy) return;
+    startBusy("backup");
+    try {
+      const result = await api.exportSettingsBackup();
+      notify(result && result.includes("/") ? `已导出：${result}` : (result || "已导出设置备份"), "info");
+    } catch (error) {
+      notify(errText(error), "error");
+    } finally {
+      finishBusy();
+    }
+  }
+
+  async function restoreSettings(rawText) {
+    if (busy) return;
+    startBusy("restore");
+    try {
+      const message = await api.restoreSettings(rawText);
+      notify(message || "设置已恢复，正在重新加载…", "info");
+      setTimeout(() => window.location.reload(), 900);
+    } catch (error) {
+      notify(errText(error), "error");
+    } finally {
+      finishBusy();
+    }
+  }
+
+  async function toggleAutostart(enabled) {
+    try {
+      await api.setAutostart(enabled);
+      setAutostartEnabled(enabled);
+      notify(enabled ? "已开启开机启动（隐藏到托盘）" : "已关闭开机启动", "info");
+    } catch (error) {
+      notify(errText(error), "error");
+    }
+  }
+
   async function saveSettings() {
     if (busy) return;
     startBusy("save");
@@ -625,22 +679,41 @@ function App() {
     }
   }
 
-  async function exportConfig() {
+  async function previewExport(minimal = false) {
     const current = settingsRef.current;
     if (!current.configPath) {
       notify("请先选择订阅配置", "error");
       return;
     }
     if (busy) return;
+    setExportMinimal(!!minimal);
     startBusy("export");
     try {
-      const message = await api.exportConfig("stable.yaml", 0.8);
-      notify(message || "已导出 stable.yaml", "info");
+      const impact = await api.exportPreview(0.8, minimal);
+      setExportImpact(impact);
     } catch (error) {
       notify(errText(error), "error");
     } finally {
       finishBusy();
     }
+  }
+
+  async function confirmExport() {
+    if (!exportImpact || busy) return;
+    startBusy("export");
+    try {
+      const message = await api.exportConfig("stable.yaml", 0.8, exportMinimal);
+      notify(message || "已导出 stable.yaml", "info");
+      setExportImpact(null);
+    } catch (error) {
+      notify(errText(error), "error");
+    } finally {
+      finishBusy();
+    }
+  }
+
+  function cancelExport() {
+    setExportImpact(null);
   }
 
   async function toggleDaemon(enabled) {
@@ -804,7 +877,17 @@ function App() {
                   onSave=${saveSettings}
                   onTest=${() => runTest(true)}
                   onSwitch=${switchSelected}
-                  onExport=${exportConfig}
+                  onExport=${previewExport}
+                  onConfirmExport=${confirmExport}
+                  onCancelExport=${cancelExport}
+                  exportImpact=${exportImpact}
+                  exportMinimal=${exportMinimal}
+                  onExportMinimal=${(value) => previewExport(value)}
+                  desktop=${isWails()}
+                  autostart=${autostartEnabled}
+                  onAutostart=${toggleAutostart}
+                  onBackup=${backupSettings}
+                  onRestore=${restoreSettings}
                   canSwitch=${canSwitch}
                   canExport=${canExport}
                   profiles=${settings.profiles}
