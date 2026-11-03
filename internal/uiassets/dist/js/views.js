@@ -212,10 +212,17 @@ export function Dashboard({
       ${downloadResult
         ? html`<div class=${"download-result" + (downloadResult.reason_code === "download-unreachable" ? " download-result--error" : "")}>
             <div class="download-result-head">
-              <strong>${downloadResult.reason_code === "download-unreachable" ? "没有可用节点" : `已选择 ${downloadResult.best?.name || "—"}`}</strong>
+              <strong>${downloadResult.reason_code === "download-unreachable" ? "没有可用路径" : downloadResult.reason_code === "direct-recommended" ? "建议直连" : `已选择 ${downloadResult.download?.best?.node || downloadResult.best?.name || "—"}`}</strong>
               ${downloadResult.download?.cache_hits ? html`<span class="muted">缓存 ${downloadResult.download.cache_hits}/${downloadResult.download.top_k}</span>` : null}
             </div>
             <div class="download-result-main">${downloadResult.message}</div>
+            ${downloadResult.download?.direct
+              ? html`<div class=${"probe-row probe-row--direct" + (downloadResult.download.direct.ok ? "" : " probe-row--bad")}>
+                  <span class="probe-node">直连</span>
+                  <span>${downloadResult.download.direct.ok ? `${Math.round(downloadResult.download.direct.p25_kibps)} KiB/s · ${downloadResult.download.direct.ttfb_ms}ms` : (downloadResult.download.direct.error || "不可达")}</span>
+                  <span class="muted">${downloadResult.download.direct.cached ? "缓存" : `${Math.round((downloadResult.download.direct.bytes || 0) / 1024)} KiB`}${downloadResult.download.direct_recommended ? " · 推荐" : ""}</span>
+                </div>`
+              : null}
             ${downloadResult.download?.probes?.length
               ? html`<div class="probe-list">
                   ${downloadResult.download.probes.map((probe) => html`<div class=${"probe-row" + (probe.ok ? "" : " probe-row--bad")}>

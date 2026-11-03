@@ -49,14 +49,16 @@ type DownloadProbe struct {
 
 // DownloadInfo is the download-mode report.
 type DownloadInfo struct {
-	TargetHost string          `json:"target_host"`
-	TargetPath string          `json:"target_path"`
-	TopK       int             `json:"top_k"`
-	CacheHits  int             `json:"cache_hits"`
-	Excluded   int             `json:"excluded"`
-	Fallback   bool            `json:"fallback,omitempty"`
-	Probes     []DownloadProbe `json:"probes"`
-	Best       DownloadProbe   `json:"best"`
+	TargetHost        string          `json:"target_host"`
+	TargetPath        string          `json:"target_path"`
+	TopK              int             `json:"top_k"`
+	CacheHits         int             `json:"cache_hits"`
+	Excluded          int             `json:"excluded"`
+	Fallback          bool            `json:"fallback,omitempty"`
+	DirectRecommended bool            `json:"direct_recommended,omitempty"`
+	Direct            *DownloadProbe  `json:"direct,omitempty"`
+	Probes            []DownloadProbe `json:"probes"`
+	Best              DownloadProbe   `json:"best"`
 }
 
 // SourceInfo describes one subscription/profile used by a merged test.
@@ -500,6 +502,32 @@ func runDownload(ctx context.Context, req Request) (*Result, error) {
 		probes = append(probes, probeBatch(proxies[firstEnd:])...)
 		probed = len(probes)
 	}
+	// Direct baseline: the fastest path may be no proxy at all. Probe the same
+	// target without a proxy before deciding to switch a node.
+	directKey := probecache.Key("DIRECT", target.Host, target.Path)
+	directResult := probe.Result{Node: "DIRECT"}
+	directCached := false
+	if cache != nil {
+		if hit, ok := cache.Get(directKey); ok {
+			directResult = hit
+			directCached = true
+		}
+	}
+	if !directCached {
+		directResult, err = probe.Measure(ctx, "", target, req.ProbeBytes, time.Duration(req.ProbeSeconds)*time.Second)
+		directResult.Node = "DIRECT"
+		if err != nil {
+			directResult.Err = err.Error()
+		}
+		if cache != nil {
+			cache.Put(directKey, directResult)
+		}
+	}
+	directResult.Node = "DIRECT"
+	direct := DownloadProbe{Result: directResult}
+	if directResult.OK {
+		direct.DownloadScore = downloadScore(directResult, 0)
+	}
 	if cache != nil {
 		_ = cache.Save()
 	}
@@ -517,22 +545,45 @@ func runDownload(ctx context.Context, req Request) (*Result, error) {
 		CacheHits:  cacheHits,
 		Excluded:   excluded,
 		Fallback:   fallback,
+		Direct:     &direct,
 		Probes:     probes,
 	}
-	if len(probes) > 0 {
+	var nodeBest *DownloadProbe
+	for i := range probes {
+		if probes[i].OK {
+			nodeBest = &probes[i]
+			break
+		}
+	}
+	directRecommended := direct.OK && (nodeBest == nil || direct.P25KiBps >= nodeBest.P25KiBps*1.2)
+	info.DirectRecommended = directRecommended
+	if directRecommended {
+		info.Best = direct
+	} else if len(probes) > 0 {
 		info.Best = probes[0]
 	}
 	base.Download = info
 	base.Scope = "download"
 	res := base
-	if len(probes) == 0 || !probes[0].OK {
+	if directRecommended {
 		res.Best = base.Best
-		res.ReasonCode = "download-unreachable"
-		res.Reason = "所有候选节点都无法访问目标站点（TLS/EOF/超时/HTTP 错误）"
+		res.ReasonCode = "direct-recommended"
+		if nodeBest == nil {
+			res.Reason = fmt.Sprintf("直连可用（p25 %.0f KiB/s），所有候选节点不可达；建议直连下载，未切换节点", direct.P25KiBps)
+		} else {
+			res.Reason = fmt.Sprintf("直连 p25 %.0f KiB/s 优于最佳节点 %s（p25 %.0f KiB/s），建议直连下载，未切换节点", direct.P25KiBps, nodeBestName(nodeBest), nodeP25(nodeBest))
+		}
 		res.Message = res.Reason
 		return res, nil
 	}
-	best := probes[0]
+	if nodeBest == nil {
+		res.Best = base.Best
+		res.ReasonCode = "download-unreachable"
+		res.Reason = "直连和所有候选节点都无法访问目标站点（TLS/EOF/超时/HTTP 错误）"
+		res.Message = res.Reason
+		return res, nil
+	}
+	best := *nodeBest
 	bestBase := baseByName[best.Node]
 	if bestBase.Name == "" {
 		bestBase = score.Result{Name: best.Node, Success: 1, Total: 1, Score: best.BaseScore}
@@ -761,6 +812,20 @@ func runAll(ctx context.Context, req Request) (*Result, error) {
 	res.ReasonCode = "all-recommendation"
 	res.Reason = res.Message
 	return res, nil
+}
+
+func nodeBestName(result *DownloadProbe) string {
+	if result == nil {
+		return "无"
+	}
+	return result.Node
+}
+
+func nodeP25(result *DownloadProbe) float64 {
+	if result == nil {
+		return 0
+	}
+	return result.P25KiBps
 }
 
 func confidenceLabel(confidence string) string {

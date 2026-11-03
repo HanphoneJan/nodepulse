@@ -1164,3 +1164,9 @@
   .download-row { grid-template-columns: minmax(0, 1fr); }
   .probe-row { grid-template-columns: minmax(0, 1fr); }
 }
+
+.probe-row--direct {
+  border: 1px solid var(--color-border);
+  background: var(--color-bg);
+}
+.probe-row--direct .probe-node { font-weight: var(--weight-medium); }
