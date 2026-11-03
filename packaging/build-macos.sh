@@ -5,6 +5,9 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 VERSION="${VERSION:-0.3.0}"
 APP="$ROOT/desktop/build/macos/Build/Products/Release/NodePulse.app"
+if [[ ! -d "$APP" ]]; then
+  APP="$(find "$ROOT/desktop/build/macos/Build/Products/Release" -maxdepth 1 -name '*.app' -print -quit)"
+fi
 OUT="$ROOT/dist/NodePulse-macos-universal-${VERSION}.zip"
 DMG_OUT="$ROOT/dist/NodePulse-macos-universal-${VERSION}.dmg"
 
