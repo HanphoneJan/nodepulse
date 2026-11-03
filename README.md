@@ -126,12 +126,14 @@ score          = 0.5*successRate + 0.3*latencyScore + 0.2*stabilityScore
 | 客户端 | 测速 | 实时切换 | 接入方式 |
 |---|---|---|---|
 | FlClash | 支持 | 需开启 external-controller | Clash REST |
-| Clash Verge Rev | 支持 | 支持 | Clash REST |
+| Clash Verge Rev | 支持 | 支持（需开启外部控制） | Clash REST |
 | Mihomo Party | 支持 | 支持 | Clash REST |
 | sing-box GUI | 支持 | 支持 | `experimental.clash_api` |
 | v2rayA | 支持 | CLI 支持 | v2rayA REST（GUI/Web 未接入） |
 | v2rayN | 支持（导出） | 不支持实时切换 | 导出 Clash / base64 |
 | 任意订阅 | 支持 | — | 内置 mihomo sidecar |
+
+NodePulse 会主动检查本机运行中的客户端进程和它的配置目录，而不只是扫描常见端口。Windows 上会读取 `%APPDATA%` 下 Clash Verge Rev / FlClash 等客户端的 `config.yaml`，从中取得控制口和 secret 并自动填入；如果客户端已运行但关闭了外部控制，界面会显示“已检测到客户端”并提示去客户端开启，不再显示成“未检测到”。
 
 详见 [客户端适配矩阵](docs/adapter-matrix.md)。
 

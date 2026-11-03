@@ -6,16 +6,13 @@ import { subscribeDaemon } from "./events.js";
 import {
   currentMode,
   currentSeed,
-  applyMode,
   applySeed,
   bootTheme,
-  modeLabel,
-  nextMode,
   normalizeSeed,
   setMode,
   DEFAULT_SEED,
 } from "./theme.js";
-import { Icon, IconButton, ProfileMenu, Snackbar } from "./components.js";
+import { Icon, ProfileMenu, Snackbar } from "./components.js";
 import { Dashboard, Nodes, Settings, History } from "./views.js";
 import { timeAgo } from "./format.js";
 
@@ -142,10 +139,16 @@ function writeLastTest(value) {
   try { localStorage.setItem(LAST_TEST_KEY, value); } catch (_) {}
 }
 
+function syncWindowTheme() {
+  const dark = document.documentElement.dataset.theme === "dark";
+  api.setWindowTheme(dark).catch(() => {});
+}
+
 function App() {
   const [view, setView] = useState("dashboard");
   const [settings, setSettings] = useState(defaultSettings);
   const [controllers, setControllers] = useState([]);
+  const [clients, setClients] = useState([]);
   const [subscriptions, setSubscriptions] = useState([]);
   const [status, setStatus] = useState({ connected: false, current: "", groupName: "", members: 0, error: "" });
   const [groups, setGroups] = useState([]);
@@ -173,6 +176,7 @@ function App() {
   const [themeMode, setThemeMode] = useState(currentMode);
   const [seed, setSeed] = useState(currentSeed);
   const [scrolled, setScrolled] = useState(false);
+  const [detecting, setDetecting] = useState(false);
   const [, setClockTick] = useState(0);
 
   const settingsRef = useRef(settings);
@@ -377,6 +381,7 @@ function App() {
         setDaemon(!!running);
         setAutostartEnabled(!!bootstrap.autostart);
         setControllers(bootstrap.controllers || []);
+        setClients(bootstrap.clients || []);
         setSubscriptions(bootstrap.subscriptions || []);
         const normalized = mapSettings(bootstrap.settings || {});
         setSettings(normalized);
@@ -679,6 +684,37 @@ function App() {
     }
   }
 
+  async function detectClients() {
+    if (detecting) return;
+    setDetecting(true);
+    try {
+      const bootstrap = await api.bootstrap();
+      const nextClients = bootstrap.clients || [];
+      setControllers(bootstrap.controllers || []);
+      setClients(nextClients);
+      setSubscriptions(bootstrap.subscriptions || []);
+      const current = settingsRef.current;
+      const patch = {};
+      const found = bootstrap.settings || {};
+      if (!current.api && found.api) patch.api = found.api;
+      if (!current.secret && found.secret) patch.secret = found.secret;
+      if (!current.configPath && found.config_path) patch.configPath = found.config_path;
+      if (Object.keys(patch).length) updateSettings(patch);
+      const ok = await refreshStatus({ ...current, ...patch });
+      const running = nextClients.filter((client) => client.running);
+      notify(
+        running.length
+          ? `检测到 ${running.map((client) => client.name).join("、")}${ok ? "" : "，但控制口未连接"}`
+          : "没有检测到运行中的客户端",
+        running.length ? "info" : "error"
+      );
+    } catch (error) {
+      notify(errText(error), "error");
+    } finally {
+      setDetecting(false);
+    }
+  }
+
   async function refreshHealth() {
     if (healthBusy) return;
     setHealthBusy(true);
@@ -730,6 +766,7 @@ function App() {
       try {
         const bootstrap = await api.bootstrap();
         setControllers(bootstrap.controllers || []);
+        setClients(bootstrap.clients || []);
         setSubscriptions(bootstrap.subscriptions || []);
       } catch (_) {}
     } catch (error) {
@@ -830,6 +867,7 @@ function App() {
     const next = setMode(mode);
     applySeed(seedRef.current);
     setThemeMode(next);
+    syncWindowTheme();
   }
 
   function changeSeed(value) {
@@ -847,19 +885,20 @@ function App() {
     seedRef.current = DEFAULT_SEED;
   }
 
-  function toggleTheme() {
-    changeMode(nextMode(themeMode));
-  }
-
   function navigate(nextView) {
     setView(nextView);
   }
 
   const meta = VIEW_META[view] || VIEW_META.dashboard;
-  const themeIcon = themeMode === "light" ? "sun" : themeMode === "dark" ? "moon" : "monitor";
-  const themeTitle = `主题：${modeLabel(themeMode)}，点击切换`;
   const connClass = status.error ? "error" : status.connected ? "ok" : "warn";
-  const connLabel = status.error ? "连接失败" : status.connected ? (controllers.length ? `已连接 ${controllers.length} 个客户端` : "已连接") : controllers.length ? "未连接" : "未检测到客户端";
+  const runningClients = clients.filter((client) => client.running);
+  const connLabel = status.error
+    ? "连接失败"
+    : status.connected
+      ? "已连接"
+      : runningClients.length
+        ? `检测到 ${runningClients[0].name}`
+        : "未检测到客户端";
   const lastTestLabel = lastTestAt ? timeAgo(lastTestAt) : "";
   const latestEvent = events.find((event) =>
     ["cycle", "switch", "rollback", "error"].includes(event.kind)
@@ -897,7 +936,6 @@ function App() {
             onSelect=${activateProfile}
             onManage=${() => navigate("settings")}
           />
-          <${IconButton} icon=${themeIcon} label=${themeTitle} title=${themeTitle} onClick=${toggleTheme} />
           <span class=${"status-chip " + connClass} role="status" aria-live="polite">${connLabel}</span>
           ${version ? html`<span class="version">v${version}</span>` : null}
         </div>
@@ -918,6 +956,9 @@ function App() {
               onCancel=${cancelCurrentTest}
               lastTestAt=${lastTestLabel}
               controllers=${controllers}
+              clients=${clients}
+              detecting=${detecting}
+              onDetect=${detectClients}
               subscriptions=${subscriptions}
               daemon=${daemon}
               daemonInterval=${settings.daemonInterval}
@@ -933,7 +974,11 @@ function App() {
               onDownloadMode=${runDownloadMode}
               onSelectNode=${setSelected}
               onRefresh=${() => refreshStatus()}
-              onController=${(url) => { updateSettings({ api: url }); refreshStatus({ ...settingsRef.current, api: url }); }}
+              onController=${(url, secret) => {
+                const patch = secret ? { api: url, secret } : { api: url };
+                updateSettings(patch);
+                refreshStatus({ ...settingsRef.current, ...patch });
+              }}
               onSettings=${updateSettings}
               onRounds=${(rounds) => updateSettings({ rounds })}
               onDaemon=${toggleDaemon}
@@ -1013,6 +1058,7 @@ function App() {
   <${Snackbar} snack=${snack} onClose=${() => setSnack(null)} />`;
 }
 
-bootTheme();
+bootTheme(syncWindowTheme);
+syncWindowTheme();
 
 render(html`<${App} />`, document.getElementById("app"));

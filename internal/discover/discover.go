@@ -1,16 +1,12 @@
 package discover
 
 import (
-	"context"
-	"encoding/json"
 	"fmt"
-	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"sort"
 	"strings"
-	"time"
 
 	"github.com/HanphoneJan/nodepulse/internal/config"
 )
@@ -20,41 +16,8 @@ type Controller struct {
 	URL          string `json:"url"`
 	Version      string `json:"version,omitempty"`
 	AuthRequired bool   `json:"auth_required"`
-}
-
-// Controllers probes common local Clash controller ports.
-func Controllers(ctx context.Context) []Controller {
-	ports := []int{9090, 9097, 9091, 9099, 9092, 9093}
-	client := &http.Client{Timeout: 1200 * time.Millisecond}
-	var out []Controller
-	seen := map[string]bool{}
-	for _, port := range ports {
-		url := fmt.Sprintf("http://127.0.0.1:%d", port)
-		if seen[url] {
-			continue
-		}
-		seen[url] = true
-		req, err := http.NewRequestWithContext(ctx, http.MethodGet, url+"/version", nil)
-		if err != nil {
-			continue
-		}
-		resp, err := client.Do(req)
-		if err != nil {
-			continue
-		}
-		switch resp.StatusCode {
-		case http.StatusOK:
-			var v struct {
-				Version string `json:"version"`
-			}
-			_ = json.NewDecoder(resp.Body).Decode(&v)
-			out = append(out, Controller{URL: url, Version: v.Version})
-		case http.StatusUnauthorized, http.StatusForbidden:
-			out = append(out, Controller{URL: url, AuthRequired: true})
-		}
-		resp.Body.Close()
-	}
-	return out
+	Client       string `json:"client,omitempty"`
+	Secret       string `json:"secret,omitempty"`
 }
 
 // MihomoBinary finds a usable mihomo executable.
@@ -117,26 +80,28 @@ func Profiles() []Profile {
 		})
 	}
 
-	add(filepath.Join(home, ".local", "share", "com.follow.clash", "config.yaml"), "FlClash", "FlClash 当前订阅", true)
-	flclashDirs := []string{
-		filepath.Join(home, ".local", "share", "com.follow.clash", "profiles"),
-		filepath.Join(home, ".config", "com.follow.clash", "profiles"),
+	apps := []struct {
+		dir    string
+		client string
+		label  string
+	}{
+		{"com.follow.clash", "FlClash", "FlClash"},
+		{"io.github.clash-verge-rev.clash-verge-rev", "Clash Verge", "Clash Verge"},
+		{"clash-verge-rev", "Clash Verge", "Clash Verge"},
+		{"clash-verge", "Clash Verge", "Clash Verge"},
+		{"mihomo-party", "Mihomo Party", "Mihomo Party"},
+		{"clash-nyanpasu", "Clash Nyanpasu", "Clash Nyanpasu"},
 	}
-	for _, dir := range flclashDirs {
-		addProfileDir(dir, "FlClash", add)
+	for _, root := range configRoots(home) {
+		for _, app := range apps {
+			appHome := filepath.Join(root, app.dir)
+			add(filepath.Join(appHome, "config.yaml"), app.client, app.label+" 当前配置", true)
+			addProfileDir(filepath.Join(appHome, "profiles"), app.client, add)
+		}
 	}
 
 	add(filepath.Join(home, ".config", "clash", "config.yaml"), "Clash", "Clash 当前配置", true)
 	add(filepath.Join(home, ".config", "mihomo", "config.yaml"), "Mihomo", "Mihomo 当前配置", true)
-
-	vergeDirs := []string{
-		filepath.Join(home, ".local", "share", "io.github.clash-verge-rev.clash-verge-rev", "profiles"),
-		filepath.Join(home, ".config", "clash-verge", "profiles"),
-		filepath.Join(home, ".config", "clash-verge-rev", "profiles"),
-	}
-	for _, dir := range vergeDirs {
-		addProfileDir(dir, "Clash Verge", add)
-	}
 
 	sort.SliceStable(out, func(i, j int) bool {
 		si, _ := os.Stat(out[i].Path)

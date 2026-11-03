@@ -293,6 +293,13 @@ export const api = {
       return null;
     }
   },
+
+  // Keep the native window frame in step with the in-app theme. Browsers have
+  // no native frame, so this is a no-op outside the desktop app.
+  async setWindowTheme(dark) {
+    if (!wails() || !wails().SetWindowTheme) return false;
+    return wails().SetWindowTheme(!!dark);
+  },
 };
 
 export function isWails() {

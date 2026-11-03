@@ -199,6 +199,7 @@ func (a *App) History() ([]store.Event, error) {
 // BootstrapResult is what the GUI needs on first paint.
 type BootstrapResult struct {
 	Controllers   []discover.Controller `json:"controllers"`
+	Clients       []discover.Client     `json:"clients"`
 	Mihomo        string                `json:"mihomo,omitempty"`
 	Subscriptions []string              `json:"subscriptions"`
 	Settings      settings.Settings     `json:"settings"`
@@ -214,9 +215,17 @@ func (a *App) Bootstrap() (BootstrapResult, error) {
 	}
 	ctx, cancel := context.WithTimeout(a.ctx, 5*time.Second)
 	defer cancel()
-	controllers := discover.Controllers(ctx)
+	clients, controllers := discover.Scan(ctx)
 	if s.API == "" && len(controllers) > 0 {
 		s.API = controllers[0].URL
+	}
+	if s.Secret == "" {
+		for _, controller := range controllers {
+			if controller.Secret != "" && (s.API == "" || controller.URL == s.API) {
+				s.Secret = controller.Secret
+				break
+			}
+		}
 	}
 	mihomo, mihomoErr := discover.MihomoBinary()
 	if s.MihomoPath == "" && mihomoErr == nil {
@@ -230,6 +239,7 @@ func (a *App) Bootstrap() (BootstrapResult, error) {
 	s.SyncActiveProfile()
 	out := BootstrapResult{
 		Controllers:   controllers,
+		Clients:       clients,
 		Mihomo:        mihomo,
 		Subscriptions: discover.SubscriptionFiles(),
 		Settings:      s,
@@ -323,6 +333,11 @@ func (a *App) ExportSettingsBackup() (string, error) {
 // Detect re-runs environment detection.
 func (a *App) Detect() (BootstrapResult, error) {
 	return a.Bootstrap()
+}
+
+// SetWindowTheme keeps the native window frame in step with the UI theme.
+func (a *App) SetWindowTheme(dark bool) {
+	setWindowTheme(dark)
 }
 
 // Progress returns the current manual test/optimization progress.

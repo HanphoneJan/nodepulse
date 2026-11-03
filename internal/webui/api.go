@@ -39,6 +39,7 @@ func (s *Server) handleVersion(w http.ResponseWriter, r *http.Request) {
 
 type bootstrapResult struct {
 	Controllers   []discover.Controller `json:"controllers"`
+	Clients       []discover.Client     `json:"clients"`
 	Mihomo        string                `json:"mihomo,omitempty"`
 	Subscriptions []string              `json:"subscriptions"`
 	Settings      settings.Settings     `json:"settings"`
@@ -70,9 +71,17 @@ func (s *Server) handleBootstrap(w http.ResponseWriter, r *http.Request) {
 
 	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 	defer cancel()
-	controllers := discover.Controllers(ctx)
+	clients, controllers := discover.Scan(ctx)
 	if st.API == "" && len(controllers) > 0 {
 		st.API = controllers[0].URL
+	}
+	if st.Secret == "" {
+		for _, controller := range controllers {
+			if controller.Secret != "" && (st.API == "" || controller.URL == st.API) {
+				st.Secret = controller.Secret
+				break
+			}
+		}
 	}
 	mihomo, mihomoErr := discover.MihomoBinary()
 	if st.MihomoPath == "" && mihomoErr == nil {
@@ -85,6 +94,7 @@ func (s *Server) handleBootstrap(w http.ResponseWriter, r *http.Request) {
 	st.SyncActiveProfile()
 	out := bootstrapResult{
 		Controllers:   controllers,
+		Clients:       clients,
 		Mihomo:        mihomo,
 		Subscriptions: files,
 		Settings:      st,

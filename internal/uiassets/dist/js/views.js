@@ -34,8 +34,9 @@ function Field({ label, id, value, onChange, onBlur, placeholder, type = "text",
 
 export function Dashboard({
   settings, status, results, best, selected, busy, busyKind, elapsed, progress, onCancel, lastTestAt,
-  controllers, subscriptions, daemon, daemonInterval, latestEvent, groups, subURL,
+  controllers, clients, subscriptions, daemon, daemonInterval, latestEvent, groups, subURL,
   downloadUrl, onDownloadUrl, downloadResult, onDownloadMode,
+  detecting, onDetect,
   onOneClick, onTest, onTestAll, onSelectNode, onRefresh, onController, onSettings,
   onRounds, onDaemon, onInterval, onSubURL, onImport,
 }) {
@@ -68,7 +69,7 @@ export function Dashboard({
         <div class="hero-node" title=${current}>${current}</div>
         <div class="hero-meta" title=${meta}>${meta}</div>
         <div class="hero-actions">
-          <${Button} variant="filled" size="big" icon="play" loading=${busy && busyKind === "oneclick"} onClick=${onOneClick}>
+          <${Button} variant="filled" icon="play" loading=${busy && busyKind === "oneclick"} onClick=${onOneClick}>
             ${busy && busyKind === "oneclick" ? "优化中…" : "一键优化"}
           <//>
           <${Button} variant="tonal" icon="refresh" loading=${busy && busyKind === "test"} onClick=${onTest}>
@@ -101,11 +102,29 @@ export function Dashboard({
 
     <div class="grid-2">
       <div class="md-card">
-        <div class="card-title"><${Icon} name="link" />连接</div>
-        <p class="muted">${controllers.length ? "已自动检测本机 Clash 控制口" : "没检测到控制口。也可以只选订阅，用 mihomo 测速。"}</p>
+        <div class="card-title"><${Icon} name="link" />连接
+          <button type="button" class="card-action" disabled=${detecting} onClick=${onDetect}>${detecting ? "检测中…" : "重新检测"}</button>
+        </div>
+        <p class="muted">${controllers.length
+          ? "已自动检测本机 Clash 控制口"
+          : clients.some((client) => client.running)
+            ? "已检测到客户端，但控制口没有响应。请先在客户端里打开外部控制。"
+            : "没检测到客户端。也可以只选订阅，用 mihomo 测速。"}</p>
+        ${clients.length
+          ? html`<div class="client-list" aria-label="检测到的客户端">
+              ${clients.map((client) => html`<div class=${"client-row" + (client.running ? " on" : "")}>
+                <span class="client-dot" aria-hidden="true"></span>
+                <span class="client-body">
+                  <strong>${client.name}</strong>
+                  <small>${client.hint || (client.controller ? `控制口 ${client.controller}` : "已安装")}</small>
+                </span>
+                <span class="client-state">${client.running ? "运行中" : "未运行"}</span>
+              </div>`)}
+            </div>`
+          : null}
         <div class="chips" role="group" aria-label="Clash 控制口">
           ${controllers.length === 0
-            ? html`<span class="muted">未发现控制口</span>`
+            ? html`<span class="muted">未发现可用控制口</span>`
             : controllers.map((controller) => {
                 const needSecret = controller.auth_required && !settings.secret;
                 const label = needSecret ? `${controller.url}（需要 secret）` : controller.url + (controller.version ? ` · ${controller.version}` : "");
@@ -113,7 +132,7 @@ export function Dashboard({
                   type="button"
                   class=${"chip" + (settings.api === controller.url ? " active" : "")}
                   aria-pressed=${settings.api === controller.url ? "true" : "false"}
-                  onClick=${() => onController(controller.url)}
+                  onClick=${() => onController(controller.url, controller.secret)}
                 ><span class="dot"></span>${label}</button>`;
               })}
         </div>
