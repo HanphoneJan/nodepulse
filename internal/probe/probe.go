@@ -5,6 +5,7 @@ package probe
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"math"
@@ -91,8 +92,8 @@ func Measure(ctx context.Context, proxyAddr string, target Target, maxBytes int6
 	start := time.Now()
 	resp, err := client.Do(req)
 	if err != nil {
-		res.Err = err.Error()
-		return res, fmt.Errorf("目标站点不可达: %w", err)
+		res.Err = safeError(err)
+		return res, fmt.Errorf("目标站点不可达: %s", res.Err)
 	}
 	defer resp.Body.Close()
 	res.Status = resp.StatusCode
@@ -133,8 +134,8 @@ func Measure(ctx context.Context, proxyAddr string, target Target, maxBytes int6
 				break
 			}
 			if total == 0 {
-				res.Err = readErr.Error()
-				return res, fmt.Errorf("读取目标失败: %w", readErr)
+				res.Err = safeError(readErr)
+				return res, fmt.Errorf("读取目标失败: %s", res.Err)
 			}
 			break
 		}
@@ -158,6 +159,23 @@ func Measure(ctx context.Context, proxyAddr string, target Target, maxBytes int6
 	res.MedianKiBps = percentile(sorted, 0.5)
 	res.OK = true
 	return res, nil
+}
+
+// safeError removes the request URL, which may contain a short-lived signed
+// token, from errors stored in probe results and caches.
+func safeError(err error) string {
+	if err == nil {
+		return ""
+	}
+	var urlErr *url.Error
+	if errors.As(err, &urlErr) {
+		err = urlErr.Err
+	}
+	msg := err.Error()
+	if i := strings.IndexByte(msg, '?'); i >= 0 {
+		msg = msg[:i]
+	}
+	return msg
 }
 
 func percentile(sorted []float64, p float64) float64 {

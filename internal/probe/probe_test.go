@@ -2,9 +2,12 @@ package probe
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
+	"strings"
 	"testing"
 	"time"
 )
@@ -60,5 +63,13 @@ func TestParseTarget(t *testing.T) {
 	target, err := ParseTarget("https://example.com/path/file.apk?token=1")
 	if err != nil || target.Host != "example.com" || target.Path != "/path/file.apk" {
 		t.Fatalf("target=%+v err=%v", target, err)
+	}
+}
+
+func TestSafeErrorDoesNotLeakSignedQuery(t *testing.T) {
+	err := &url.Error{Op: "Get", URL: "https://example.com/file.apk?X-Amz-Signature=secret", Err: errors.New("EOF")}
+	msg := safeError(err)
+	if strings.Contains(msg, "secret") || strings.Contains(msg, "X-Amz") {
+		t.Fatalf("leaked signed URL: %q", msg)
 	}
 }

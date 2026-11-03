@@ -446,7 +446,7 @@ func runDownload(ctx context.Context, req Request) (*Result, error) {
 			} else {
 				time.Sleep(200 * time.Millisecond)
 				result, err = probe.Measure(ctx, fmt.Sprintf("127.0.0.1:%d", sc.MixedPort), target, req.ProbeBytes, time.Duration(req.ProbeSeconds)*time.Second)
-				if err != nil {
+				if err != nil && result.Err == "" {
 					result.Err = err.Error()
 				}
 			}
@@ -516,7 +516,7 @@ func runDownload(ctx context.Context, req Request) (*Result, error) {
 	if !directCached {
 		directResult, err = probe.Measure(ctx, "", target, req.ProbeBytes, time.Duration(req.ProbeSeconds)*time.Second)
 		directResult.Node = "DIRECT"
-		if err != nil {
+		if err != nil && directResult.Err == "" {
 			directResult.Err = err.Error()
 		}
 		if cache != nil {
