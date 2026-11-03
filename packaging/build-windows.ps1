@@ -1,6 +1,9 @@
 # Build the Wails desktop app for Windows.
 # Run from the repository root in PowerShell:
 #   $env:VERSION = "0.3.0"; .\packaging\build-windows.ps1
+#
+# Requires the Wails CLI and NSIS (makensis) for the installer. Without Wails
+# the script falls back to a plain Go build and only produces the portable zip.
 $ErrorActionPreference = "Stop"
 
 $Version = if ($env:VERSION) { $env:VERSION } else { "0.3.0" }
@@ -8,14 +11,31 @@ $Root = Resolve-Path (Join-Path $PSScriptRoot "..")
 $Dist = Join-Path $Root "dist"
 New-Item -ItemType Directory -Force -Path $Dist | Out-Null
 
+$WailsJson = Join-Path $Root "gui\wails.json"
+$OriginalWailsJson = [System.IO.File]::ReadAllText($WailsJson)
+$Installer = $null
+
 Push-Location (Join-Path $Root "gui")
 try {
   $Wails = Get-Command wails -ErrorAction SilentlyContinue
   if ($Wails) {
-    wails build -platform windows/amd64 -s -skipbindings -m -tags production `
+    # Keep the installer metadata (product version) in sync with the release.
+    $Project = $OriginalWailsJson | ConvertFrom-Json
+    $Project.info.productVersion = $Version
+    [System.IO.File]::WriteAllText($WailsJson, ($Project | ConvertTo-Json -Depth 16))
+
+    wails build -platform windows/amd64 -s -skipbindings -m -tags production -nsis `
       -ldflags "-s -w -H windowsgui -X github.com/HanphoneJan/nodepulse/internal/version.Version=$Version"
     if ($LASTEXITCODE -ne 0) { throw "wails build failed" }
     Copy-Item "build\bin\nodepulse.exe" (Join-Path $Dist "nodepulse.exe") -Force
+
+    $BuiltInstaller = "build\bin\nodepulse-amd64-installer.exe"
+    if (Test-Path $BuiltInstaller) {
+      $Installer = Join-Path $Dist "NodePulse-windows-amd64-${Version}.exe"
+      Copy-Item $BuiltInstaller $Installer -Force
+    } else {
+      Write-Warning "NSIS installer not produced; install NSIS (makensis) to build the .exe installer."
+    }
   } else {
     go build -trimpath -tags "production,desktop" `
       -ldflags "-s -w -H windowsgui -X github.com/HanphoneJan/nodepulse/internal/version.Version=$Version" `
@@ -23,6 +43,7 @@ try {
     if ($LASTEXITCODE -ne 0) { throw "go build failed" }
   }
 } finally {
+  [System.IO.File]::WriteAllText($WailsJson, $OriginalWailsJson)
   Pop-Location
 }
 
@@ -33,3 +54,4 @@ $Zip = Join-Path $Dist "NodePulse-windows-amd64-${Version}.zip"
 if (Test-Path $Zip) { Remove-Item $Zip -Force }
 Compress-Archive -Path (Join-Path $Dist "nodepulse.exe"), (Join-Path $Dist "LICENSE"), (Join-Path $Dist "THIRD_PARTY_NOTICES.md"), (Join-Path $Dist "nodepulse.ico") -DestinationPath $Zip
 Write-Host "wrote $Zip"
+if ($Installer) { Write-Host "wrote $Installer" }

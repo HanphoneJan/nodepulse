@@ -47,8 +47,8 @@ NodePulse **不代理流量**：它测试和管理已有的 Clash/mihomo 控制�
 | 平台 | 产物 | 状态 |
 |---|---|---|
 | Linux | `.deb`、AppImage | 本地构建，推荐桌面端 |
-| Windows | zip（Wails exe） | CI 构建；代码签名未配置 |
-| macOS | zip（universal `.app`） | CI 构建；签名/公证未配置 |
+| Windows | `.exe`（NSIS 安装包）、zip（便携版） | CI 构建；代码签名未配置 |
+| macOS | `.dmg`、zip（universal `.app`） | CI 构建；签名/公证未配置 |
 | Android / iOS | — | 不是桌面打包目标；需要独立移动客户端 |
 
 当前 Web 服务只绑定 `127.0.0.1`，没有远程认证/TLS，不要直接暴露到局域网或公网。

@@ -62,3 +62,13 @@ codesign --force --deep --sign - "$APP" >/dev/null 2>&1 || true
 
 ditto -c -k --keepParent "$APP" "$OUT"
 echo "wrote $OUT"
+
+# Disk image with the usual drag-to-Applications layout.
+DMG_OUT="$ROOT/dist/NodePulse-macos-universal-${VERSION}.dmg"
+STAGE="$TMP/dmg"
+mkdir -p "$STAGE"
+cp -R "$APP" "$STAGE/"
+ln -s /Applications "$STAGE/Applications"
+rm -f "$DMG_OUT"
+hdiutil create -volname "NodePulse" -srcfolder "$STAGE" -ov -format UDZO "$DMG_OUT" >/dev/null
+echo "wrote $DMG_OUT"
