@@ -170,6 +170,15 @@ GUI 与 Web 共用的结果文件：
 - `internal/optimize` 合并节点、标注来源，用同一个 sidecar 测速；
 - 跨订阅只推荐，不切换未激活 profile。
 
+### `internal/probe` / `internal/probecache`
+
+下载模式探测：
+
+- 通过临时 sidecar 的 mixed-port 对目标文件做 Range 请求；
+- 记录 TTFB、p25/中位吞吐、卡顿、HTTP/TLS 错误；
+- 缓存同一节点 + 目标 host/path 20 分钟；
+- 目标不可达节点直接淘汰。
+
 ### `internal/health`
 
 首启/环境检查：
