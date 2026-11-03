@@ -11,17 +11,26 @@ description: |
   a stable selector for Clash-compatible clients.
 vendor: NodePulse
 homepage: https://github.com/HanphoneJan/nodepulse
-license: Apache-2.0
+license: GPL-3.0-only
 depends:
   - libgtk-3-0
-  - libwebkit2gtk-4.1-0
-recommends:
-  - libnotify-bin
+  - liblzma5
+  - libblkid1
 contents:
   - src: bin/nodepulse
     dst: /usr/bin/nodepulse
-  - src: bin/nodepulse-gui
-    dst: /usr/bin/nodepulse-gui
+  - src: packaging/nodepulse-desktop.sh
+    dst: /usr/bin/nodepulse-desktop
+  - src: desktop/build/linux/x64/release/bundle/nodepulse
+    dst: /opt/nodepulse/nodepulse
+  - src: desktop/build/linux/x64/release/bundle/nodepulse-core
+    dst: /opt/nodepulse/nodepulse-core
+  - src: desktop/build/linux/x64/release/bundle/data
+    dst: /opt/nodepulse/data
+    type: tree
+  - src: desktop/build/linux/x64/release/bundle/lib
+    dst: /opt/nodepulse/lib
+    type: tree
   - src: packaging/nodepulse.desktop
     dst: /usr/share/applications/nodepulse.desktop
   - src: packaging/nodepulse.svg
@@ -32,13 +41,3 @@ contents:
     dst: /usr/share/doc/nodepulse/LICENSE
   - src: THIRD_PARTY_NOTICES.md
     dst: /usr/share/doc/nodepulse/THIRD_PARTY_NOTICES.md
-  - src: internal/uiassets/dist/material-color-utilities.LICENSE.txt
-    dst: /usr/share/doc/nodepulse/third-party/material-color-utilities-LICENSE.txt
-  - src: internal/uiassets/dist/vendor/LICENSES/preact-LICENSE.txt
-    dst: /usr/share/doc/nodepulse/third-party/preact-LICENSE.txt
-  - src: internal/uiassets/dist/vendor/LICENSES/htm-LICENSE.txt
-    dst: /usr/share/doc/nodepulse/third-party/htm-LICENSE.txt
-  - src: internal/uiassets/dist/vendor/LICENSES/floating-ui-LICENSE.txt
-    dst: /usr/share/doc/nodepulse/third-party/floating-ui-LICENSE.txt
-  - src: internal/uiassets/dist/icons.LICENSE.txt
-    dst: /usr/share/doc/nodepulse/third-party/material-symbols-LICENSE.txt

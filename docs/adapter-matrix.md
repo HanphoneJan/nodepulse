@@ -10,7 +10,7 @@ NodePulse 通过 Clash REST API、v2rayA REST API 或本地 sidecar 工作，不
 | Clash Verge Rev | 支持 | 支持 | Clash REST | 新版默认关闭外部控制，需在设置中启用 |
 | Mihomo Party | 支持 | 支持 | Clash REST | 使用其 external-controller 与 secret |
 | sing-box GUI | 支持 | 支持 | `experimental.clash_api` | 需要在配置中启用 clash_api |
-| v2rayA | 支持 | CLI 支持 | v2rayA REST | `nodepulse v2raya`；GUI/Web 未接入 |
+| v2rayA | 支持 | CLI 支持 | v2rayA REST | `nodepulse v2raya`；桌面端未接入 |
 | v2rayN | 支持（导出） | 不支持 | 导出 Clash / base64 | 无稳定本地控制 API |
 | 任意订阅 | 支持 | — | mihomo sidecar | 不需要客户端 |
 
@@ -37,7 +37,7 @@ nodepulse test -f sub.yaml --api http://127.0.0.1:9090 --secret <secret>
 nodepulse daemon --api http://127.0.0.1:9090 --group "节点选择"
 ```
 
-GUI/Web 中选择控制口即可；自动选择只管理 Selector 组，不管理 `GLOBAL`。
+桌面端中选择控制口即可；自动选择只管理 Selector 组，不管理 `GLOBAL`。
 
 ### FlClash
 
@@ -99,7 +99,7 @@ nodepulse v2raya status --url http://127.0.0.1:2017 --token <jwt>
 nodepulse v2raya switch --url http://127.0.0.1:2017 --token <jwt> --node "香港"
 ```
 
-GUI/Web 目前没有 v2rayA 环境类型；需要时使用 CLI 或 sidecar。
+桌面端目前没有 v2rayA 环境类型；需要时使用 CLI 或 sidecar。
 
 ## v2rayN
 

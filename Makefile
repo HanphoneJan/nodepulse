@@ -1,34 +1,27 @@
 BIN := nodepulse
 VERSION ?= 0.3.0
 LDFLAGS := -s -w -X github.com/HanphoneJan/nodepulse/internal/version.Version=$(VERSION)
-UI_TAGS ?= production,webkit2_41
+FLUTTER ?= flutter
+DESKTOP := desktop
+FLUTTER_BUNDLE := $(DESKTOP)/build/linux/x64/release/bundle
 ADDR ?= 127.0.0.1:8099
 
-.PHONY: build gui run web test race vet fmt icons ui-check deb appimage clean
+.PHONY: build desktop run test race vet fmt analyze deb appimage clean
 
 build:
 	mkdir -p bin
 	go build -trimpath -ldflags "$(LDFLAGS)" -o bin/$(BIN) ./cmd/nodepulse
 
-gui:
-	mkdir -p bin
-	cd gui && go build -tags $(UI_TAGS) -ldflags "$(LDFLAGS)" -o ../bin/nodepulse-gui .
+desktop: build
+	cd $(DESKTOP) && $(FLUTTER) build linux --release
+	cp bin/$(BIN) $(FLUTTER_BUNDLE)/nodepulse-core
 
-icons:
-	go run ./internal/uiassets/genicons
-
-ui-check:
-	find internal/uiassets/dist -name '*.js' -not -path '*/material-color-utilities.js' -print0 | xargs -0 -n1 node --check
-	go test ./internal/uiassets/...
-
-run: gui
-	./bin/nodepulse-gui
-
-web: build
-	./bin/nodepulse serve --addr $(ADDR)
+run: build
+	cd $(DESKTOP) && NODEPULSE_BIN=$(CURDIR)/bin/$(BIN) $(FLUTTER) run -d linux
 
 test:
 	go test ./...
+	cd $(DESKTOP) && $(FLUTTER) test
 
 race:
 	go test -race ./...
@@ -36,15 +29,19 @@ race:
 vet:
 	go vet ./...
 
-fmt:
-	gofmt -w $$(find . -name '*.go' -not -path './vendor/*' -not -path './gui/frontend/*')
+analyze:
+	cd $(DESKTOP) && $(FLUTTER) analyze
 
-deb: build gui
+fmt:
+	gofmt -w $$(find . -name '*.go' -not -path './vendor/*')
+	cd $(DESKTOP) && dart format lib test
+
+deb: desktop
 	mkdir -p dist
 	VERSION=$(VERSION) nfpm package -f packaging/nfpm.yaml -p deb -t dist/NodePulse-linux-amd64-$(VERSION).deb
 
-appimage: build gui
+appimage: desktop
 	VERSION=$(VERSION) bash packaging/build-appimage.sh
 
 clean:
-	rm -rf bin dist
+	rm -rf bin dist $(DESKTOP)/build

@@ -3,15 +3,15 @@
 ## 环境
 
 - CLI/核心：Go 1.24+
-- GUI：Go 1.26+，GTK3、WebKit2GTK 4.1、`pkg-config`
+- 桌面端：Flutter stable（Dart 3.10+）、GTK3、`clang`、`cmake`、`ninja`、`pkg-config`
 - `mihomo`：sidecar 测速/下载探测
-- Node.js：`make ui-check` 的 JS 语法检查
-- `nfpm`：`.deb`；`appimagetool`：AppImage；Wails CLI：Windows 构建
+- `nfpm`：`.deb`；`appimagetool`：AppImage
+- Windows/macOS 安装包必须在对应平台或 CI runner 上构建
 
 Linux 构建依赖：
 
 ```bash
-sudo apt-get install libgtk-3-dev libwebkit2gtk-4.1-dev pkg-config
+sudo apt-get install libgtk-3-dev liblzma-dev libblkid-dev clang cmake ninja-build pkg-config
 go install github.com/goreleaser/nfpm/v2/cmd/nfpm@latest
 ```
 
@@ -19,26 +19,16 @@ go install github.com/goreleaser/nfpm/v2/cmd/nfpm@latest
 
 ```bash
 make build      # bin/nodepulse
-make gui        # bin/nodepulse-gui
-make run        # 构建并启动 GUI
-make web        # 本地 Web UI
-make test       # 根模块测试
+make desktop    # Flutter Linux release + sidecar
+make run        # Flutter 开发运行
+make test       # Go + Flutter 测试
+make analyze    # flutter analyze
 make race       # race 测试
 make vet        # go vet
-make fmt        # gofmt
-make ui-check   # JS 语法 + 前端资源测试
-make icons      # 重新生成图标 sprite
+make fmt        # gofmt + dart format
 make deb        # .deb
 make appimage   # AppImage
 make clean
-```
-
-GUI 是独立 module，测试/构建需要标签：
-
-```bash
-cd gui
-go test -tags production,webkit2_41 ./...
-go build -tags production,webkit2_41 ./...
 ```
 
 Windows/macOS 构建见 [packaging.md](packaging.md)。
@@ -58,20 +48,23 @@ Windows/macOS 构建见 [packaging.md](packaging.md)。
 ./bin/nodepulse daemon --api http://127.0.0.1:9090 --group "节点选择" --once
 ```
 
-## 前端资源
+## 桌面端
 
-GUI/Web 共用 `internal/uiassets/dist`，使用 Preact + htm，无 Node 构建。
+桌面端是独立 Flutter 工程 `desktop/`，FlClash 设计系统文件在 `desktop/lib/ui/flclash/`，GPL-3.0。
 
 ```bash
-make icons
-make ui-check
+cd desktop
+flutter pub get
+flutter analyze
+flutter test
+flutter run -d linux
 ```
 
-新增前端依赖时必须：
+新增桌面依赖时必须：
 
-1. 本地固定版本，提交 vendor 文件；
+1. 在 `desktop/pubspec.yaml` 固定版本；
 2. 更新 `THIRD_PARTY_NOTICES.md`；
-3. 更新 `packaging/nfpm.yaml` 与 `packaging/build-appimage.sh` 的许可证复制。
+3. 同步打包脚本和许可证。
 
 ## 代码约定
 
@@ -93,13 +86,11 @@ MCP server 提供节点、测速、排名、切换、导出、状态、历史工
 ## 发布前检查
 
 ```bash
-make ui-check
 go test ./...
 go test -race ./...
 go vet ./...
-cd gui && go test -tags production,webkit2_41 ./...
-VERSION=x.y.z make build gui deb
-timeout --kill-after=2 6 ./bin/nodepulse-gui
+cd desktop && flutter analyze && flutter test
+VERSION=x.y.z make build desktop deb
 ```
 
 发布/签名/公证流程见 [packaging.md](packaging.md)。

@@ -32,15 +32,15 @@ NodePulse **不代理流量**：它测试和管理已有的 Clash/mihomo 控制�
 - `DIRECT` 基线区分本地网络/测试 URL 问题
 - 可解释原因码、置信度、候选数、前后评分、耗时、回滚结果
 
-**桌面与 Web**
+**桌面端**
 
-- Wails 桌面 GUI 与本地 Web UI，共用一套 Preact/Material 3 资源
+- Flutter 桌面界面，配色与控件直接复用 FlClash 的设计系统（GPL-3.0）
 - 环境 profiles：客户端 + 订阅 + Selector 组 + 测速参数
-- 托盘驻留、可选开机自启、切换/回滚通知
+- 托盘驻留、可选开机自启
 - 测速结果跨重启保留；设置自动备份，可导出/恢复
 - 多订阅联合测速：读取本地 profile，跨机场排名并标注来源
 - 下载模式：目标文件小范围吞吐探测、不可达淘汰、直连对比、只在下载前切换一次
-- CLI、MCP server 与 GUI/Web 共用核心
+- CLI、MCP server 与桌面端共用核心
 
 ## 平台
 
@@ -51,7 +51,7 @@ NodePulse **不代理流量**：它测试和管理已有的 Clash/mihomo 控制�
 | macOS | `.dmg`、zip（universal `.app`） | CI 构建；签名/公证未配置 |
 | Android / iOS | — | 不是桌面打包目标；需要独立移动客户端 |
 
-当前 Web 服务只绑定 `127.0.0.1`，没有远程认证/TLS，不要直接暴露到局域网或公网。
+桌面端通过本机 `127.0.0.1` 上的临时 token API 与 Go 后端通信；API 只监听本机，不要暴露到局域网或公网。
 
 ## 安装
 
@@ -59,14 +59,14 @@ NodePulse **不代理流量**：它测试和管理已有的 Clash/mihomo 控制�
 
 ```bash
 export PATH="$PATH:$(go env GOPATH)/bin"
-VERSION=0.3.0 make build gui deb
+VERSION=0.3.0 make build desktop deb
 ```
 
-产物在 `dist/`。Linux GUI 需要 GTK3 和 WebKit2GTK 4.1；托盘通知建议安装 `libnotify-bin`。
+产物在 `dist/`。Linux 桌面端需要 Flutter 和 GTK3；Windows/macOS 安装包由对应平台的 CI 构建。
 
 ## 快速开始
 
-### 桌面 GUI
+### 桌面端
 
 ```bash
 make run
@@ -76,13 +76,6 @@ make run
 2. 选择要管理的 Selector 组；
 3. 一键优化，或开启后台自动选择；
 4. 在设置里配置环境、导出、备份和托盘行为。
-
-### 本地 Web UI
-
-```bash
-make web
-# http://127.0.0.1:8099
-```
 
 ### CLI
 
@@ -150,4 +143,4 @@ NodePulse 会主动检查本机运行中的客户端进程和它的配置目录�
 
 ## License
 
-Apache-2.0。第三方组件许可见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
+GPL-3.0。界面部分复用自 FlClash（GPL-3.0）；第三方组件许可见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。

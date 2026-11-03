@@ -2,7 +2,7 @@
 Type=Application
 Name=NodePulse
 Comment=Proxy node stability tester and auto-switcher
-Exec=nodepulse-gui
+Exec=nodepulse-desktop
 Icon=nodepulse
 Terminal=false
 Categories=Network;Utility;

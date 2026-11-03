@@ -1,72 +1,56 @@
 # Third-Party Notices
 
-NodePulse includes the following third-party software.
+NodePulse is distributed under GPL-3.0. The Go backend and Flutter desktop UI
+are combined into one GPL-3.0 work. Individual files originally written for
+NodePulse may still carry Apache-2.0 headers; Apache-2.0 is compatible with
+GPL-3.0.
+
+## FlClash
+
+- Project: FlClash, <https://github.com/chen08209/FlClash>
+- Copyright (c) FlClash contributors
+- License: GNU General Public License v3.0
+- Reused: design-system values and files under `desktop/lib/ui/flclash/`
+  (color scheme, typography, metrics) and layout/component patterns adapted
+  from FlClash's `lib/ui`.
+- Modified for NodePulse: package names, imports, widget shell, state and data
+  bindings.
+
+FlClash is a separate project; NodePulse is not affiliated with it.
+
+## Flutter
+
+- Project: Flutter, <https://flutter.dev>
+- Copyright 2014 The Flutter Authors
+- License: BSD-3-Clause
+- Used as the desktop UI toolkit for Windows, macOS and Linux.
+
+## Flutter Material UI
+
+- Package: `material_ui` (official Flutter material library)
+- Copyright 2014 The Flutter Authors
+- License: BSD-3-Clause
+- Upstream: <https://github.com/flutter/packages>
 
 ## Material Color Utilities
 
-- Package: `@material/material-color-utilities` 0.3.0
+- Package: `material_color_utilities`
 - Copyright 2021 Google LLC
-- License: Apache License 2.0
-- File: `internal/uiassets/dist/material-color-utilities.js`
-- Bundled from jsDelivr (`+esm` build) for offline use.
-- License text: `internal/uiassets/dist/material-color-utilities.LICENSE.txt`
+- License: Apache-2.0
+- Used to generate the FlClash-style light and dark color schemes.
 
-Used to generate a complete Material Design 3 light/dark color scheme from
-the user-selected seed color.
+## Dart and Flutter packages
 
-## Preact
+The desktop app uses the following packages through `desktop/pubspec.yaml`:
 
-- Package: `preact` 10.26.9
-- Copyright 2015-present Jason Miller
-- License: MIT
-- Files: `internal/uiassets/dist/vendor/preact.module.js`,
-  `internal/uiassets/dist/vendor/hooks.module.js`
-- Upstream: <https://github.com/preactjs/preact>
-- Modification: the `hooks.module.js` bare import `preact` was rewritten to
-  the relative `./preact.module.js` so the app runs without a bundler.
-- License text: `internal/uiassets/dist/vendor/LICENSES/preact-LICENSE.txt`
+- `http` (BSD-3-Clause)
+- `window_manager` (MIT)
+- `tray_manager` (MIT)
+- `launch_at_startup` (MIT)
+- `file_picker` (MIT)
+- `path` (BSD-3-Clause)
+- `path_provider` (BSD-3-Clause)
+- `shared_preferences` (BSD-3-Clause)
 
-Used for the component/state layer of the desktop and web UI.
-
-## htm
-
-- Package: `htm` 3.1.1
-- Copyright 2018 Jason Miller
-- License: Apache License 2.0
-- File: `internal/uiassets/dist/vendor/htm.module.js`
-- Upstream: <https://github.com/developit/htm>
-- License text: `internal/uiassets/dist/vendor/LICENSES/htm-LICENSE.txt`
-
-Used for the tagged-template view syntax.
-
-## Floating UI
-
-- Package: `@floating-ui/core` 1.7.3 and `@floating-ui/dom` 1.7.4
-- Copyright 2021-present Floating UI contributors
-- License: MIT
-- Files: `internal/uiassets/dist/vendor/floating-ui.core.umd.min.js`,
-  `internal/uiassets/dist/vendor/floating-ui.dom.umd.min.js`
-- Upstream: <https://github.com/floating-ui/floating-ui>
-- License text: `internal/uiassets/dist/vendor/LICENSES/floating-ui-LICENSE.txt`
-
-Used to position the Material 3 select menu with viewport flipping and
-shifting.
-
-## Material Symbols
-
-- Package: `@material-symbols/svg-400` 0.48.2 (Rounded, filled subset)
-- Copyright Google LLC
-- License: Apache License 2.0
-- Files: `internal/uiassets/dist/icons.svg`,
-  `internal/uiassets/dist/favicon.svg`,
-  `internal/uiassets/icons/src/rounded/*.svg`
-- Upstream: <https://github.com/google/material-design-icons>
-- Modification: a pinned subset of 21 icons, normalised into a single SVG
-  sprite by `internal/uiassets/genicons`; no runtime font or CDN is used.
-- License text: `internal/uiassets/dist/icons.LICENSE.txt`
-
-Used for all UI icons.
-
-## NodePulse
-
-NodePulse itself is licensed under Apache-2.0; see `LICENSE`.
+Their full license texts are available from pub.dev and in the Flutter
+package cache used to build the app.

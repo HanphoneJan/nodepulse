@@ -28,7 +28,6 @@ func main() {
 	}
 	icon := render(1024, 4)
 	writePNG("packaging/nodepulse-1024.png", icon)
-	writePNG("gui/tray-icon.png", render(64, 8))
 	writeICO("packaging/nodepulse.ico", []int{16, 24, 32, 48, 64, 128, 256})
 }
 

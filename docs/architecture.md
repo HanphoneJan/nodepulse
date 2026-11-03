@@ -3,7 +3,7 @@
 ## 目标
 
 1. **客户端无关**：测速结果不依赖某个客户端，可给 FlClash、Clash Verge、Mihomo Party、sing-box 或 v2rayA 使用。
-2. **可复用**：CLI、Wails GUI、本地 Web UI、MCP 共用同一套核心。
+2. **可复用**：CLI、Flutter 桌面端、MCP 共用同一套核心。
 3. **可解释**：自动选择记录原因、候选、评分和回滚结果。
 4. **安全边界清晰**：本地服务不暴露公网；订阅下载限制目标；daemon 单写者。
 
@@ -19,9 +19,8 @@
 
 ```text
 CLI ───────────────┐
-Wails GUI ─────────┤
-本地 Web UI ───────┼──> core: test / score / selector / daemon / export
-MCP server ────────┘
+Flutter 桌面端 ────┤  本机 token API
+MCP server ────────┼──> core: test / score / selector / daemon / export
                          │
           ┌──────────────┼──────────────┐
           ▼              ▼              ▼
@@ -43,7 +42,8 @@ MCP server ────────┘
 
 ```text
 cmd/nodepulse/        CLI 入口
-gui/                  Wails 桌面应用（独立 Go module）
+desktop/              Flutter 桌面端（Dart）
+  lib/ui/flclash/     从 FlClash 移植的设计系统（GPL-3.0）
 
 internal/
   clash/              Clash REST 客户端
@@ -66,14 +66,12 @@ internal/
   progress/           测速进度与取消
   results/            结果文件持久化
   backup/             设置/导出文件覆盖前备份
-  autostart/          Linux/macOS/Windows 开机自启
   store/              历史事件 JSONL
   settings/           settings.json、profiles、自动选择参数
   adapters/v2raya/    v2rayA REST 客户端
   mcp/                MCP stdio server
   cli/                CLI 命令实现
-  webui/              本地 Web UI 与 HTTP API
-  uiassets/           嵌入的 GUI/Web 前端资源
+  localapi/           只给 Flutter 用的本机 HTTP API（token 校验）
 
 plugins/dsh/          dsh 插件薄封装
 packaging/            deb/nfpm、AppImage、Windows/macOS 构建脚本
@@ -90,7 +88,7 @@ packaging/            deb/nfpm、AppImage、Windows/macOS 构建脚本
 4. 候选评分需超过当前 `margin`，并连续 `confirm` 轮成立。
 5. 切换前记录 before 指标；切换后校验控制器当前节点。
 6. 对新节点做真实 `delay` 验证；失败则回滚。
-7. 写入结构化历史，GUI/Web 展示最近决策。
+7. 写入结构化历史，Flutter 桌面端展示最近决策。
 
 全部节点不达标时，`DIRECT` 基线用于区分本地网络问题与节点问题。
 
@@ -108,7 +106,7 @@ packaging/            deb/nfpm、AppImage、Windows/macOS 构建脚本
 
 ## 本地服务安全
 
-- Web UI 默认只监听 `127.0.0.1`。
+- 本机 API 只监听 `127.0.0.1`，Flutter 启动时生成随机 token，所有 `/api/*` 校验 Bearer token。
 - API 设置 `Cache-Control: no-store`，拒绝跨站写请求。
 - 订阅下载只允许 http/https，限制重定向、超时和 10 MiB 体积，拒绝链路本地/云元数据地址。
 - 设置文件、结果、备份、锁使用 0600/0700。
@@ -116,7 +114,7 @@ packaging/            deb/nfpm、AppImage、Windows/macOS 构建脚本
 
 ## 打包
 
-- Linux：`make build gui deb`，`make appimage`。
-- Windows：`packaging/build-windows.ps1`，Wails 构建并嵌入图标/清单。
-- macOS：`packaging/build-macos.sh`，universal app + ad-hoc 签名。
+- Linux：`make build desktop deb`，`make appimage`。
+- Windows：`packaging/build-windows.ps1`，Flutter + NSIS。
+- macOS：`packaging/build-macos.sh`，Flutter universal app + dmg。
 - 详细步骤见 [packaging.md](packaging.md)。

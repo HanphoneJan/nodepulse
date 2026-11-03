@@ -21,6 +21,7 @@ import (
 	"github.com/HanphoneJan/nodepulse/internal/config"
 	"github.com/HanphoneJan/nodepulse/internal/daemon"
 	"github.com/HanphoneJan/nodepulse/internal/export"
+	"github.com/HanphoneJan/nodepulse/internal/localapi"
 	"github.com/HanphoneJan/nodepulse/internal/lock"
 	"github.com/HanphoneJan/nodepulse/internal/mcp"
 	"github.com/HanphoneJan/nodepulse/internal/score"
@@ -29,7 +30,6 @@ import (
 	"github.com/HanphoneJan/nodepulse/internal/store"
 	"github.com/HanphoneJan/nodepulse/internal/subscription"
 	"github.com/HanphoneJan/nodepulse/internal/tester"
-	"github.com/HanphoneJan/nodepulse/internal/webui"
 )
 
 const (
@@ -68,7 +68,7 @@ func Run(args []string, version string) int {
 		return cmdSwitch(args[1:])
 	case "v2raya":
 		return cmdV2raya(args[1:])
-	case "serve":
+	case "api", "serve":
 		return cmdServe(args[1:])
 	case "mcp":
 		return cmdMCP(args[1:], version)
@@ -91,7 +91,7 @@ func usage() {
   nodepulse status --api http://127.0.0.1:9090
   nodepulse switch --api http://127.0.0.1:9090 --group <组> --node <节点>
   nodepulse v2raya login|status|switch
-  nodepulse serve [--addr 127.0.0.1:8099]
+  nodepulse api [--addr 127.0.0.1:8099] [--token TOKEN]
   nodepulse history [-n 20]
   nodepulse mcp
 
@@ -104,7 +104,7 @@ func usage() {
   status   查看客户端当前节点
   switch   切换 Selector 组到指定节点
   v2raya   v2rayA 适配（login / status / switch）
-  serve    本地 Web UI
+  api      本地 API（供桌面端使用）
   history  查看切换历史
   mcp      启动 MCP stdio server（给 agent 客户端用）
   version  版本
@@ -800,9 +800,10 @@ func refConnected(refs []v2raya.Ref, want v2raya.Ref) bool {
 }
 
 func cmdServe(args []string) int {
-	fs := flag.NewFlagSet("serve", flag.ContinueOnError)
+	fs := flag.NewFlagSet("api", flag.ContinueOnError)
 	fs.SetOutput(os.Stderr)
 	addr := fs.String("addr", "127.0.0.1:8099", "监听地址")
+	token := fs.String("token", "", "API 访问令牌（桌面端启动时自动生成）")
 	results := fs.String("results", defaultResultsFile, "结果文件")
 	history := fs.String("history", "", "历史文件（默认 ~/.local/share/nodepulse/history.jsonl）")
 	api := fs.String("api", "", "默认 Clash 控制口")
@@ -818,8 +819,9 @@ func cmdServe(args []string) int {
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	srv := webui.New(webui.Options{
+	srv := localapi.New(localapi.Options{
 		Addr:        *addr,
+		Token:       *token,
 		ResultsPath: *results,
 		HistoryPath: historyPath,
 		API:         *api,
@@ -827,9 +829,9 @@ func cmdServe(args []string) int {
 		ConfigPath:  *configPath,
 		MihomoPath:  *mihomoPath,
 	})
-	fmt.Fprintf(os.Stderr, "NodePulse web UI: http://%s\n", *addr)
+	fmt.Fprintf(os.Stderr, "NodePulse API: http://%s\n", *addr)
 	if err := srv.Run(ctx); err != nil && !errors.Is(err, context.Canceled) {
-		fmt.Fprintln(os.Stderr, "web UI 退出:", err)
+		fmt.Fprintln(os.Stderr, "API 退出:", err)
 		return 1
 	}
 	return 0

@@ -1,70 +1,38 @@
 #!/usr/bin/env bash
-# Build a .app bundle for macOS. Run on macOS (cgo/WebKit is required).
+# Build the Flutter macOS app, embed the Go sidecar, and create zip + dmg.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 VERSION="${VERSION:-0.3.0}"
-APP="$ROOT/dist/NodePulse.app"
+APP="$ROOT/desktop/build/macos/Build/Products/Release/NodePulse.app"
 OUT="$ROOT/dist/NodePulse-macos-universal-${VERSION}.zip"
+DMG_OUT="$ROOT/dist/NodePulse-macos-universal-${VERSION}.dmg"
 
-rm -rf "$APP"
-mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
+cd "$ROOT/desktop"
+flutter build macos --release --build-name="$VERSION"
 
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
-# Wails uses UniformTypeIdentifiers on macOS 11+; plain `go build` has to link
-# it explicitly (the Wails CLI adds this flag itself).
-export CGO_LDFLAGS="${CGO_LDFLAGS:-} -framework UniformTypeIdentifiers -mmacosx-version-min=11.0"
 (
-  cd "$ROOT/gui"
+  cd "$ROOT"
   for arch in amd64 arm64; do
-    CGO_ENABLED=1 GOOS=darwin GOARCH="$arch" go build -trimpath -tags "production,desktop" \
+    CGO_ENABLED=1 GOOS=darwin GOARCH="$arch" go build -trimpath \
       -ldflags "-s -w -X github.com/HanphoneJan/nodepulse/internal/version.Version=$VERSION" \
-      -o "$TMP/nodepulse-$arch" .
+      -o "$TMP/nodepulse-$arch" ./cmd/nodepulse
   done
 )
-lipo -create "$TMP/nodepulse-amd64" "$TMP/nodepulse-arm64" -output "$APP/Contents/MacOS/nodepulse"
+lipo -create "$TMP/nodepulse-amd64" "$TMP/nodepulse-arm64" -output "$APP/Contents/MacOS/nodepulse-core"
+chmod +x "$APP/Contents/MacOS/nodepulse-core"
 cp "$ROOT/LICENSE" "$APP/Contents/Resources/LICENSE"
 cp "$ROOT/THIRD_PARTY_NOTICES.md" "$APP/Contents/Resources/THIRD_PARTY_NOTICES.md"
+/usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $VERSION" "$APP/Contents/Info.plist" || true
+/usr/libexec/PlistBuddy -c "Set :CFBundleVersion $VERSION" "$APP/Contents/Info.plist" || true
 
-ICONSET="$TMP/NodePulse.iconset"
-mkdir -p "$ICONSET"
-for size in 16 32 128 256 512; do
-  sips -z "$size" "$size" "$ROOT/packaging/nodepulse-1024.png" --out "$ICONSET/icon_${size}x${size}.png" >/dev/null
-  double=$((size * 2))
-  sips -z "$double" "$double" "$ROOT/packaging/nodepulse-1024.png" --out "$ICONSET/icon_${size}x${size}@2x.png" >/dev/null
-done
-iconutil -c icns "$ICONSET" -o "$APP/Contents/Resources/nodepulse.icns"
-
-cat > "$APP/Contents/Info.plist" <<PLIST
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-  <key>CFBundleName</key><string>NodePulse</string>
-  <key>CFBundleDisplayName</key><string>NodePulse</string>
-  <key>CFBundleIdentifier</key><string>com.nodepulse.app</string>
-  <key>CFBundleExecutable</key><string>nodepulse</string>
-  <key>CFBundlePackageType</key><string>APPL</string>
-  <key>CFBundleIconFile</key><string>nodepulse.icns</string>
-  <key>CFBundleShortVersionString</key><string>${VERSION}</string>
-  <key>CFBundleVersion</key><string>${VERSION}</string>
-  <key>LSMinimumSystemVersion</key><string>11.0</string>
-  <key>NSHighResolutionCapable</key><true/>
-</dict>
-</plist>
-PLIST
-
-# Ad-hoc signing keeps Gatekeeper from treating the bundle as damaged on Apple
-# Silicon. A Developer ID signature and notarization are still required for
-# distribution outside the local machine.
 codesign --force --deep --sign - "$APP" >/dev/null 2>&1 || true
 
 ditto -c -k --keepParent "$APP" "$OUT"
 echo "wrote $OUT"
 
-# Disk image with the usual drag-to-Applications layout.
-DMG_OUT="$ROOT/dist/NodePulse-macos-universal-${VERSION}.dmg"
 STAGE="$TMP/dmg"
 mkdir -p "$STAGE"
 cp -R "$APP" "$STAGE/"

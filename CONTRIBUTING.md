@@ -13,10 +13,9 @@ Thanks for improving NodePulse.
 See [docs/development.md](docs/development.md).
 
 ```bash
-make ui-check
 go test ./...
 go vet ./...
-cd gui && go test -tags production,webkit2_41 ./...
+cd desktop && flutter analyze && flutter test
 ```
 
 ## Pull requests
@@ -33,8 +32,8 @@ cd gui && go test -tags production,webkit2_41 ./...
 - Automatic selection must never manage `GLOBAL`, and must verify switches with rollback.
 - Download mode selects a path before download; it must not switch nodes mid-download.
 - Site-specific download-link scraping is out of scope.
-- Android/iOS are separate clients, not packaging targets for the Wails desktop app.
+- Android/iOS are separate clients, not packaging targets for the Flutter desktop app.
 
 ## License
 
-By contributing, you agree that your contribution is licensed under Apache-2.0.
+By contributing, you agree that your contribution is licensed under GPL-3.0.
