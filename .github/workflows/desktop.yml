@@ -24,7 +24,12 @@ jobs:
       - name: Install Wails
         run: go install github.com/wailsapp/wails/v2/cmd/wails@v2.17.1
       - name: Install NSIS
-        run: choco install nsis -y --no-progress
+        shell: pwsh
+        run: |
+          choco install nsis -y --no-progress
+          $nsis = "C:\Program Files (x86)\NSIS"
+          if (-not (Test-Path (Join-Path $nsis "makensis.exe"))) { throw "NSIS not found" }
+          Add-Content -Path $env:GITHUB_PATH -Value $nsis
       - name: Build Windows installer and zip
         shell: pwsh
         env:
