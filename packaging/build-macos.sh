@@ -12,6 +12,9 @@ mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
+# Wails uses UniformTypeIdentifiers on macOS 11+; plain `go build` has to link
+# it explicitly (the Wails CLI adds this flag itself).
+export CGO_LDFLAGS="${CGO_LDFLAGS:-} -framework UniformTypeIdentifiers -mmacosx-version-min=11.0"
 (
   cd "$ROOT/gui"
   for arch in amd64 arm64; do
