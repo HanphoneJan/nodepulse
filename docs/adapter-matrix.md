@@ -1,58 +1,52 @@
-# 客户端适配矩阵
+# 客户端适配
 
-## 能力总览
+NodePulse 通过 Clash REST API、v2rayA REST API 或本地 sidecar 工作，不接管客户端流量。
 
-| 客户端 | 测速 | 实时切换 | 接入方式 | 备注 |
+## 能力
+
+| 客户端 | 测速 | 实时切换 | 接入方式 | 说明 |
 |---|---|---|---|---|
-| FlClash | ✅ | ⚠️ 需开启控制口 | Clash REST API | 默认 `external-controller` 为空 |
-| Clash Verge Rev | ✅ | ✅ | Clash REST API | 默认控制口通常已开 |
-| Mihomo Party | ✅ | ✅ | Clash REST API | 在设置里确认端口和 secret |
-| sing-box GUI | ✅ | ✅ | `experimental.clash_api` | 需要启用 clash_api |
-| v2rayA | ✅ | ✅ | v2rayA REST API | `v2raya login/status/switch` |
-| v2rayN | ✅（导出） | ⚠️ 受限 | 导出 Clash / base64 订阅 | 无稳定本地控制 API |
-| 任意订阅 URL | ✅ | — | 内置 mihomo sidecar | 不需要客户端 |
+| FlClash | 支持 | 需开启控制口 | Clash REST | 默认可能未开启 `external-controller` |
+| Clash Verge Rev | 支持 | 支持 | Clash REST | 控制口通常默认开启 |
+| Mihomo Party | 支持 | 支持 | Clash REST | 使用其 external-controller 与 secret |
+| sing-box GUI | 支持 | 支持 | `experimental.clash_api` | 需要在配置中启用 clash_api |
+| v2rayA | 支持 | CLI 支持 | v2rayA REST | `nodepulse v2raya`；GUI/Web 未接入 |
+| v2rayN | 支持（导出） | 不支持 | 导出 Clash / base64 | 无稳定本地控制 API |
+| 任意订阅 | 支持 | — | mihomo sidecar | 不需要客户端 |
 
-图例：✅ 支持；⚠️ 需要额外配置或有条件；— 不适用。
+NodePulse 自动探测常见控制口：`9090`、`9097`、`9091`、`9099`、`9092`、`9093`。如果自动探测不对，在设置或 CLI 中显式填写端口和 secret。
 
-## 通用兜底：sidecar 模式
+## Clash REST
 
-任何客户端、甚至没有客户端，都可以用：
+适用于 FlClash、Clash Verge Rev、Mihomo Party、sing-box `clash_api`。
 
 ```bash
-nodepulse test -f subscription.yaml --mihomo /path/to/mihomo
+nodepulse test -f sub.yaml --api http://127.0.0.1:9090 --secret <secret>
+nodepulse daemon --api http://127.0.0.1:9090 --group "节点选择"
 ```
 
-NodePulse 会：
+GUI/Web 中选择控制口即可；自动选择只管理 Selector 组，不管理 `GLOBAL`。
 
-1. 用订阅里的 `proxies` 生成临时配置；
-2. 在 `127.0.0.1` 上随机分配 mixed-port 和 external-controller；
-3. 关闭 DNS/TUN，避免和现有客户端抢端口；
-4. 启动 mihomo，逐节点多轮测试；
-5. 结束后杀掉进程并清理临时目录。
+### FlClash
 
-## FlClash
+FlClash 底层是 mihomo，但默认可能没有开启外部控制口。
 
-FlClash 底层是 mihomo，但默认没有开 `external-controller`。
+1. 打开 FlClash 的 Clash/网络设置；
+2. 启用 External Controller，例如 `127.0.0.1:9090`；
+3. 如设置了 secret，在 NodePulse 中填写；
+4. 不想改客户端时，直接用本地订阅 + sidecar 测速（不能实时切换）。
 
-- 打开 FlClash 的 Clash / 网络设置；
-- 找到“外部控制 / External Controller”，填写 `127.0.0.1:9090`；
-- 如果设置了 secret，运行时用 `--secret` 传入；
-- 不确定入口时，直接用 sidecar 模式，不需要改 FlClash。
+### Clash Verge Rev
 
-## Clash Verge Rev
+在设置中启用外部控制，常见端口 `127.0.0.1:9097`。填入地址和 secret 后即可一键优化和自动选择。
 
-- 设置 → Clash → 外部控制；
-- 记下地址（常见 `127.0.0.1:9097`）和 secret；
-- 用 `--api http://127.0.0.1:9097 --secret ...`。
+### Mihomo Party
 
-## Mihomo Party
+确认 external-controller 地址和 secret，使用 Clash REST 接入。
 
-- 设置里确认 external-controller 地址和 secret；
-- 用 `--api` / `--secret` 接入。
+### sing-box GUI
 
-## sing-box GUI
-
-sing-box 本身没有 Clash 控制口，需要在配置里启用：
+在配置中启用：
 
 ```json
 {
@@ -65,38 +59,43 @@ sing-box 本身没有 Clash 控制口，需要在配置里启用：
 }
 ```
 
-启用后与 Clash 系用法一致。
+## sidecar
+
+任何订阅都可以不依赖客户端测速：
+
+```bash
+nodepulse test -f subscription.yaml --mihomo /path/to/mihomo --rounds 5
+```
+
+NodePulse 会：
+
+1. 用订阅里的 `proxies` 生成临时配置；
+2. 分配随机 mixed-port 和 external-controller；
+3. 关闭 DNS/TUN，避免和现有客户端抢端口；
+4. 启动 mihomo，逐节点测速；
+5. 结束后停止进程并清理临时目录。
+
+sidecar 只能测速/推荐，不能切换客户端。
 
 ## v2rayA
 
-v2rayA 自带 REST API（默认 `127.0.0.1:2017`）：
+CLI 适配，支持 login/status/switch：
 
 ```bash
-# 登录拿 token
-nodepulse v2raya login --url http://127.0.0.1:2017 --username <u> --password <p>
-
-# 查看节点与当前选择
+nodepulse v2raya login  --url http://127.0.0.1:2017 --username <u> --password <p>
 nodepulse v2raya status --url http://127.0.0.1:2017 --token <jwt>
-
-# 切换（支持部分名称匹配）
 nodepulse v2raya switch --url http://127.0.0.1:2017 --token <jwt> --node "香港"
 ```
 
-也可以每次传 `--username/--password` 自动登录。
+GUI/Web 目前没有 v2rayA 环境类型；需要时使用 CLI 或 sidecar。
 
 ## v2rayN
 
-v2rayN 没有稳定的本地控制 API，强实时切换只能改数据库或重启核心，风险高。当前策略：
+v2rayN 没有稳定的本地控制 API。当前只支持导出：
 
-1. 用 sidecar 或 Clash 控制口测速；
-2. 导出 Clash 配置：`nodepulse export ... -o stable.yaml`
-3. 或导出 base64 订阅：`nodepulse export ... -o stable.txt --format v2rayn`
-4. 在 v2rayN 里导入该文件。
+```bash
+nodepulse export -f sub.yaml -i results.json -o stable.yaml
+nodepulse export -f sub.yaml -i results.json -o stable.txt --format v2rayn
+```
 
-后续可选“应用并重启”模式：写入配置后调用 v2rayN 的重启，不修改其内部数据库。
-
-## 安全提示
-
-- 控制口只监听 `127.0.0.1`；
-- 不要在没有防火墙的局域网上把控制口开到 `0.0.0.0`；
-- secret 不要写进仓库或日志。
+在 v2rayN 中导入导出的 Clash 配置或 base64 订阅；NodePulse 不能实时切换 v2rayN 节点。

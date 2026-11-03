@@ -1,143 +1,105 @@
-# 开发与发布
+# 开发
 
 ## 环境
 
-- Go 1.24+
-- `mihomo` 可执行文件（集成测试 / sidecar）
-- `make`、`gcc`（交叉编译时可选）
+- CLI/核心：Go 1.24+
+- GUI：Go 1.26+，GTK3、WebKit2GTK 4.1、`pkg-config`
+- `mihomo`：sidecar 测速/下载探测
+- Node.js：`make ui-check` 的 JS 语法检查
+- `nfpm`：`.deb`；`appimagetool`：AppImage；Wails CLI：Windows 构建
 
-国内网络建议设置模块代理：
+Linux 构建依赖：
 
 ```bash
-go env -w GOPROXY=https://goproxy.cn,direct
+sudo apt-get install libgtk-3-dev libwebkit2gtk-4.1-dev pkg-config
+go install github.com/goreleaser/nfpm/v2/cmd/nfpm@latest
 ```
 
 ## 常用命令
 
 ```bash
-make build     # 输出 bin/nodepulse
-make test      # go test ./...
-make vet       # go vet ./...
-make fmt       # gofmt
+make build      # bin/nodepulse
+make gui        # bin/nodepulse-gui
+make run        # 构建并启动 GUI
+make web        # 本地 Web UI
+make test       # 根模块测试
+make race       # race 测试
+make vet        # go vet
+make fmt        # gofmt
+make ui-check   # JS 语法 + 前端资源测试
+make icons      # 重新生成图标 sprite
+make deb        # .deb
+make appimage   # AppImage
 make clean
 ```
 
-## 本地验证
+GUI 是独立 module，测试/构建需要标签：
 
-### 用测试配置
+```bash
+cd gui
+go test -tags production,webkit2_41 ./...
+go build -tags production,webkit2_41 ./...
+```
+
+Windows/macOS 构建见 [packaging.md](packaging.md)。
+
+## 测试配置
 
 ```bash
 ./bin/nodepulse nodes -f testdata/subscription.yaml
-```
-
-### 用真实订阅 + sidecar
-
-```bash
-./bin/nodepulse test \
-  -f ~/my-subscription.yaml \
-  --mihomo /path/to/mihomo \
-  --rounds 5 \
-  --out results.json
-
+./bin/nodepulse test -f testdata/subscription.yaml --mihomo /path/to/mihomo --rounds 3
 ./bin/nodepulse rank -i results.json
-./bin/nodepulse export -f ~/my-subscription.yaml -i results.json -o stable.yaml
 ```
 
-### 用已有控制口
+真实控制口：
 
 ```bash
-./bin/nodepulse test \
-  -f ~/my-subscription.yaml \
-  --api http://127.0.0.1:9090 \
-  --secret your-secret \
-  --rounds 10
+./bin/nodepulse test -f sub.yaml --api http://127.0.0.1:9090 --secret <secret>
+./bin/nodepulse daemon --api http://127.0.0.1:9090 --group "节点选择" --once
 ```
 
-## 测试
+## 前端资源
+
+GUI/Web 共用 `internal/uiassets/dist`，使用 Preact + htm，无 Node 构建。
 
 ```bash
-go test ./...
-go test -race ./...
+make icons
+make ui-check
 ```
 
-- `internal/score`：评分、百分位、排序
-- `internal/subscription`：解析、去重、信息节点
-- `internal/clash`：用 `httptest` 模拟控制口
-- `internal/tester`：用 fake `Delayer` 验成功率
-- `internal/export`：过滤与导出
+新增前端依赖时必须：
 
-## GUI
-
-```bash
-make run          # 构建并启动
-make gui          # 只构建
-./bin/nodepulse-gui
-```
-
-GUI 使用 Wails 生产构建标签 `production,webkit2_41`；如果手动构建，别忘了标签：
-
-```bash
-cd gui && go build -tags production,webkit2_41 -o ../bin/nodepulse-gui .
-```
-
-GUI 与 CLI 共用核心；绑定代码在 `gui/app.go`，前端在 `gui/frontend/dist`。首次启动会自动检测控制口、mihomo 和订阅文件。
-
-## MCP
-
-```bash
-./bin/nodepulse mcp
-```
-
-用 JSON-RPC stdio 与 agent 客户端通信。工具列表见 `internal/mcp/tools.go`。
-
-## 本地 Web UI
-
-```bash
-./bin/nodepulse serve --addr 127.0.0.1:8099
-```
-
-浏览器打开 `http://127.0.0.1:8099`，可以刷新状态、测试、切换和查看历史。
-
-## dsh 插件
-
-`plugins/dsh` 是 DeepSeek Harness 的薄封装，调用 `nodepulse` CLI：
-
-```bash
-cd plugins/dsh && npm pack
-dsh plugin --profile web add ./hanphone-dsh-nodepulse-0.1.0.tgz
-```
-
-## 打包
-
-```bash
-make deb        # 需要 nfpm
-make appimage   # 需要 appimagetool
-```
-
-`.deb` 内容见 `packaging/nfpm.yaml`；AppImage 脚本见 `packaging/build-appimage.sh`。
-
-## 发布（Phase 3）
-
-计划使用 GoReleaser + nfpm + appimagetool：
-
-```bash
-goreleaser release --clean
-```
-
-产物：
-
-- `nodepulse_<version>_linux_amd64.deb`
-- `nodepulse_<version>_linux_arm64.deb`
-- `NodePulse-<version>-x86_64.AppImage`
-- `nodepulse_<version>_linux_amd64.tar.gz`
-- `checksums.txt`
-
-GitHub Actions 在 tag 上执行，发布到 GitHub Releases。
+1. 本地固定版本，提交 vendor 文件；
+2. 更新 `THIRD_PARTY_NOTICES.md`；
+3. 更新 `packaging/nfpm.yaml` 与 `packaging/build-appimage.sh` 的许可证复制。
 
 ## 代码约定
 
-- 核心包不依赖 CLI/GUI；
-- 错误带上下文（`fmt.Errorf("...: %w", err)`）；
-- 日志不打印订阅 URL、UUID、密码；
-- 新增客户端适配器实现 `Delayer`（和可选的 `Switcher`）；
-- 新功能先补文档，再补测试。
+- 公共包放 `internal/`，避免泄露实现细节。
+- 自动选择统一使用 `internal/selector`；不要在 daemon/optimize 里重复阈值逻辑。
+- 任何切换都必须验证并支持回滚。
+- 不提交 secret、settings、results、签名下载 URL、测试截图。
+- 面向用户的错误信息用中文；日志/包注释可英文。
+- 提交信息使用 Conventional Commits（`feat:`、`fix:`、`docs:`、`build:` 等）。
+
+## MCP 与 dsh
+
+```bash
+nodepulse mcp
+```
+
+MCP server 提供节点、测速、排名、切换、导出、状态、历史工具。dsh 插件在 `plugins/dsh/`，只封装 CLI，不重复核心逻辑。
+
+## 发布前检查
+
+```bash
+make ui-check
+go test ./...
+go test -race ./...
+go vet ./...
+cd gui && go test -tags production,webkit2_41 ./...
+VERSION=x.y.z make build gui deb
+timeout --kill-after=2 6 ./bin/nodepulse-gui
+```
+
+发布/签名/公证流程见 [packaging.md](packaging.md)。

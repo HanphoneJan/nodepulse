@@ -2,272 +2,121 @@
 
 ## 目标
 
-1. **客户端无关**：测速结果不依赖某个客户端；同一套数据可以给 FlClash、Clash Verge、v2rayN 用。
-2. **可分发**：单二进制、`.deb`、AppImage；Windows zip、macOS app 由 CI 构建（签名/公证单独处理）。移动端需要独立客户端。
-3. **可复用**：CLI、GUI、MCP 共用同一个核心引擎。
-4. **可自动化**：守护进程按稳定性自动切换节点，带防抖。
+1. **客户端无关**：测速结果不依赖某个客户端，可给 FlClash、Clash Verge、Mihomo Party、sing-box 或 v2rayA 使用。
+2. **可复用**：CLI、Wails GUI、本地 Web UI、MCP 共用同一套核心。
+3. **可解释**：自动选择记录原因、候选、评分和回滚结果。
+4. **安全边界清晰**：本地服务不暴露公网；订阅下载限制目标；daemon 单写者。
 
 ## 非目标
 
-- 不实现新的代理协议；
-- 不替代客户端（NodePulse 不负责 TUN、DNS、流量转发）；
-- 不分发节点或订阅；
-- v1 不做 v2rayN 的强实时切换（见适配矩阵）。
+- 不实现代理协议、TUN、DNS 转发或流量接管。
+- 不替代 Clash/mihomo 客户端。
+- 不分发节点或订阅。
+- 不做站点专用下载链接抓取。
+- 不提供 Android/iOS 客户端；移动端需要独立项目。
 
-## 总览
+## 运行方式
 
+```text
+CLI ───────────────┐
+Wails GUI ─────────┤
+本地 Web UI ───────┼──> core: test / score / selector / daemon / export
+MCP server ────────┘
+                         │
+          ┌──────────────┼──────────────┐
+          ▼              ▼              ▼
+   Clash REST API   mihomo sidecar   subscription YAML
+   (现有客户端)      (本地临时测速)    (文件/base64)
 ```
-┌──────────────┐   ┌──────────────┐   ┌──────────────┐
-│     CLI      │   │  Wails GUI   │   │  MCP server  │
-└──────┬───────┘   └──────┬───────┘   └──────┬───────┘
-       └──────────────┬───┴──────────────────┘
-                 ┌────▼─────────────┐
-                 │   core engine    │
-                 │  test / score /  │
-                 │  scheduler       │
-                 └───┬──────────┬───┘
-        ┌────────────┘          └────────────┐
-   ┌────▼─────────┐                  ┌───────▼────────┐
-   │  adapters    │                  │  subscription  │
-   │ Clash REST   │                  │  YAML parser   │
-   │ v2rayA       │                  └───────┬────────┘
-   │ export       │                          │
-   └──────────────┘                  ┌───────▼────────┐
-                                     │ mihomo sidecar │
-                                     │ local test lab │
-                                     └────────────────┘
-```
-
-## 组件
-
-### `internal/config`
-
-Clash / mihomo 配置的数据模型。使用 `yaml:",inline"` 保留未知字段，保证导出时不丢协议参数。
-
-### `internal/subscription`
-
-订阅读取与校验：
-
-- Clash / mihomo YAML；
-- 节点去重、信息伪节点识别；
-- 后续扩展：base64 v2ray 订阅、sing-box JSON。
-
-### `internal/clash`
-
-Clash REST API 客户端：
-
-- `GET /version`
-- `GET /proxies`
-- `GET /proxies/{name}/delay?url=...&timeout=...`
-- `PUT /proxies/{group}`（Phase 2 自动切换）
-
-兼容 mihomo、Clash Verge、Mihomo Party、sing-box 的 `clash_api`。
-
-### `internal/sidecar`
-
-用订阅配置启动一个临时 mihomo：
-
-- 随机本地端口，`external-controller` 只绑 `127.0.0.1`；
-- 关闭 DNS/TUN，避免和用户客户端冲突；
-- 只保留 `proxies` 和 `MATCH,DIRECT` 规则，不需要 Geo 数据；
-- 测速结束后杀掉进程、清理临时目录。
-
-这样即使用户没有开任何客户端的控制口，也能测速。
-
-### `internal/tester`
-
-测试引擎：
-
-- 节点级并发，节点内多轮串行；
-- 每轮独立超时；
-- 失败不重试（失败本身是稳定性信号）；
-- 输出 `score.Result`。
-
-### `internal/score`
-
-指标计算与评分：
-
-- 成功率、P50、P90、Max、Jitter；
-- 综合评分；
-- 排序与阈值过滤。
-
-### `internal/export`
-
-生成可日用配置：
-
-- 默认保留原 rules / proxy-groups / DNS / TUN / rule-providers；
-- 过滤组内未通过阈值的节点，追加 `NodePulse` url-test 组；
-- `--minimal` 才输出只含节点和 `MATCH,NodePulse` 的最小配置。
-
-### `internal/cli`
-
-命令行入口，负责 `nodes / test / rank / export / daemon / status / history`。
-
-### `internal/daemon`
-
-自动选择守护进程（核心）：
-
-- `internal/selector` 统一解析 Selector 组、候选节点与切换决策；
-- 永不自动管理 `GLOBAL`；只测试组内直接节点，不回退到全量代理；
-- 最低成功率 + 滞后 margin + 连续 confirm；
-- 切换后校验当前节点并做真实延迟验证，失败回滚并记录回滚结果；
-- 全部不达标时用 `DIRECT` 基线区分本地网络/测试 URL 与节点问题；
-- 结构化事件写入历史（原因码、置信度、候选数、前后评分、耗时、回滚结果）。
-
-### `internal/store`
-
-历史记录（JSONL）：
-
-- 每次 cycle / switch / rollback / error；
-- `nodepulse history` 读取最近 N 条；
-- 接口独立，后续可替换为 SQLite。
-
-### `internal/export`
-
-配置导出：
-
-- `Stable` 生成最终配置；
-- `Preview` 在写入前返回影响面：保留/排除节点、受影响分组、`DIRECT` 回退、规则/DNS/TUN/rule-providers 是否保留；
-- GUI / Web 先展示预览，再确认写入。
-
-### `internal/results`
-
-GUI 与 Web 共用的结果文件：
-
-- schema 与 `results.json` 一致；
-- 原子写入；
-- 结果绑定配置路径，切换环境时不展示旧结果。
-
-### `internal/backup`
-
-覆盖前快照：
-
-- 设置文件和导出配置写入前自动备份；
-- 保留最近 N 份；
-- 目录固定在 `~/.local/share/nodepulse/backups/`，权限 0600。
-
-### `internal/autostart`
-
-桌面版开机自启：
-
-- Linux 写 XDG autostart；
-- macOS 写 LaunchAgent；
-- Windows 写 HKCU Run；
-- 默认关闭，开启后带 `--background` 参数启动。
-
-### `gui/tray.go` 与 `gui/notify_*.go`
-
-桌面驻留：
-
-- 托盘提供打开面板、开机启动、退出；
-- 关闭窗口隐藏到托盘，daemon 继续运行；
-- 切换/回滚/失败时发送系统通知，窗口在前台时不重复打扰。
-
-### `internal/discover` / 多订阅联合测速
-
-- 扫描 FlClash、Clash Verge、Mihomo 的本地 profile；
-- 控制口只提供激活订阅，未激活 profile 只读文件；
-- `internal/optimize` 合并节点、标注来源，用同一个 sidecar 测速；
-- 跨订阅只推荐，不切换未激活 profile。
-
-### `internal/probe` / `internal/probecache`
-
-下载模式探测：
-
-- 通过临时 sidecar 的 mixed-port 对目标文件做 Range 请求；
-- 记录 TTFB、p25/中位吞吐、卡顿、HTTP/TLS 错误；
-- 缓存同一节点 + 目标 host/path 20 分钟；
-- 目标不可达节点直接淘汰。
-
-### `internal/health`
-
-首启/环境检查：
-
-- 只读检查控制口、订阅、mihomo 和 Selector 组；
-- 返回结构化状态与建议；
-- GUI / Web 共用。
-
-### `internal/lock`
-
-daemon 单写者：
-
-- 基于锁文件和 PID 存活检查；
-- GUI / Web / CLI 共用同一锁路径；
-- 崩溃遗留锁可清理。
-
-### `internal/netfetch`
-
-订阅下载边界：
-
-- 仅 http/https，拒绝内嵌凭据；
-- 限制重定向、超时和大小；
-- 拒绝链路本地/元数据地址，保留局域网/自建服务。
 
 ## 数据流
 
-1. 读取订阅 YAML；
-2. 选择测速后端：
-   - `--api`：连接已有客户端；
-   - 否则：启动 mihomo sidecar；
-3. 对每个节点执行 N 轮 `delay` 请求；
-4. 计算指标和评分；
-5. 输出 `results.json`；
-6. `export` 读取结果，过滤并生成 `stable.yaml`。
+1. 读取订阅 YAML、base64 分享链接，或连接已有控制口。
+2. 解析节点和 Selector 组；过滤信息伪节点。
+3. 多轮 `delay` 请求，计算成功率、P50/P90、抖动和评分。
+4. 自动选择按阈值、滞后和确认决定是否切换。
+5. 切换后校验当前节点并做真实延迟复测，失败回滚。
+6. 结果写入 `results.json`；历史写入 JSONL。
+7. 导出时过滤节点、保留原配置结构，并展示影响预览。
 
-## 适配器模型
+## 包结构
 
-```go
-type Delayer interface {
-    Delay(ctx context.Context, name, url string, timeout time.Duration) (int, error)
-}
+```text
+cmd/nodepulse/        CLI 入口
+gui/                  Wails 桌面应用（独立 Go module）
 
-type Switcher interface {
-    Switch(ctx context.Context, group, node string) error
-}
+internal/
+  clash/              Clash REST 客户端
+  config/             Clash/mihomo YAML 模型，保留未知字段
+  subscription/       订阅读取、base64 解析
+  share/              v2ray 分享链接解析
+  discover/           控制口、订阅文件、mihomo、本地 profiles
+  selector/           Selector 组解析、候选、决策、DIRECT 基线
+  tester/             多轮并发测速
+  score/              指标与评分
+  daemon/             定时自动选择、验证、回滚、历史
+  optimize/           一键优化、多订阅联合测速、下载模式
+  sidecar/            临时 mihomo 进程
+  export/             配置过滤与导出影响预览
+  netfetch/           订阅下载边界（重定向/大小/链路本地地址）
+  probe/              目标文件 Range 下载探测
+  probecache/         目标探测缓存
+  health/             控制口/订阅/mihomo/Selector 组检查
+  lock/               daemon 跨进程锁
+  progress/           测速进度与取消
+  results/            结果文件持久化
+  backup/             设置/导出文件覆盖前备份
+  autostart/          Linux/macOS/Windows 开机自启
+  store/              历史事件 JSONL
+  settings/           settings.json、profiles、自动选择参数
+  adapters/v2raya/    v2rayA REST 客户端
+  mcp/                MCP stdio server
+  cli/                CLI 命令实现
+  webui/              本地 Web UI 与 HTTP API
+  uiassets/           嵌入的 GUI/Web 前端资源
+
+plugins/dsh/          dsh 插件薄封装
+packaging/            deb/nfpm、AppImage、Windows/macOS 构建脚本
+.github/workflows/    Linux release、Windows/macOS desktop 构建
 ```
 
-- 测速只需要 `Delayer`；
-- 自动切换需要 `Switcher`；
-- 不支持实时切换的客户端走 `export`。
+## 自动选择事务
 
-## 安全
+`internal/selector` 负责安全规则和决策，`internal/daemon` 负责执行：
 
-- 控制口只绑 `127.0.0.1`；
-- sidecar 使用随机 secret；
-- 日志默认不打印订阅 URL、UUID、密码；
-- 导出的配置权限建议 `0600`；
-- 不上报任何数据。
+1. 解析可管理的 Selector 组；拒绝 `GLOBAL`。
+2. 只取组内直接、可测节点；嵌套组和 DIRECT/REJECT 跳过。
+3. 计算当前节点是否低于最低成功率。
+4. 候选评分需超过当前 `margin`，并连续 `confirm` 轮成立。
+5. 切换前记录 before 指标；切换后校验控制器当前节点。
+6. 对新节点做真实 `delay` 验证；失败则回滚。
+7. 写入结构化历史，GUI/Web 展示最近决策。
 
-## 分发
+全部节点不达标时，`DIRECT` 基线用于区分本地网络问题与节点问题。
 
-- 单二进制：`cmd/nodepulse`；
-- `.deb`：nfpm；
-- AppImage：appimagetool；
-- systemd user unit：`nodepulse daemon`；
-- GitHub Actions + GoReleaser。
+## 下载模式
 
-## 目录
+下载模式与浏览模式分离：
 
-```
-cmd/nodepulse/          # 入口
-internal/config/        # 配置模型
-internal/subscription/  # 订阅解析
-internal/clash/         # Clash REST 客户端
-internal/tester/        # 测试引擎
-internal/score/         # 指标与评分
-internal/export/        # 配置导出
-internal/share/         # base64 / 分享链接解析与编码
-internal/sidecar/       # mihomo 生命周期
-internal/daemon/        # 自动切换守护
-internal/store/         # 历史记录（JSONL）
-internal/mcp/           # MCP stdio server
-internal/webui/         # 本地 Web UI
-internal/adapters/      # v2rayA 等客户端适配
-internal/cli/           # 命令行
-gui/                    # Wails 桌面应用（独立 Go module）
-plugins/dsh/            # DeepSeek Harness 插件
-packaging/              # 打包（nfpm / AppImage / systemd）
-ui/                     # Wails 前端（Phase 3）
-mcp/                    # MCP server（Phase 4）
-packaging/              # 打包（Phase 3）
-```
+1. 常规测速得到候选池。
+2. 取前 5 个达标候选，全部不可达时最多补测下一批 5 个。
+3. 用临时 mihomo sidecar 的 selector + mixed-port，对目标文件做 Range 下载。
+4. 目标 TLS/EOF/超时/HTTP 4xx/5xx 的节点淘汰。
+5. 记录 TTFB、p25/中位吞吐、卡顿；成功/失败分别缓存 20/5 分钟。
+6. 同时探测直连；直连 p25 高于最佳节点 20% 时推荐直连，不切节点。
+7. 否则只在下载开始前切换一次，沿用验证和回滚；下载过程中不切换。
+
+## 本地服务安全
+
+- Web UI 默认只监听 `127.0.0.1`。
+- API 设置 `Cache-Control: no-store`，拒绝跨站写请求。
+- 订阅下载只允许 http/https，限制重定向、超时和 10 MiB 体积，拒绝链路本地/云元数据地址。
+- 设置文件、结果、备份、锁使用 0600/0700。
+- 签名下载 URL、secret 不写入日志或历史。
+
+## 打包
+
+- Linux：`make build gui deb`，`make appimage`。
+- Windows：`packaging/build-windows.ps1`，Wails 构建并嵌入图标/清单。
+- macOS：`packaging/build-macos.sh`，universal app + ad-hoc 签名。
+- 详细步骤见 [packaging.md](packaging.md)。
