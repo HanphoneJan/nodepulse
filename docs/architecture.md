@@ -3,7 +3,7 @@
 ## 目标
 
 1. **客户端无关**：测速结果不依赖某个客户端；同一套数据可以给 FlClash、Clash Verge、v2rayN 用。
-2. **可分发**：单二进制、`.deb`、AppImage，后续支持 Windows/macOS。
+2. **可分发**：单二进制、`.deb`、AppImage；Windows zip、macOS app 由 CI 构建（签名/公证单独处理）。移动端需要独立客户端。
 3. **可复用**：CLI、GUI、MCP 共用同一个核心引擎。
 4. **可自动化**：守护进程按稳定性自动切换节点，带防抖。
 

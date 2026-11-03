@@ -1,81 +1,77 @@
 # 路线图
 
-## Phase 1 · 核心引擎 + CLI（已实现）
+## 已完成
 
-目标：不依赖 GUI，跑通“订阅 → 测速 → 排名 → 导出”。
+### 核心与 CLI
 
 - [x] Clash / mihomo YAML 解析，保留未知节点字段
-- [x] 信息伪节点识别（剩余流量 / 套餐到期等）
-- [x] Clash REST 客户端（version / proxies / delay）
+- [x] 信息伪节点识别
+- [x] Clash REST 客户端（version / proxies / delay / switch）
 - [x] mihomo sidecar：随机端口、临时配置、自动清理
-- [x] 多轮测试引擎（并发 + 成功率 + P50/P90/抖动）
-- [x] 稳定性评分与排序
-- [x] JSON 结果输出
-- [x] 过滤导出 Clash 配置
-- [x] 单元测试
-- [x] README / 架构 / 设计文档
-
-验收：
-
-```bash
-nodepulse nodes -f testdata/subscription.yaml
-nodepulse test  -f testdata/subscription.yaml --mihomo ./mihomo --rounds 3
-nodepulse rank  -i results.json
-nodepulse export -f testdata/subscription.yaml -i results.json -o stable.yaml
-```
-
-## Phase 2 · Clash 适配 + 守护/自动切换（已实现）
-
-- [x] 自动发现 Clash 控制口里的 Selector 组
-- [x] `Switcher` 接口与 `PUT /proxies/{group}` 实现
-- [x] `nodepulse daemon`：定时测试 + 滞后阈值 + 连续确认
-- [x] 切换验证与失败回滚
-- [x] 历史记录（JSONL；SQLite 作为后续可替换后端）
-- [x] `status` / `history` 命令
-- [ ] systemd user unit（随 Phase 3 打包一起做）
-- [ ] 与 FlClash / Clash Verge 的实机集成测试（需要用户环境）
-
-验收：当当前节点连续失败或明显变差时，守护进程在 2 个周期内切换到更稳节点，并在失败时回滚。
-
-## Phase 3 · GUI + 打包（已实现，托盘/本地 Web UI 后续）
-
-- [x] Wails 应用：Material Design 3 导航栏、仪表盘、节点、设置、历史
-- [x] 明暗双主题与共享 UI 资源（GUI / Web UI 同一套）
-- [x] 一键优化流程：自动检测控制口、订阅 URL 导入、自动切换到最优节点
-- [x] 托盘菜单（打开面板 / 退出）
-- [x] 本地 Web UI（`nodepulse serve`，与 GUI 共用同一套核心）
-- [x] `.deb`（nfpm 配置）
-- [x] AppImage 构建脚本
-- [x] GitHub Actions 发布工作流
-- [x] 图标、桌面入口、systemd user unit
-
-验收：`make gui` 构建桌面应用；`make deb` / `make appimage` 产出安装包。
-
-## Phase 4 · MCP + dsh 插件（已实现）
-
-- [x] MCP stdio server
-- [x] 工具：`nodes.list`、`nodes.test`、`nodes.rank`、`nodes.switch`、`export.stable`、`status.groups`、`history.recent`
-- [ ] MCP 资源（最近结果、节点历史）
-- [x] dsh 插件薄封装（复用 CLI）
-- [x] 文档与示例
-
-验收：支持 MCP 的 agent 客户端可以“测一下所有节点，切到最稳的”。
-
-## Phase 5 · base64 / v2rayA / v2rayN（已实现）
-
-- [x] base64 分享链接订阅解析（vmess / vless / trojan / ss / hysteria2）
-- [x] v2rayA REST：login / touch / connect（状态与切换）
+- [x] 多轮测试引擎（成功率、P50/P90、抖动、评分）
+- [x] 结果 JSON、CLI 排名、过滤导出
+- [x] base64 分享链接订阅解析
+- [x] v2rayA REST：login / touch / connect（CLI）
 - [x] v2rayN：导出 Clash 配置或 base64 订阅
+- [x] MCP server：节点、测速、排名、切换、导出、状态、历史
+
+### 自动选择
+
+- [x] `internal/selector`：Selector 组安全解析、候选、阈值、滞后、确认
+- [x] 永不自动管理 `GLOBAL`；只测管理组直接节点，不回退全量代理
+- [x] 切换后验证、真实延迟复测、失败回滚
+- [x] 全部不达标时用 `DIRECT` 基线区分网络/测试 URL 问题
+- [x] 结构化历史：原因码、置信度、候选数、评分、回滚、耗时
+- [x] 首启/设置页环境检查
+- [x] GUI/Web/CLI 共用的 daemon 单写者锁
+- [x] 手动测速进度与取消
+- [x] 自动化参数持久化、重载恢复、环境切换
+
+### 桌面与 Web
+
+- [x] Wails GUI + 本地 Web UI，共用 Preact/Material 3 资源
+- [x] 环境 profiles 快速切换
+- [x] 导出影响预览、覆盖前备份、设置导出/恢复
+- [x] GUI 结果跨重启保留
+- [x] 托盘驻留、可选开机自启、切换/回滚通知
+- [x] Linux `.deb` / AppImage；Windows zip；macOS app（CI 脚本）
+- [x] 应用图标与 Wails 图标嵌入
+- [x] WebKitGTK Wayland 滚动性能兼容开关
+- [x] 多订阅联合测速：读取本地 profile，跨机场排名并标注来源
+- [x] 下载模式：目标站点探测、不可达淘汰、p25 吞吐、缓存、一次切换
+- [x] 下载模式直连基线：直连明显更快时推荐直连，不切节点
+
+## 仍需完成
+
+### 发布级
+
+- [ ] Windows/macOS CI 首次实跑并修正平台差异
+- [ ] Windows 代码签名 / macOS Developer ID + notarization
+- [ ] 可选：MSI / dmg 安装器
+- [ ] 修复 `release.yml` 中 AppImage 失败被 `|| true` 静默吞掉的问题
+- [ ] 发布前跑一次完整 race test、跨平台打包和 GUI smoke
+
+### 客户端适配
+
+- [ ] v2rayA 接入 GUI/Web 环境与一键优化（目前仅 CLI）
 - [ ] v2rayN “应用并重启”模式
 - [ ] sing-box JSON 解析（可选）
+- [ ] FlClash / Clash Verge 真机集成回归（已有用户环境，但未自动化）
 
-验收：v2rayA 可切换；导出的 base64 订阅可被 v2rayN 导入。
+### 产品边界
 
-## 后续候选
+- [ ] 跨机场自动应用：目前只能联合测速/推荐，不能在两个独立组之间安全自动切换
+- [ ] 若要做，需要显式父子组和双组事务；默认不做
+- [ ] 订阅 URL 自动更新/到期提醒：按用户要求暂不做
+- [ ] 站点专用下载链接抓取：不做；通用性不足，维护成本高
+- [ ] Android/iOS 客户端：需要独立移动项目，不是桌面打包步骤
 
-- Windows / macOS 构建
-- 定时任务导出到 GitHub Gist / WebDAV
-- 节点速度测试（下载吞吐）
-- 多订阅合并与去重
-- 延迟/成功率历史图表
-- 与 OpenChamber / 其他 agent 的深度集成
+## Android / APK 结论
+
+当前仓库不能直接打包成可用的 Android APK：
+
+- GUI 是 Wails + WebKit/WebView 桌面应用，没有 Android 运行时；
+- 核心依赖本机 Clash/mihomo 控制口、订阅文件、sidecar 和 daemon；
+- 当前 Web 服务默认只绑定 `127.0.0.1`，没有远程认证/TLS，不能安全地给手机访问。
+
+如果移动端是明确目标，应单独立项：原生 Android UI + 前台服务 + 手机本地 Clash 控制口，或带认证/TLS 的桌面远程模式。不要用 WebView 套壳假装成产品。
