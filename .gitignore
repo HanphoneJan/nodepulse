@@ -8,3 +8,5 @@ stable.yaml
 .vscode/
 *.test
 .openchamber/
+gui/build/bin/
+gui/frontend/wailsjs/

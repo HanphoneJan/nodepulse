@@ -10,17 +10,26 @@ New-Item -ItemType Directory -Force -Path $Dist | Out-Null
 
 Push-Location (Join-Path $Root "gui")
 try {
-  go build -trimpath -tags "production,desktop" `
-    -ldflags "-s -w -H windowsgui -X github.com/HanphoneJan/nodepulse/internal/version.Version=$Version" `
-    -o (Join-Path $Dist "nodepulse.exe") .
-  if ($LASTEXITCODE -ne 0) { throw "go build failed" }
+  $Wails = Get-Command wails -ErrorAction SilentlyContinue
+  if ($Wails) {
+    wails build -platform windows/amd64 -s -skipbindings -m -tags production `
+      -ldflags "-s -w -H windowsgui -X github.com/HanphoneJan/nodepulse/internal/version.Version=$Version"
+    if ($LASTEXITCODE -ne 0) { throw "wails build failed" }
+    Copy-Item "build\bin\nodepulse.exe" (Join-Path $Dist "nodepulse.exe") -Force
+  } else {
+    go build -trimpath -tags "production,desktop" `
+      -ldflags "-s -w -H windowsgui -X github.com/HanphoneJan/nodepulse/internal/version.Version=$Version" `
+      -o (Join-Path $Dist "nodepulse.exe") .
+    if ($LASTEXITCODE -ne 0) { throw "go build failed" }
+  }
 } finally {
   Pop-Location
 }
 
 Copy-Item (Join-Path $Root "LICENSE") $Dist -Force
 Copy-Item (Join-Path $Root "THIRD_PARTY_NOTICES.md") $Dist -Force
+Copy-Item (Join-Path $Root "packaging\nodepulse.ico") $Dist -Force
 $Zip = Join-Path $Dist "nodepulse_${Version}_windows_amd64.zip"
 if (Test-Path $Zip) { Remove-Item $Zip -Force }
-Compress-Archive -Path (Join-Path $Dist "nodepulse.exe"), (Join-Path $Dist "LICENSE"), (Join-Path $Dist "THIRD_PARTY_NOTICES.md") -DestinationPath $Zip
+Compress-Archive -Path (Join-Path $Dist "nodepulse.exe"), (Join-Path $Dist "LICENSE"), (Join-Path $Dist "THIRD_PARTY_NOTICES.md"), (Join-Path $Dist "nodepulse.ico") -DestinationPath $Zip
 Write-Host "wrote $Zip"

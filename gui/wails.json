@@ -1,0 +1,17 @@
+{
+  "name": "nodepulse",
+  "outputfilename": "nodepulse",
+  "frontend:install": "",
+  "frontend:build": "",
+  "author": {
+    "name": "NodePulse",
+    "email": ""
+  },
+  "info": {
+    "companyName": "NodePulse",
+    "productName": "NodePulse",
+    "productVersion": "0.3.0",
+    "copyright": "Apache-2.0",
+    "comments": "Proxy node stability tester and auto-switcher"
+  }
+}
