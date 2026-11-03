@@ -29,7 +29,7 @@ try {
 Copy-Item (Join-Path $Root "LICENSE") $Dist -Force
 Copy-Item (Join-Path $Root "THIRD_PARTY_NOTICES.md") $Dist -Force
 Copy-Item (Join-Path $Root "packaging\nodepulse.ico") $Dist -Force
-$Zip = Join-Path $Dist "nodepulse_${Version}_windows_amd64.zip"
+$Zip = Join-Path $Dist "NodePulse-windows-amd64-${Version}.zip"
 if (Test-Path $Zip) { Remove-Item $Zip -Force }
 Compress-Archive -Path (Join-Path $Dist "nodepulse.exe"), (Join-Path $Dist "LICENSE"), (Join-Path $Dist "THIRD_PARTY_NOTICES.md"), (Join-Path $Dist "nodepulse.ico") -DestinationPath $Zip
 Write-Host "wrote $Zip"

@@ -5,7 +5,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 VERSION="${VERSION:-0.3.0}"
 APP="$ROOT/dist/NodePulse.app"
-OUT="$ROOT/dist/nodepulse_${VERSION}_macos_universal.zip"
+OUT="$ROOT/dist/NodePulse-macos-universal-${VERSION}.zip"
 
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"

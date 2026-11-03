@@ -6,7 +6,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 VERSION="${VERSION:-0.3.0}"
 APPDIR="$ROOT/dist/NodePulse.AppDir"
-OUT="$ROOT/dist/NodePulse-${VERSION}-x86_64.AppImage"
+OUT="$ROOT/dist/NodePulse-linux-amd64-${VERSION}.AppImage"
 
 rm -rf "$APPDIR"
 mkdir -p "$APPDIR/usr/bin" "$APPDIR/usr/share/applications" \
@@ -19,6 +19,8 @@ cp "$ROOT/packaging/nodepulse.desktop" "$APPDIR/usr/share/applications/"
 cp "$ROOT/packaging/nodepulse.svg" "$APPDIR/usr/share/icons/hicolor/scalable/apps/"
 cp "$ROOT/packaging/nodepulse.desktop" "$APPDIR/nodepulse.desktop"
 cp "$ROOT/packaging/nodepulse.svg" "$APPDIR/nodepulse.svg"
+cp "$ROOT/packaging/nodepulse-1024.png" "$APPDIR/nodepulse.png"
+ln -sf nodepulse.png "$APPDIR/.DirIcon"
 cp "$ROOT/LICENSE" "$APPDIR/usr/share/doc/nodepulse/LICENSE"
 cp "$ROOT/THIRD_PARTY_NOTICES.md" "$APPDIR/usr/share/doc/nodepulse/THIRD_PARTY_NOTICES.md"
 cp "$ROOT/internal/uiassets/dist/material-color-utilities.LICENSE.txt" \
@@ -40,5 +42,9 @@ EOF
 chmod +x "$APPDIR/AppRun"
 
 export ARCH=x86_64
-"${APPIMAGETOOL:-appimagetool}" "$APPDIR" "$OUT"
+RUNTIME_ARGS=()
+if [[ -n "${APPIMAGE_RUNTIME_FILE:-}" ]]; then
+  RUNTIME_ARGS=(--runtime-file "$APPIMAGE_RUNTIME_FILE")
+fi
+"${APPIMAGETOOL:-appimagetool}" "${RUNTIME_ARGS[@]}" "$APPDIR" "$OUT"
 echo "wrote $OUT"

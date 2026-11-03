@@ -33,12 +33,12 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: nodepulse-windows
-          path: dist/*windows_amd64.zip
+          path: dist/NodePulse-windows-amd64-*.zip
       - name: Attach to release
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
-          files: dist/*windows_amd64.zip
+          files: dist/NodePulse-windows-amd64-*.zip
 
   macos:
     runs-on: macos-latest
@@ -56,9 +56,9 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: nodepulse-macos
-          path: dist/*macos_universal.zip
+          path: dist/NodePulse-macos-universal-*.zip
       - name: Attach to release
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
-          files: dist/*macos_universal.zip
+          files: dist/NodePulse-macos-universal-*.zip

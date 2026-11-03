@@ -17,6 +17,8 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - uses: actions/setup-go@v5
         with:
@@ -33,12 +35,17 @@ jobs:
       - name: Install appimagetool
         run: |
           curl -fsSL -o /usr/local/bin/appimagetool \
-            https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage
+            https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage
           chmod +x /usr/local/bin/appimagetool
+          curl -fsSL -o /usr/local/bin/appimagetool-runtime \
+            https://github.com/AppImage/type2-runtime/releases/download/continuous/runtime-x86_64
+          chmod +x /usr/local/bin/appimagetool-runtime
 
       - name: Build
         env:
           VERSION: ${{ github.ref_name }}
+          APPIMAGE_EXTRACT_AND_RUN: "1"
+          APPIMAGE_RUNTIME_FILE: /usr/local/bin/appimagetool-runtime
         run: |
           export PATH="$PATH:$(go env GOPATH)/bin"
           VERSION="${VERSION#v}" make build gui deb

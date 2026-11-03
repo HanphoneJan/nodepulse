@@ -12,10 +12,12 @@ VERSION=0.3.0 make appimage
 
 产物：
 
-- `dist/nodepulse_<version>_amd64.deb`
-- `dist/NodePulse-<version>-x86_64.AppImage`
+- `dist/NodePulse-linux-amd64-<version>.deb`
+- `dist/NodePulse-linux-amd64-<version>.AppImage`
 
 依赖：`libgtk-3-dev`、`libwebkit2gtk-4.1-dev`、`pkg-config`、`nfpm`。GUI 标签固定为 `production,webkit2_41`。deb 推荐 `libnotify-bin` 作为 Linux 通知回退。
+
+AppImage 使用 `AppImage/appimagetool` 与 `type2-runtime`。本地构建时把 `APPIMAGE_RUNTIME_FILE` 指向下载好的 `runtime-x86_64`，或让 appimagetool 自行下载运行时。
 
 ## Windows
 
@@ -29,7 +31,7 @@ Copy-Item build\bin\nodepulse.exe ../dist/nodepulse.exe
 Pop-Location
 ```
 
-Wails 用 `gui/build/appicon.png` 生成 exe 图标和清单。没有 Wails 时脚本回退到纯 Go 构建，但 exe 不嵌入图标。产物是 zip 内的 `nodepulse.exe`；不做 MSI，代码签名未配置。
+Wails 用 `gui/build/appicon.png` 生成 exe 图标和清单。没有 Wails 时脚本回退到纯 Go 构建，但 exe 不嵌入图标。产物是 `dist/NodePulse-windows-amd64-<version>.zip`，zip 内为 `nodepulse.exe`；不做 MSI，代码签名未配置。
 
 ## macOS
 
@@ -39,7 +41,7 @@ Wails 用 `gui/build/appicon.png` 生成 exe 图标和清单。没有 Wails 时�
 - 生成 `Info.plist` 和 `.icns`；
 - ad-hoc 签名后 `ditto` 打包 zip。
 
-产物是 zip 内的 `.app`。未签名/未公证时 Gatekeeper 可能要求手动放行；正式发布需要 Apple Developer ID + notarization。
+产物是 `dist/NodePulse-macos-universal-<version>.zip`，zip 内为 `.app`。未签名/未公证时 Gatekeeper 可能要求手动放行；正式发布需要 Apple Developer ID + notarization。
 
 ## 图标
 
@@ -51,8 +53,18 @@ Wails 用 `gui/build/appicon.png` 生成 exe 图标和清单。没有 Wails 时�
 
 版本统一通过 `internal/version.Version` 注入。
 
+## 发布产物命名
+
+GitHub Release 的附件统一使用 `应用名称-平台-版本号`：
+
+- `NodePulse-linux-amd64-<version>.tar.gz` / `NodePulse-linux-arm64-<version>.tar.gz`（CLI，GoReleaser）
+- `NodePulse-linux-amd64-<version>.deb`
+- `NodePulse-linux-amd64-<version>.AppImage`
+- `NodePulse-windows-amd64-<version>.zip`
+- `NodePulse-macos-universal-<version>.zip`
+
 ## 发布状态
 
-- Linux `.deb` / AppImage：本地与 release workflow 构建。
+- Linux `.deb` / AppImage / CLI tar.gz：本地与 release workflow 构建。
 - Windows zip：desktop workflow 构建；待首次实跑与签名。
 - macOS app zip：desktop workflow 构建；待首次实跑、签名与公证。

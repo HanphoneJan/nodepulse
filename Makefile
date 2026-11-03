@@ -41,7 +41,7 @@ fmt:
 
 deb: build gui
 	mkdir -p dist
-	VERSION=$(VERSION) nfpm package -f packaging/nfpm.yaml -p deb -t dist
+	VERSION=$(VERSION) nfpm package -f packaging/nfpm.yaml -p deb -t dist/NodePulse-linux-amd64-$(VERSION).deb
 
 appimage: build gui
 	VERSION=$(VERSION) bash packaging/build-appimage.sh
