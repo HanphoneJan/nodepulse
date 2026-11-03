@@ -434,6 +434,16 @@ class _SettingsViewState extends State<SettingsView> {
               style: appText(theme, AppTextStyle.subheadline),
             ),
           ),
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            value: state.settings['notify_on_switch'] != false,
+            onChanged: (value) =>
+                state.updateSetting('notify_on_switch', value),
+            title: Text(
+              '切换、回滚时发送系统通知',
+              style: appText(theme, AppTextStyle.subheadline),
+            ),
+          ),
           Text(
             '关闭后从托盘退出。开机启动会静默拉起后端。',
             style: appText(

@@ -55,6 +55,7 @@ class AppState extends ChangeNotifier {
   String busyKind = '';
   bool daemon = false;
   bool autostart = false;
+  String? _lastEventKey;
   bool detecting = false;
   Map<String, dynamic> progress = const {};
 
@@ -117,6 +118,9 @@ class AppState extends ChangeNotifier {
       subscriptions = (bootstrap['subscriptions'] as List?) ?? const [];
       await _loadResults();
       history = await api!.history();
+      if (history.isNotEmpty && history.first is Map) {
+        _lastEventKey = _eventKey(history.first as Map);
+      }
       daemon = await api!.daemonStatus();
       await refreshStatus(notifyError: false);
       ready = true;
@@ -126,6 +130,16 @@ class AppState extends ChangeNotifier {
           final next = await api!.history();
           if (next.length != history.length) {
             history = next;
+            if (next.isNotEmpty && next.first is Map) {
+              final latest = next.first as Map;
+              final key = _eventKey(latest);
+              if (_lastEventKey != null &&
+                  key != _lastEventKey &&
+                  settings['notify_on_switch'] != false) {
+                _notifyEvent(latest);
+              }
+              _lastEventKey = key;
+            }
             notifyListeners();
           }
         } catch (_) {}
@@ -618,6 +632,78 @@ class AppState extends ChangeNotifier {
     } catch (e) {
       _toast(e.toString(), isError: true);
     }
+  }
+
+  String _eventKey(Map event) =>
+      '${event['time']}|${event['kind']}|${event['to']}';
+
+  void _notifyEvent(Map event) {
+    final kind = event['kind']?.toString() ?? '';
+    if (!['switch', 'rollback', 'error'].contains(kind)) return;
+    final title = kind == 'switch'
+        ? 'NodePulse 已切换节点'
+        : kind == 'rollback'
+        ? 'NodePulse 已回滚'
+        : 'NodePulse 自动优化失败';
+    final from = _cleanEventName(event['from']?.toString());
+    final to = _cleanEventName(event['to']?.toString());
+    final body = kind == 'switch' && to.isNotEmpty
+        ? '$from → $to'
+        : (event['reason']?.toString().isNotEmpty == true
+              ? event['reason'].toString()
+              : from);
+    _sendNotification(title, body);
+  }
+
+  String _cleanEventName(String? value) => (value ?? '')
+      .replaceAll(RegExp('[\u{1F1E6}-\u{1F1FF}]', unicode: true), '')
+      .trim();
+
+  Future<void> _sendNotification(String title, String body) async {
+    try {
+      if (Platform.isLinux) {
+        await Process.run('gdbus', [
+          'call',
+          '--session',
+          '--dest',
+          'org.freedesktop.Notifications',
+          '--object-path',
+          '/org/freedesktop/Notifications',
+          '--method',
+          'org.freedesktop.Notifications.Notify',
+          'NodePulse',
+          '0',
+          '',
+          title,
+          body,
+          '[]',
+          '{}',
+          '-1',
+        ]);
+      } else if (Platform.isMacOS) {
+        final safeTitle = title.replaceAll('"', '\\"');
+        final safeBody = body.replaceAll('"', '\\"');
+        await Process.run('osascript', [
+          '-e',
+          'display notification "$safeBody" with title "$safeTitle"',
+        ]);
+      } else if (Platform.isWindows) {
+        final safeTitle = title.replaceAll("'", "''");
+        final safeBody = body.replaceAll("'", "''");
+        final script =
+            r'''
+[Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, ContentType=WindowsRuntime] | Out-Null
+$t = [Windows.UI.Notifications.ToastNotificationManager]::GetTemplateContent([Windows.UI.Notifications.ToastTemplateType]::ToastText02)
+$n = $t.GetElementsByTagName("text")
+$n.Item(0).AppendChild($t.CreateTextNode('__TITLE__')) | Out-Null
+$n.Item(1).AppendChild($t.CreateTextNode('__BODY__')) | Out-Null
+[Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier("NodePulse").Show([Windows.UI.Notifications.ToastNotification]::new($t))
+'''
+                .replaceAll('__TITLE__', safeTitle)
+                .replaceAll('__BODY__', safeBody);
+        await Process.run('powershell', ['-NoProfile', '-Command', script]);
+      }
+    } catch (_) {}
   }
 
   void _toast(String message, {bool isError = false}) {

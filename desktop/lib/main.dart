@@ -16,6 +16,9 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await windowManager.ensureInitialized();
   await windowManager.setPreventClose(true);
+  if (!await _acquireSingleInstance()) {
+    exit(0);
+  }
 
   const windowOptions = WindowOptions(
     size: Size(1180, 780),
@@ -47,6 +50,29 @@ Future<void> main() async {
   state.addListener(applyTitleBar);
   applyTitleBar();
   await state.init();
+}
+
+Future<bool> _acquireSingleInstance() async {
+  const port = 47654;
+  try {
+    final server = await ServerSocket.bind(InternetAddress.loopbackIPv4, port);
+    server.listen((socket) {
+      socket.destroy();
+      windowManager.show();
+      windowManager.focus();
+    });
+    return true;
+  } on SocketException {
+    try {
+      final socket = await Socket.connect(
+        InternetAddress.loopbackIPv4,
+        port,
+        timeout: const Duration(milliseconds: 500),
+      );
+      socket.destroy();
+    } catch (_) {}
+    return false;
+  }
 }
 
 class _WindowController with WindowListener {
