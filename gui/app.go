@@ -599,6 +599,42 @@ func (a *App) Status(api, secret string) ([]GroupView, error) {
 	return out, nil
 }
 
+// TestAllSubscriptions merges locally discoverable profiles and tests every
+// node with one sidecar. It only recommends; it never switches an inactive
+// client profile.
+func (a *App) TestAllSubscriptions(api, secret, mihomoPath, testURL string, rounds, concurrency, timeoutMs int) (res *optimize.Result, err error) {
+	ctx, finish, err := a.beginTest("all")
+	if err != nil {
+		return nil, err
+	}
+	defer func() { finish(err) }()
+
+	res, err = optimize.Run(ctx, optimize.Request{
+		API:              api,
+		Secret:           secret,
+		MihomoPath:       mihomoPath,
+		URL:              testURL,
+		Rounds:           rounds,
+		Concurrency:      concurrency,
+		TimeoutMs:        timeoutMs,
+		AllSubscriptions: true,
+		OnProgress: func(done, total int, result score.Result) {
+			a.progress.Update(done, total, result.Name)
+		},
+	})
+	if err != nil {
+		return nil, err
+	}
+	a.mu.Lock()
+	a.lastResults = res.Results
+	a.lastConfigPath = ""
+	a.mu.Unlock()
+	if len(res.Results) > 0 {
+		a.persistResults("", testURL, rounds)
+	}
+	return res, nil
+}
+
 // Test runs a stability test via controller or sidecar.
 func (a *App) Test(api, secret, configPath, mihomoPath, testURL string, rounds, concurrency, timeoutMs int) (ranked []score.Result, err error) {
 	ctx, finish, err := a.beginTest("test")

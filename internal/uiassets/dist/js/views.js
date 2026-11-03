@@ -35,13 +35,13 @@ function Field({ label, id, value, onChange, onBlur, placeholder, type = "text",
 export function Dashboard({
   settings, status, results, best, selected, busy, busyKind, elapsed, progress, onCancel, lastTestAt,
   controllers, subscriptions, daemon, daemonInterval, latestEvent, groups, subURL,
-  onOneClick, onTest, onSelectNode, onRefresh, onController, onSettings,
+  onOneClick, onTest, onTestAll, onSelectNode, onRefresh, onController, onSettings,
   onRounds, onDaemon, onInterval, onSubURL, onImport,
 }) {
   const connected = !!status.connected;
   const current = status.current || "—";
   const meta = status.groupName ? `${status.groupName} · ${status.members} 个成员` : "连接客户端后显示";
-  const heroLoading = busy && (busyKind === "oneclick" || busyKind === "test");
+  const heroLoading = busy && ["oneclick", "test", "all"].includes(busyKind);
   const testing = heroLoading;
   const canImport = !!subURL.trim();
   const intervalOptions = [
@@ -72,6 +72,9 @@ export function Dashboard({
           <//>
           <${Button} variant="tonal" icon="refresh" loading=${busy && busyKind === "test"} onClick=${onTest}>
             ${busy && busyKind === "test" ? "测速中…" : "只测速"}
+          <//>
+          <${Button} variant="tonal" icon="list" loading=${busy && busyKind === "all"} onClick=${onTestAll}>
+            ${busy && busyKind === "all" ? "联合测速中…" : "全部订阅"}
           <//>
           <div class="strength"><span>强度</span>
             <${M3Select}

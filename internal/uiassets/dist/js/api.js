@@ -94,6 +94,21 @@ export const api = {
     return post("/api/settings", settingsPayload(s));
   },
 
+  async testAllSubscriptions(s) {
+    if (wails()) {
+      return wails().TestAllSubscriptions(s.api, s.secret, s.mihomoPath, s.url, s.rounds, s.concurrency, s.timeoutMs);
+    }
+    return post("/api/test/all", {
+      api: s.api,
+      secret: s.secret,
+      mihomo_path: s.mihomoPath,
+      url: s.url,
+      rounds: s.rounds,
+      concurrency: s.concurrency,
+      timeout_ms: s.timeoutMs,
+    });
+  },
+
   async oneClick(s, doSwitch) {
     if (wails()) {
       return wails().OneClick(s.api, s.secret, s.group, s.configPath, s.mihomoPath, s.url, s.rounds, s.concurrency, s.timeoutMs, !!doSwitch);

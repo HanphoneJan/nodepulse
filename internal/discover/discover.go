@@ -9,7 +9,10 @@ import (
 	"os/exec"
 	"path/filepath"
 	"sort"
+	"strings"
 	"time"
+
+	"github.com/HanphoneJan/nodepulse/internal/config"
 )
 
 // Controller is a detected Clash-compatible control endpoint.
@@ -80,66 +83,109 @@ func MihomoBinary() (string, error) {
 	return "", fmt.Errorf("未找到 mihomo（可设置 NODEPULSE_MIHOMO，或放到 PATH）")
 }
 
-// SubscriptionFiles returns likely Clash/mihomo subscription files on this
-// machine, newest first.
-func SubscriptionFiles() []string {
+// Profile is one locally discoverable subscription/profile file.
+type Profile struct {
+	Path   string `json:"path"`
+	Label  string `json:"label"`
+	Client string `json:"client"`
+	Active bool   `json:"active"`
+}
+
+// Profiles returns local profiles for supported clients, newest first. The
+// controller only exposes the active profile, so inactive subscriptions must
+// be read from these files.
+func Profiles() []Profile {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return nil
 	}
-	var out []string
-	add := func(p string) {
-		if p == "" {
+	var out []Profile
+	seen := map[string]bool{}
+	add := func(path, client, label string, active bool) {
+		if path == "" || seen[path] {
 			return
 		}
-		if info, err := os.Stat(p); err == nil && !info.IsDir() {
-			out = append(out, p)
+		if info, err := os.Stat(path); err != nil || info.IsDir() {
+			return
 		}
+		seen[path] = true
+		out = append(out, Profile{
+			Path:   path,
+			Label:  profileLabel(path, label),
+			Client: client,
+			Active: active,
+		})
 	}
-	add(filepath.Join(home, ".local", "share", "com.follow.clash", "config.yaml"))
-	add(filepath.Join(home, ".config", "clash", "config.yaml"))
-	add(filepath.Join(home, ".config", "mihomo", "config.yaml"))
 
-	profileDirs := []string{
+	add(filepath.Join(home, ".local", "share", "com.follow.clash", "config.yaml"), "FlClash", "FlClash 当前订阅", true)
+	flclashDirs := []string{
+		filepath.Join(home, ".local", "share", "com.follow.clash", "profiles"),
+		filepath.Join(home, ".config", "com.follow.clash", "profiles"),
+	}
+	for _, dir := range flclashDirs {
+		addProfileDir(dir, "FlClash", add)
+	}
+
+	add(filepath.Join(home, ".config", "clash", "config.yaml"), "Clash", "Clash 当前配置", true)
+	add(filepath.Join(home, ".config", "mihomo", "config.yaml"), "Mihomo", "Mihomo 当前配置", true)
+
+	vergeDirs := []string{
 		filepath.Join(home, ".local", "share", "io.github.clash-verge-rev.clash-verge-rev", "profiles"),
 		filepath.Join(home, ".config", "clash-verge", "profiles"),
 		filepath.Join(home, ".config", "clash-verge-rev", "profiles"),
 	}
-	for _, dir := range profileDirs {
-		entries, err := os.ReadDir(dir)
-		if err != nil {
-			continue
-		}
-		for _, e := range entries {
-			if e.IsDir() {
-				continue
-			}
-			ext := filepath.Ext(e.Name())
-			if ext == ".yaml" || ext == ".yml" {
-				add(filepath.Join(dir, e.Name()))
-			}
-		}
+	for _, dir := range vergeDirs {
+		addProfileDir(dir, "Clash Verge", add)
 	}
 
-	// De-duplicate and sort newest first.
-	seen := map[string]bool{}
-	var unique []string
-	for _, p := range out {
-		if !seen[p] {
-			seen[p] = true
-			unique = append(unique, p)
-		}
-	}
-	sort.SliceStable(unique, func(i, j int) bool {
-		si, _ := os.Stat(unique[i])
-		sj, _ := os.Stat(unique[j])
+	sort.SliceStable(out, func(i, j int) bool {
+		si, _ := os.Stat(out[i].Path)
+		sj, _ := os.Stat(out[j].Path)
 		if si == nil || sj == nil {
-			return unique[i] < unique[j]
+			return out[i].Path < out[j].Path
 		}
 		return si.ModTime().After(sj.ModTime())
 	})
-	if len(unique) > 20 {
-		unique = unique[:20]
+	if len(out) > 20 {
+		out = out[:20]
 	}
-	return unique
+	return out
+}
+
+func addProfileDir(dir, client string, add func(path, client, label string, active bool)) {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return
+	}
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		ext := strings.ToLower(filepath.Ext(entry.Name()))
+		if ext != ".yaml" && ext != ".yml" {
+			continue
+		}
+		if strings.EqualFold(entry.Name(), "profiles.yaml") || strings.EqualFold(entry.Name(), "profiles.yml") {
+			continue
+		}
+		add(filepath.Join(dir, entry.Name()), client, strings.TrimSuffix(entry.Name(), ext), false)
+	}
+}
+
+func profileLabel(path, fallback string) string {
+	cfg, err := config.Load(path)
+	if err == nil && len(cfg.ProxyGroups) > 0 && strings.TrimSpace(cfg.ProxyGroups[0].Name) != "" {
+		return cfg.ProxyGroups[0].Name
+	}
+	return fallback
+}
+
+// SubscriptionFiles returns profile paths for backwards-compatible UI callers.
+func SubscriptionFiles() []string {
+	profiles := Profiles()
+	out := make([]string, 0, len(profiles))
+	for _, profile := range profiles {
+		out = append(out, profile.Path)
+	}
+	return out
 }

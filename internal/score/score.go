@@ -22,6 +22,8 @@ type Result struct {
 	Latencies []int `json:"latencies,omitempty"`
 	// LastError is the last transport/controller error seen for this node.
 	LastError string `json:"last_error,omitempty"`
+	// Source is a human-readable subscription/profile label for merged tests.
+	Source string `json:"source,omitempty"`
 }
 
 // SuccessRate returns success / total as a fraction.

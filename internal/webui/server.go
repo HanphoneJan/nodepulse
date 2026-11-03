@@ -17,6 +17,7 @@ import (
 	"github.com/HanphoneJan/nodepulse/internal/clash"
 	"github.com/HanphoneJan/nodepulse/internal/config"
 	"github.com/HanphoneJan/nodepulse/internal/lock"
+	"github.com/HanphoneJan/nodepulse/internal/optimize"
 	"github.com/HanphoneJan/nodepulse/internal/progress"
 	"github.com/HanphoneJan/nodepulse/internal/results"
 	"github.com/HanphoneJan/nodepulse/internal/score"
@@ -88,6 +89,7 @@ func New(opts Options) *Server {
 	s.mux.HandleFunc("/api/history", s.handleHistory)
 	s.mux.HandleFunc("/api/status", s.handleStatus)
 	s.mux.HandleFunc("/api/test", s.handleTest)
+	s.mux.HandleFunc("/api/test/all", s.handleTestAll)
 	s.mux.HandleFunc("/api/switch", s.handleSwitch)
 	s.mux.HandleFunc("/api/bootstrap", s.handleBootstrap)
 	s.mux.HandleFunc("/api/settings", s.handleSettings)
@@ -329,6 +331,80 @@ func (s *Server) handleTest(w http.ResponseWriter, r *http.Request) {
 	s.lastConfigPath = req.ConfigPath
 	s.mu.Unlock()
 	writeJSON(w, results)
+}
+
+func (s *Server) handleTestAll(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	var req struct {
+		API         string `json:"api"`
+		Secret      string `json:"secret"`
+		MihomoPath  string `json:"mihomo_path"`
+		URL         string `json:"url"`
+		Rounds      int    `json:"rounds"`
+		Concurrency int    `json:"concurrency"`
+		TimeoutMs   int    `json:"timeout_ms"`
+	}
+	if err := json.NewDecoder(io.LimitReader(r.Body, 1<<20)).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if req.API == "" {
+		req.API = s.opts.API
+		req.Secret = s.opts.Secret
+	}
+	if req.MihomoPath == "" {
+		req.MihomoPath = s.opts.MihomoPath
+	}
+	ctx, finish, err := s.beginTest(r.Context(), "all")
+	if err != nil {
+		writeError(w, http.StatusConflict, err.Error())
+		return
+	}
+	res, runErr := optimize.Run(ctx, optimize.Request{
+		API:              req.API,
+		Secret:           req.Secret,
+		MihomoPath:       req.MihomoPath,
+		URL:              req.URL,
+		Rounds:           req.Rounds,
+		Concurrency:      req.Concurrency,
+		TimeoutMs:        req.TimeoutMs,
+		AllSubscriptions: true,
+		OnProgress: func(done, total int, result score.Result) {
+			s.progress.Update(done, total, result.Name)
+		},
+	})
+	if runErr == nil && ctx.Err() != nil {
+		runErr = ctx.Err()
+	}
+	finish(runErr)
+	if errors.Is(runErr, context.Canceled) {
+		writeJSON(w, map[string]bool{"canceled": true})
+		return
+	}
+	if runErr != nil {
+		writeError(w, http.StatusBadGateway, runErr.Error())
+		return
+	}
+	s.mu.Lock()
+	s.lastResults = res.Results
+	s.lastConfigPath = ""
+	s.mu.Unlock()
+	if len(res.Results) > 0 {
+		url := req.URL
+		if url == "" {
+			url = "https://www.gstatic.com/generate_204"
+		}
+		_ = results.Save(s.opts.ResultsPath, results.File{
+			GeneratedAt: time.Now().Format(time.RFC3339),
+			URL:         url,
+			Rounds:      req.Rounds,
+			Results:     res.Results,
+		})
+	}
+	writeJSON(w, res)
 }
 
 func (s *Server) runTest(ctx context.Context, req testRequest) ([]score.Result, error) {

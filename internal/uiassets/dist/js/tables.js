@@ -59,6 +59,7 @@ export function NodeTable({ rows, best, selected, onSelect, label }) {
         <div class="col-rank node-rank">${index + 1}</div>
         <div class="col-name node-name-wrap">
           <span class="node-name" title=${row.name}>${row.name}</span>
+          ${row.source ? html`<span class="node-source" title=${row.source}>${row.source}</span>` : null}
           ${isBest ? html`<${Icon} name="checkCircle" className="best-icon" /><span class="sr-only">推荐</span>` : null}
         </div>
         <div class="col-type node-type">${row.type}</div>

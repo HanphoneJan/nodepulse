@@ -203,3 +203,34 @@ func TestRunRollsBackWhenVerificationFails(t *testing.T) {
 		t.Fatalf("switches = %v", switches)
 	}
 }
+
+func TestRunAllSubscriptionsFallsBackToController(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	t.Setenv("XDG_DATA_HOME", t.TempDir())
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.URL.Path == "/proxies":
+			fmt.Fprint(w, `{"proxies":{"Proxy":{"type":"Selector","now":"A","all":["A","B"]},"A":{"type":"ss"},"B":{"type":"ss"}}}`)
+		case strings.HasSuffix(r.URL.Path, "/delay"):
+			fmt.Fprint(w, `{"delay":120}`)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer srv.Close()
+
+	res, err := Run(context.Background(), Request{
+		API: srv.URL, AllSubscriptions: true, Rounds: 1, Concurrency: 2,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Scope != "all" || res.Source != "controller" || len(res.Results) != 2 {
+		t.Fatalf("result = %+v", res)
+	}
+	if len(res.Sources) != 1 || res.Sources[0].Nodes != 2 {
+		t.Fatalf("sources = %+v", res.Sources)
+	}
+}

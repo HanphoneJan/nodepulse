@@ -686,7 +686,16 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.node-name-wrap { display: flex; align-items: center; gap: var(--space-1); min-width: 0; }
+.node-name-wrap { display: flex; align-items: center; flex-wrap: wrap; gap: 0 var(--space-1); min-width: 0; }
+.node-source {
+  flex-basis: 100%;
+  min-width: 0;
+  color: var(--color-fg-muted);
+  font-size: var(--text-xs);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .best-icon { width: var(--icon-xs); height: var(--icon-xs); color: var(--color-success); flex: 0 0 auto; }
 .node-type {
   min-width: 0;

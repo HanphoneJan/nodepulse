@@ -161,6 +161,7 @@ function App() {
   const [busyKind, setBusyKind] = useState("");
   const [progress, setProgress] = useState(null);
   const [exportImpact, setExportImpact] = useState(null);
+  const [resultScope, setResultScope] = useState("group");
   const [exportMinimal, setExportMinimal] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   const [lastTestAt, setLastTestAt] = useState(readLastTest);
@@ -445,7 +446,7 @@ function App() {
   }, []);
 
   useEffect(() => {
-    if (!busy || !["oneclick", "test"].includes(busyKind)) {
+    if (!busy || !["oneclick", "test", "all"].includes(busyKind)) {
       setProgress(null);
       return undefined;
     }
@@ -522,6 +523,7 @@ function App() {
       const result = await api.oneClick(current, true);
       setResults(result.results || []);
       setBest(result.best || null);
+      setResultScope("group");
       if (result.best) setSelected(result.best.name);
       markTest();
       const ok = await refreshStatus(current);
@@ -555,11 +557,41 @@ function App() {
       setResults(list);
       const top = list[0] || null;
       setBest(top);
+      setResultScope("group");
       setSelected(top ? top.name : null);
       markTest();
       const ok = await refreshStatus(current);
       if (goNodes) setView("nodes");
       if (ok) notify(`测速完成：${list.length} 个节点`, "info");
+    } catch (error) {
+      if (canceledRef.current) notify("已取消测速", "info");
+      else notify(errText(error), "error");
+      api.clearResults().catch(() => {});
+    } finally {
+      finishBusy();
+    }
+  }
+
+  async function runAllSubscriptions() {
+    if (busy) return;
+    if (daemon) {
+      notify("后台自动优化运行中，请先暂停再联合测速", "error");
+      return;
+    }
+    canceledRef.current = false;
+    clearRunState();
+    startBusy("all");
+    try {
+      const result = await api.testAllSubscriptions(settingsRef.current);
+      const list = result?.results || [];
+      setResults(list);
+      setBest(result?.best || null);
+      setSelected(null);
+      setResultScope("all");
+      markTest();
+      await refreshStatus(settingsRef.current);
+      setView("nodes");
+      notify(result?.message || `联合测速完成：${list.length} 个节点`, "info");
     } catch (error) {
       if (canceledRef.current) notify("已取消测速", "info");
       else notify(errText(error), "error");
@@ -671,6 +703,10 @@ function App() {
   }
 
   async function switchSelected() {
+    if (resultScope === "all" || results.some((row) => row.source)) {
+      notify("联合测速只给推荐；请在客户端切换到对应订阅后再操作", "error");
+      return;
+    }
     if (!selected) {
       notify("请先在结果里选择一个节点", "error");
       return;
@@ -792,7 +828,7 @@ function App() {
     ["cycle", "switch", "rollback", "error"].includes(event.kind)
     && (!event.group || !status.groupName || event.group === status.groupName)
   ) || null;
-  const canSwitch = !!selected;
+  const canSwitch = !!selected && resultScope !== "all" && !results.some((row) => row.source);
   const canExport = !!settings.configPath && results.length > 0;
 
   return html`<div class="app">
@@ -853,6 +889,7 @@ function App() {
               subURL=${subURL}
               onOneClick=${runOneClick}
               onTest=${() => runTest(false)}
+              onTestAll=${runAllSubscriptions}
               onSelectNode=${setSelected}
               onRefresh=${() => refreshStatus()}
               onController=${(url) => { updateSettings({ api: url }); refreshStatus({ ...settingsRef.current, api: url }); }}
