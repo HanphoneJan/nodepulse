@@ -122,6 +122,47 @@ Clash REST API 客户端：
 - `nodepulse history` 读取最近 N 条；
 - 接口独立，后续可替换为 SQLite。
 
+### `internal/export`
+
+配置导出：
+
+- `Stable` 生成最终配置；
+- `Preview` 在写入前返回影响面：保留/排除节点、受影响分组、`DIRECT` 回退、规则/DNS/TUN/rule-providers 是否保留；
+- GUI / Web 先展示预览，再确认写入。
+
+### `internal/results`
+
+GUI 与 Web 共用的结果文件：
+
+- schema 与 `results.json` 一致；
+- 原子写入；
+- 结果绑定配置路径，切换环境时不展示旧结果。
+
+### `internal/backup`
+
+覆盖前快照：
+
+- 设置文件和导出配置写入前自动备份；
+- 保留最近 N 份；
+- 目录固定在 `~/.local/share/nodepulse/backups/`，权限 0600。
+
+### `internal/autostart`
+
+桌面版开机自启：
+
+- Linux 写 XDG autostart；
+- macOS 写 LaunchAgent；
+- Windows 写 HKCU Run；
+- 默认关闭，开启后带 `--background` 参数启动。
+
+### `gui/tray.go` 与 `gui/notify_*.go`
+
+桌面驻留：
+
+- 托盘提供打开面板、开机启动、退出；
+- 关闭窗口隐藏到托盘，daemon 继续运行；
+- 切换/回滚/失败时发送系统通知，窗口在前台时不重复打扰。
+
 ## 数据流
 
 1. 读取订阅 YAML；

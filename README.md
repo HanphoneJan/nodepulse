@@ -26,6 +26,10 @@ NodePulse 解决的是“**哪个节点真的稳**”，而不是“哪个节点
 - 稳定性评分与排序；
 - 自动选择：安全组检测、滞后 + 连续确认、切换后验证、失败回滚、可解释原因；
 - 环境（客户端 + 订阅 + Selector 组 + 测速参数）快速切换；
+- 桌面版驻留托盘、可选开机自启，切换/回滚系统通知；
+- 导出前展示规则影响预览，覆盖前自动备份；
+- 设置自动备份与手动导出/恢复，便于换机迁移；
+- 测速结果跨重启保留；
 - 导出默认保留原规则、分组、DNS/TUN，只过滤失效节点；也支持最小配置与 v2rayN base64 订阅；
 - 守护进程：定时测试 + 滞后阈值 + 自动切换 + 失败回滚；
 - Wails 桌面 GUI（Material Design 3，可配置 seed 色、明暗主题、导航栏、一键优化）；
@@ -234,6 +238,7 @@ score = 0.5 * success + 0.3 * latencyScore + 0.2 * stabilityScore
 - [路线图](docs/roadmap.md)
 - [客户端适配矩阵](docs/adapter-matrix.md)
 - [开发与发布](docs/development.md)
+- [跨平台打包](docs/packaging.md)
 
 ## 路线图
 
