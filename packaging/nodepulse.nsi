@@ -25,6 +25,11 @@ Unicode true
 
 Section "NodePulse" SEC_MAIN
   SetShellVarContext current
+  ; Stop a running instance so the installer can replace its files.
+  nsExec::Exec 'taskkill /IM nodepulse.exe /F /T'
+  Pop $0
+  nsExec::Exec 'taskkill /IM nodepulse-core.exe /F /T'
+  Pop $0
   SetOutPath "$INSTDIR"
   File /r "${SOURCE}\*"
   CreateDirectory "$SMPROGRAMS\NodePulse"
@@ -40,6 +45,10 @@ SectionEnd
 
 Section "Uninstall"
   SetShellVarContext current
+  nsExec::Exec 'taskkill /IM nodepulse.exe /F /T'
+  Pop $0
+  nsExec::Exec 'taskkill /IM nodepulse-core.exe /F /T'
+  Pop $0
   Delete "$DESKTOP\NodePulse.lnk"
   Delete "$SMPROGRAMS\NodePulse\NodePulse.lnk"
   Delete "$SMPROGRAMS\NodePulse\卸载 NodePulse.lnk"

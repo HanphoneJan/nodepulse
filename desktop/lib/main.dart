@@ -7,6 +7,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:tray_manager/legacy.dart';
+import 'package:tray_manager/tray_manager.dart' as tray_native;
 import 'package:window_manager/legacy.dart';
 
 import 'app.dart';
@@ -39,9 +40,9 @@ Future<void> main() async {
       await windowManager.focus();
     });
 
-    final controller = _WindowController(state);
+    final trayReady = await _TrayController(state).install();
+    final controller = _WindowController(state, trayReady);
     windowManager.addListener(controller);
-    await _TrayController(state).install();
     void applyTitleBar() {
       final bright = switch (state.themeMode) {
         ThemeMode.light => Brightness.light,
@@ -81,14 +82,15 @@ Future<bool> _acquireSingleInstance() async {
 }
 
 class _WindowController with WindowListener {
-  _WindowController(this.state);
+  _WindowController(this.state, this.trayReady);
 
   final AppState state;
+  final bool trayReady;
 
   @override
   void onWindowClose() async {
     final closeToTray = state.settings['close_to_tray'] != false;
-    if (closeToTray) {
+    if (closeToTray && trayReady) {
       await windowManager.hide();
       return;
     }
@@ -102,8 +104,10 @@ class _TrayController with TrayListener {
 
   final AppState state;
 
-  Future<void> install() async {
-    if (!(Platform.isWindows || Platform.isLinux || Platform.isMacOS)) return;
+  Future<bool> install() async {
+    if (!(Platform.isWindows || Platform.isLinux || Platform.isMacOS)) {
+      return false;
+    }
     try {
       final iconPath = await _trayIconPath();
       await windowManager.setIcon(iconPath).catchError((_) {});
@@ -118,9 +122,21 @@ class _TrayController with TrayListener {
           ],
         ),
       );
+      // The legacy bridge only enables this on Linux. Windows and macOS keep
+      // the native default (none), so a right click showed no menu there.
+      trayManager.trayIcon?.setContextMenuTrigger(
+        tray_native.ContextMenuTrigger.rightClicked,
+      );
       trayManager.addListener(this);
-    } catch (_) {
-      // Tray support is optional; the app still works without it.
+      return true;
+    } catch (error) {
+      // Without a tray icon there is no way back once the window is hidden,
+      // so the window controller quits instead of hiding in this case.
+      debugPrint('NodePulse: tray icon unavailable: $error');
+      try {
+        await trayManager.destroy();
+      } catch (_) {}
+      return false;
     }
   }
 
@@ -147,9 +163,21 @@ class _TrayController with TrayListener {
       await windowManager.show();
       await windowManager.focus();
     } else if (menuItem.key == 'quit') {
+      await _quit();
+    }
+  }
+
+  Future<void> _quit() async {
+    try {
       await state.disposeSidecar();
-      await trayManager.destroy();
-      await windowManager.destroy();
+    } finally {
+      try {
+        await trayManager.destroy();
+        await windowManager.destroy();
+      } catch (error) {
+        debugPrint('NodePulse: quit failed: $error');
+        exit(0);
+      }
     }
   }
 }
