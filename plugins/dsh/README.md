@@ -4,6 +4,7 @@ NodePulse 的 DeepSeek Harness（dsh）插件：把节点稳定性测试、排�
 
 ## 前置条件
 
+- Node.js >= 22；
 - 已安装 `nodepulse`（`make build` 后把 `bin/nodepulse` 放到 `PATH`，或设置插件配置 `binary`）；
 - FlClash / Clash Verge 等开启了 Clash 控制口，或提供 `mihomo_path` 走 sidecar。
 

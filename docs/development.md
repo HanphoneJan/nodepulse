@@ -4,6 +4,7 @@
 
 - CLI/核心：Go 1.24+
 - 桌面端：Flutter stable（Dart 3.10+）、GTK3、`clang`、`cmake`、`ninja`、`pkg-config`
+- dsh 插件：Node.js >= 22
 - `mihomo`：sidecar 测速/下载探测
 - `nfpm`：`.deb`；`appimagetool`：AppImage
 - Windows/macOS 安装包必须在对应平台或 CI runner 上构建
