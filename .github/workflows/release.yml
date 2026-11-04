@@ -16,11 +16,11 @@ jobs:
   release:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v7
         with:
           go-version: "1.24"
 
@@ -57,7 +57,7 @@ jobs:
           VERSION="${VERSION#v}" make appimage || true
 
       - name: GoReleaser (CLI archives)
-        uses: goreleaser/goreleaser-action@v6
+        uses: goreleaser/goreleaser-action@v7
         with:
           distribution: goreleaser
           version: latest
@@ -66,7 +66,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Upload .deb and AppImage
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           files: |
             dist/*.deb
