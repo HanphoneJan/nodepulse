@@ -73,6 +73,7 @@ The desktop app uses the following packages through `desktop/pubspec.yaml`:
 - `path` (BSD-3-Clause)
 - `path_provider` (BSD-3-Clause)
 - `shared_preferences` (BSD-3-Clause)
+- `url_launcher` (BSD-3-Clause)
 - `cupertino_icons` (MIT)
 
 Their full license texts are available from pub.dev and in the Flutter

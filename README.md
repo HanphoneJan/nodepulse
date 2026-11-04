@@ -32,16 +32,16 @@ NodePulse **不代理流量**：它测试和管理已有的 Clash/mihomo 控制�
 - `DIRECT` 基线区分本地网络/测试 URL 问题
 - 可解释原因码、置信度、候选数、前后评分、耗时、回滚结果
 
-**桌面端**
+**客户端**
 
-- Flutter 桌面界面，配色与控件直接复用 FlClash 的设计系统（GPL-3.0）
+- Flutter 桌面/Android 界面，配色与控件直接复用 FlClash 的设计系统（GPL-3.0）
 - 环境 profiles：客户端 + 订阅 + Selector 组 + 测速参数
 - 托盘驻留、可选开机自启
 - 启动后自动检查 GitHub Release，也可在设置里手动检查并打开下载页
 - 测速结果跨重启保留；设置自动备份，可导出/恢复
 - 多订阅联合测速：读取本地 profile，跨机场排名并标注来源
 - 下载模式：目标文件小范围吞吐探测、不可达淘汰、直连对比、只在下载前切换一次
-- CLI、MCP server 与桌面端共用核心
+- CLI、MCP server 与桌面/Android 客户端共用核心
 
 ## 平台
 
@@ -50,9 +50,10 @@ NodePulse **不代理流量**：它测试和管理已有的 Clash/mihomo 控制�
 | Linux | `.deb`、AppImage | 本地构建，推荐桌面端 |
 | Windows | `.exe`（NSIS 安装包）、zip（便携版） | CI 构建；代码签名未配置 |
 | macOS | `.dmg`、zip（universal `.app`） | CI 构建；签名/公证未配置 |
-| Android / iOS | — | 不是桌面打包目标；需要独立移动客户端 |
+| Android | `.apk`（arm64） | CI/本地构建；调试签名，未上架 |
+| iOS | — | 暂不提供 |
 
-桌面端通过本机 `127.0.0.1` 上的临时 token API 与 Go 后端通信；API 只监听本机，不要暴露到局域网或公网。
+客户端通过本机 `127.0.0.1` 上的临时 token API 与 Go 后端通信；API 只监听本机，不要暴露到局域网或公网。Android 端复用同一 Flutter 界面和 Go sidecar，本身不内置 TUN/VPN，需要连接一个开放的 Clash/mihomo 控制口。
 
 ## 安装
 
@@ -60,10 +61,13 @@ NodePulse **不代理流量**：它测试和管理已有的 Clash/mihomo 控制�
 
 ```bash
 export PATH="$PATH:$(go env GOPATH)/bin"
-VERSION=0.3.1 make build desktop deb
+VERSION=0.3.2 make build desktop deb
+make android
 ```
 
-产物在 `dist/`。Linux 桌面端需要 Flutter 和 GTK3；Windows/macOS 安装包由对应平台的 CI 构建。
+产物在 `dist/`。Linux 桌面端需要 Flutter 和 GTK3；Windows/macOS/Android 由对应平台的 CI 构建。Android 需要 Flutter、Go 和 Android SDK，产物为 `NodePulse-android-arm64-<version>.apk`。
+
+Android 安装包为 arm64、debug 签名；安装后需要允许未知来源。它不内置 VPN/TUN，测速和切换仍通过一个开放的 Clash/mihomo 控制口完成。
 
 ## 快速开始
 
@@ -123,7 +127,7 @@ score          = 0.5*successRate + 0.3*latencyScore + 0.2*stabilityScore
 | Clash Verge Rev | 支持 | 支持（需开启外部控制） | Clash REST |
 | Mihomo Party | 支持 | 支持 | Clash REST |
 | sing-box GUI | 支持 | 支持 | `experimental.clash_api` |
-| v2rayA | 支持 | CLI 支持 | v2rayA REST（GUI/Web 未接入） |
+| v2rayA | 支持 | CLI 支持 | v2rayA REST（桌面端未接入） |
 | v2rayN | 支持（导出） | 不支持实时切换 | 导出 Clash / base64 |
 | 任意订阅 | 支持 | — | 内置 mihomo sidecar |
 

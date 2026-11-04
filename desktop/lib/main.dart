@@ -14,10 +14,13 @@ import 'state/app_state.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await windowManager.ensureInitialized();
-  await windowManager.setPreventClose(true);
-  if (!await _acquireSingleInstance()) {
-    exit(0);
+  final isDesktop = Platform.isLinux || Platform.isMacOS || Platform.isWindows;
+  if (isDesktop) {
+    await windowManager.ensureInitialized();
+    await windowManager.setPreventClose(true);
+    if (!await _acquireSingleInstance()) {
+      exit(0);
+    }
   }
 
   const windowOptions = WindowOptions(
@@ -30,25 +33,27 @@ Future<void> main() async {
 
   final state = AppState();
   runApp(NodePulseApp(state: state));
-  await windowManager.waitUntilReadyToShow(windowOptions, () async {
-    await windowManager.show();
-    await windowManager.focus();
-  });
+  if (isDesktop) {
+    await windowManager.waitUntilReadyToShow(windowOptions, () async {
+      await windowManager.show();
+      await windowManager.focus();
+    });
 
-  final controller = _WindowController(state);
-  windowManager.addListener(controller);
-  await _TrayController(state).install();
-  void applyTitleBar() {
-    final bright = switch (state.themeMode) {
-      ThemeMode.light => Brightness.light,
-      ThemeMode.dark => Brightness.dark,
-      _ => WidgetsBinding.instance.platformDispatcher.platformBrightness,
-    };
-    windowManager.setBrightness(bright).catchError((_) {});
+    final controller = _WindowController(state);
+    windowManager.addListener(controller);
+    await _TrayController(state).install();
+    void applyTitleBar() {
+      final bright = switch (state.themeMode) {
+        ThemeMode.light => Brightness.light,
+        ThemeMode.dark => Brightness.dark,
+        _ => WidgetsBinding.instance.platformDispatcher.platformBrightness,
+      };
+      windowManager.setBrightness(bright).catchError((_) {});
+    }
+
+    state.addListener(applyTitleBar);
+    applyTitleBar();
   }
-
-  state.addListener(applyTitleBar);
-  applyTitleBar();
   await state.init();
 }
 

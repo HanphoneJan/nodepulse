@@ -21,12 +21,12 @@ Include:
 
 ## Scope
 
-NodePulse is a local desktop tool. The web UI binds to `127.0.0.1` by default and has no remote authentication. Do not expose it to a LAN or the public internet without adding authentication and TLS.
+NodePulse is a local desktop/mobile tool. Its local token API binds to `127.0.0.1` and has no remote authentication. Do not expose it to a LAN or the public internet without adding authentication and TLS. The Android build allows cleartext loopback traffic so the Flutter UI can reach its packaged Go sidecar.
 
 Relevant areas:
 
 - `settings.json`, controller secret, subscription URLs and signed download URLs;
-- local Web API (`/api/*`) and same-origin protection;
+- local token API (`/api/*`) and loopback-only binding;
 - import/download request handling (`internal/netfetch`);
 - result/history/probe cache files;
 - daemon lock and file permissions;

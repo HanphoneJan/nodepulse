@@ -115,12 +115,14 @@ class AppState extends ChangeNotifier {
     );
     try {
       try {
-        launchAtStartup.setup(
-          appName: 'NodePulse',
-          appPath: Platform.resolvedExecutable,
-          packageName: 'com.nodepulse.nodepulse',
-        );
-        autostart = await launchAtStartup.isEnabled();
+        if (!Platform.isAndroid && !Platform.isIOS) {
+          launchAtStartup.setup(
+            appName: 'NodePulse',
+            appPath: Platform.resolvedExecutable,
+            packageName: 'com.nodepulse.nodepulse',
+          );
+          autostart = await launchAtStartup.isEnabled();
+        }
       } catch (_) {}
       _sidecar = await Sidecar.start();
       api = ApiClient(baseUrl: _sidecar!.baseUrl, token: _sidecar!.token);
@@ -734,6 +736,7 @@ class AppState extends ChangeNotifier {
 
   Future<void> _sendNotification(String title, String body) async {
     try {
+      if (Platform.isAndroid || Platform.isIOS) return;
       if (Platform.isLinux) {
         await Process.run('gdbus', [
           'call',

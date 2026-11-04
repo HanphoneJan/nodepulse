@@ -11,7 +11,7 @@ import 'package:nodepulse/views/settings.dart';
 AppState _state() {
   final state = AppState();
   state.ready = true;
-  state.version = '0.3.1';
+  state.version = '0.3.2';
   state.status = {
     'connected': true,
     'current': '香港家宽专线',

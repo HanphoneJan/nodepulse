@@ -1,12 +1,12 @@
 BIN := nodepulse
-VERSION ?= 0.3.1
+VERSION ?= 0.3.2
 LDFLAGS := -s -w -X github.com/HanphoneJan/nodepulse/internal/version.Version=$(VERSION)
 FLUTTER ?= flutter
 DESKTOP := desktop
 FLUTTER_BUNDLE := $(DESKTOP)/build/linux/x64/release/bundle
 ADDR ?= 127.0.0.1:8099
 
-.PHONY: build desktop run test race vet fmt analyze deb appimage clean
+.PHONY: build desktop android run test race vet fmt analyze deb appimage clean
 
 build:
 	mkdir -p bin
@@ -42,6 +42,9 @@ deb: desktop
 
 appimage: desktop
 	VERSION=$(VERSION) bash packaging/build-appimage.sh
+
+android: build
+	VERSION=$(VERSION) bash packaging/build-android.sh
 
 clean:
 	rm -rf bin dist $(DESKTOP)/build

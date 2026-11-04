@@ -6,6 +6,8 @@ import 'package:http/http.dart' as http;
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
+import 'android_platform.dart';
+
 class Sidecar {
   Sidecar._(this.baseUrl, this.token, this._process);
 
@@ -16,20 +18,26 @@ class Sidecar {
   static Future<Sidecar> start() async {
     final port = await _freePort();
     final token = _randomToken();
-    final executable = _findExecutable();
+    final executable = await _findExecutable();
     final support = await getApplicationSupportDirectory();
     await support.create(recursive: true);
-    final process = await Process.start(executable, [
-      'api',
-      '--addr',
-      '127.0.0.1:$port',
-      '--token',
-      token,
-      '--results',
-      p.join(support.path, 'results.json'),
-      '--history',
-      p.join(support.path, 'history.jsonl'),
-    ], workingDirectory: Directory.current.path);
+    final process = await Process.start(
+      executable,
+      [
+        'api',
+        '--addr',
+        '127.0.0.1:$port',
+        '--token',
+        token,
+        '--results',
+        p.join(support.path, 'results.json'),
+        '--history',
+        p.join(support.path, 'history.jsonl'),
+      ],
+      workingDirectory: Platform.isAndroid
+          ? support.path
+          : Directory.current.path,
+    );
     process.stdout.drain<void>();
     process.stderr.drain<void>();
 
@@ -83,10 +91,18 @@ class Sidecar {
     return bytes.map((value) => value.toRadixString(16).padLeft(2, '0')).join();
   }
 
-  static String _findExecutable() {
+  static Future<String> _findExecutable() async {
     final env = Platform.environment['NODEPULSE_BIN'];
     if (env != null && env.isNotEmpty && File(env).existsSync()) {
       return env;
+    }
+    if (Platform.isAndroid) {
+      final dir = await androidNativeLibraryDir();
+      if (dir != null) {
+        final candidate = p.join(dir, 'libnodepulse_core.so');
+        if (File(candidate).existsSync()) return candidate;
+      }
+      throw StateError('Android 后端缺失：libnodepulse_core.so 未打包。');
     }
     final ext = Platform.isWindows ? '.exe' : '';
     final exeDir = p.dirname(Platform.resolvedExecutable);

@@ -32,7 +32,7 @@ cd desktop && flutter analyze && flutter test
 - Automatic selection must never manage `GLOBAL`, and must verify switches with rollback.
 - Download mode selects a path before download; it must not switch nodes mid-download.
 - Site-specific download-link scraping is out of scope.
-- Android/iOS are separate clients, not packaging targets for the Flutter desktop app.
+- Android is built from the same Flutter project (`make android`); iOS is not provided.
 
 ## License
 

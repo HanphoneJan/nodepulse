@@ -3,11 +3,11 @@
 ## 环境
 
 - CLI/核心：Go 1.24+
-- 桌面端：Flutter stable（Dart 3.10+）、GTK3、`clang`、`cmake`、`ninja`、`pkg-config`
+- 客户端：Flutter stable（Dart 3.10+）；Linux 桌面需要 GTK3、`clang`、`cmake`、`ninja`、`pkg-config`；Android 需要 Android SDK、Java 21
 - dsh 插件：Node.js >= 22
 - `mihomo`：sidecar 测速/下载探测
 - `nfpm`：`.deb`；`appimagetool`：AppImage
-- Windows/macOS 安装包必须在对应平台或 CI runner 上构建
+- Windows/macOS 安装包必须在对应平台或 CI runner 上构建；Android APK 在 Linux/CI 上构建
 
 Linux 构建依赖：
 
@@ -21,6 +21,7 @@ go install github.com/goreleaser/nfpm/v2/cmd/nfpm@latest
 ```bash
 make build      # bin/nodepulse
 make desktop    # Flutter Linux release + sidecar
+make android    # Flutter Android APK + arm64 Go sidecar
 make run        # Flutter 开发运行
 make test       # Go + Flutter 测试
 make analyze    # flutter analyze
@@ -49,9 +50,9 @@ Windows/macOS 构建见 [packaging.md](packaging.md)。
 ./bin/nodepulse daemon --api http://127.0.0.1:9090 --group "节点选择" --once
 ```
 
-## 桌面端
+## 客户端
 
-桌面端是独立 Flutter 工程 `desktop/`，FlClash 设计系统文件在 `desktop/lib/ui/flclash/`，GPL-3.0。
+Flutter 客户端是独立工程 `desktop/`，FlClash 设计系统文件在 `desktop/lib/ui/flclash/`，GPL-3.0；桌面和 Android 共用同一套页面。
 
 ```bash
 cd desktop
@@ -66,6 +67,14 @@ flutter run -d linux
 1. 在 `desktop/pubspec.yaml` 固定版本；
 2. 更新 `THIRD_PARTY_NOTICES.md`；
 3. 同步打包脚本和许可证。
+
+Android 构建：
+
+```bash
+make android   # 需要 Android SDK、Java 21
+```
+
+Go sidecar 以 `libnodepulse_core.so` 打包进 `jniLibs/arm64-v8a`，Flutter 通过 MainActivity 的 MethodChannel 取得 `nativeLibraryDir` 后启动它。Android 端不内置 TUN/VPN，仍需连接一个开放的 Clash/mihomo 控制口。
 
 ## 代码约定
 

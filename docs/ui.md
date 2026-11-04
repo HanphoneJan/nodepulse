@@ -1,6 +1,6 @@
 # UI 设计
 
-NodePulse 桌面端只使用 Flutter；界面层沿用 FlClash 的设计语言（GPL-3.0），Go 后端只提供本机 API。
+NodePulse 客户端（桌面/Android）只使用 Flutter；界面层沿用 FlClash 的设计语言（GPL-3.0），Go 后端只提供本机 API。Android 复用同一套页面，窄屏使用底部 Dock。
 
 这层设计语言不是“色板 + 字号”那么简单。真正决定相似度的是六层：**形状、表面、字体、密度、图标、动效**。只改颜色和字号，结果仍会是 Material 默认件。
 
@@ -137,9 +137,10 @@ desktop/
 - 顶部栏、卡片、浮层全部使用语义色，不硬编码颜色；
 - 深色模式使用 FlClash 的表面递进，不做纯黑（除非后续单独提供）。
 
-## 桌面能力
+## 平台能力
 
-- `window_manager`：窗口尺寸、关闭到托盘、原生标题栏；
+- Android：Go sidecar 以 `libnodepulse_core.so` 打包，APK 需要连接开放的 Clash/mihomo 控制口；
+- `window_manager`：窗口尺寸、关闭到托盘、原生标题栏（桌面）；
 - `tray_manager`：托盘菜单（显示/退出）；
 - `launch_at_startup`：开机自启；
 - 更新检查：启动后 24 小时内最多检查一次 GitHub Release，设置页可手动检查并打开下载页；

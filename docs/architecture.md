@@ -3,7 +3,7 @@
 ## 目标
 
 1. **客户端无关**：测速结果不依赖某个客户端，可给 FlClash、Clash Verge、Mihomo Party、sing-box 或 v2rayA 使用。
-2. **可复用**：CLI、Flutter 桌面端、MCP 共用同一套核心。
+2. **可复用**：CLI、Flutter 桌面/Android 客户端、MCP 共用同一套核心。
 3. **可解释**：自动选择记录原因、候选、评分和回滚结果。
 4. **安全边界清晰**：本地服务不暴露公网；订阅下载限制目标；daemon 单写者。
 
@@ -13,13 +13,13 @@
 - 不替代 Clash/mihomo 客户端。
 - 不分发节点或订阅。
 - 不做站点专用下载链接抓取。
-- 不提供 Android/iOS 客户端；移动端需要独立项目。
+- iOS 暂不提供；Android 使用同一个 Flutter 工程构建，但不内置 TUN/VPN，需要连接已有的 Clash/mihomo 控制口。
 
 ## 运行方式
 
 ```text
 CLI ───────────────┐
-Flutter 桌面端 ────┤  本机 token API
+Flutter 客户端 ────┤  本机 token API
 MCP server ────────┼──> core: test / score / selector / daemon / export
                          │
           ┌──────────────┼──────────────┐
@@ -42,7 +42,7 @@ MCP server ────────┼──> core: test / score / selector / da
 
 ```text
 cmd/nodepulse/        CLI 入口
-desktop/              Flutter 桌面端（Dart）
+desktop/              Flutter 桌面/Android 客户端（Dart）
   lib/ui/flclash/     从 FlClash 移植的设计系统（GPL-3.0）
 
 internal/
@@ -74,8 +74,8 @@ internal/
   localapi/           只给 Flutter 用的本机 HTTP API（token 校验）
 
 plugins/dsh/          dsh 插件薄封装
-packaging/            deb/nfpm、AppImage、Windows/macOS 构建脚本
-.github/workflows/    Linux release、Windows/macOS desktop 构建
+packaging/            deb/nfpm、AppImage、Windows/macOS/Android 构建脚本
+.github/workflows/    Linux release、Windows/macOS desktop、Android 构建
 ```
 
 ## 自动选择事务
@@ -88,7 +88,7 @@ packaging/            deb/nfpm、AppImage、Windows/macOS 构建脚本
 4. 候选评分需超过当前 `margin`，并连续 `confirm` 轮成立。
 5. 切换前记录 before 指标；切换后校验控制器当前节点。
 6. 对新节点做真实 `delay` 验证；失败则回滚。
-7. 写入结构化历史，Flutter 桌面端展示最近决策。
+7. 写入结构化历史，Flutter 客户端展示最近决策。
 
 全部节点不达标时，`DIRECT` 基线用于区分本地网络问题与节点问题。
 

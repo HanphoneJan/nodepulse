@@ -1,6 +1,6 @@
 # 跨平台打包
 
-桌面端使用 Flutter，Go 后端作为本机 sidecar 随 Flutter 应用一起分发。
+桌面和 Android 客户端使用 Flutter，Go 后端作为本机 sidecar 随应用一起分发。
 
 ## Linux
 
@@ -12,14 +12,14 @@ go install github.com/goreleaser/nfpm/v2/cmd/nfpm@latest
 ```
 
 ```bash
-VERSION=0.3.1 make build desktop deb
-VERSION=0.3.1 make appimage
+VERSION=0.3.2 make build desktop deb
+VERSION=0.3.2 make appimage
 ```
 
 产物：
 
-- `dist/NodePulse-linux-amd64-0.3.1.deb`
-- `dist/NodePulse-linux-amd64-0.3.1.AppImage`
+- `dist/NodePulse-linux-amd64-0.3.2.deb`
+- `dist/NodePulse-linux-amd64-0.3.2.AppImage`
 
 安装布局：
 
@@ -36,7 +36,7 @@ VERSION=0.3.1 make appimage
 在 Windows runner 上：
 
 ```powershell
-$env:VERSION = "0.3.1"
+$env:VERSION = "0.3.2"
 .\packaging\build-windows.ps1
 ```
 
@@ -56,12 +56,31 @@ $env:VERSION = "0.3.1"
 
 Flutter Windows 不能从 Linux 交叉构建。
 
+## Android
+
+在 Linux 或 CI runner 上：
+
+```bash
+VERSION=0.3.2 make android
+```
+
+脚本会：
+
+1. 用 `GOOS=android GOARCH=arm64 CGO_ENABLED=0` 构建 Go sidecar；
+2. 复制为 `desktop/android/app/src/main/jniLibs/arm64-v8a/libnodepulse_core.so`；
+3. 执行 `flutter build apk --release --target-platform android-arm64`；
+4. 输出 `dist/NodePulse-android-arm64-<version>.apk`。
+
+APK 使用 debug 签名，适合直接下载安装；上架或稳定增量更新前需要配置 release keystore。当前只打包 arm64-v8a，且 Android 客户端不内置 TUN/VPN，需要连接已有的 Clash/mihomo 控制口。
+
+Android 构建目前固定 Flutter 3.47.9、Gradle 8.14.3、AGP 8.13.0、Kotlin 2.2.20，以兼容 `file_picker`；升级前先验证它与 `launch_at_startup` 的 win32 依赖冲突。
+
 ## macOS
 
 在 macOS runner 上：
 
 ```bash
-VERSION=0.3.1 bash packaging/build-macos.sh
+VERSION=0.3.2 bash packaging/build-macos.sh
 ```
 
 脚本会构建 `desktop/build/macos/Build/Products/Release/NodePulse.app`，把 amd64/arm64 的 Go sidecar 合并为 `Contents/MacOS/nodepulse-core`，生成 zip 和 dmg。
