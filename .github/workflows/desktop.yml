@@ -35,7 +35,7 @@ jobs:
       - name: Build Windows installer and zip
         shell: pwsh
         env:
-          VERSION: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || '0.3.2' }}
+          VERSION: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || '0.3.3' }}
         run: |
           $env:VERSION = $env:VERSION.TrimStart("v")
           .\packaging\build-windows.ps1
@@ -62,7 +62,7 @@ jobs:
           cache: true
       - name: Build macOS zip and dmg
         env:
-          VERSION: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || '0.3.2' }}
+          VERSION: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || '0.3.3' }}
         run: |
           export VERSION="${VERSION#v}"
           bash packaging/build-macos.sh
@@ -97,7 +97,7 @@ jobs:
           cache: true
       - name: Build Android APK
         env:
-          VERSION: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || '0.3.2' }}
+          VERSION: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || '0.3.3' }}
         run: |
           export VERSION="${VERSION#v}"
           FLUTTER=flutter bash packaging/build-android.sh
