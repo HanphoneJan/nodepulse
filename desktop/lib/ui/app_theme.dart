@@ -1,17 +1,23 @@
+import 'package:flutter/foundation.dart' show defaultTargetPlatform;
 import 'package:material_ui/material_ui.dart';
 
 import 'flclash/color.dart';
+import 'flclash/font.dart';
+import 'flclash/shape.dart';
+import 'flclash/surface.dart';
 import 'flclash/typography.dart';
 
+/// Convenience aliases for the FlClash surface levels. The values live in
+/// [SurfaceLevel]; this keeps page code short.
 extension AppSurfaces on ColorScheme {
   bool get isDark => brightness == Brightness.dark;
 
-  Color get page => isDark ? surface : surfaceContainer;
-  Color get card => isDark ? surfaceContainer : surfaceBright;
-  Color get block => isDark ? surfaceContainerHigh : surfaceContainer;
-  Color get inset => surfaceContainerHighest;
-  Color get floating => isDark ? block : card;
-  Color get chrome => isDark ? surfaceContainerLow : surfaceContainerHighest;
+  Color get page => SurfaceLevel.page.colorOf(this);
+  Color get card => SurfaceLevel.card.colorOf(this);
+  Color get block => SurfaceLevel.block.colorOf(this);
+  Color get inset => SurfaceLevel.inset.colorOf(this);
+  Color get floating => SurfaceLevel.floatingOf(this).colorOf(this);
+  Color get chrome => chromeSurface;
 }
 
 TextStyle appText(ThemeData theme, AppTextStyle style) {
@@ -24,28 +30,113 @@ TextStyle appText(ThemeData theme, AppTextStyle style) {
   );
 }
 
+/// The FlClash text roles used across pages, so no view has to invent a size.
+abstract final class AppType {
+  static TextStyle pageTitle(BuildContext context) =>
+      AppTextStyle.pageTitle.of(context);
+
+  static TextStyle cardTitle(BuildContext context) => AppTextStyle.footnote
+      .of(context, emphasized: true)
+      .copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant);
+
+  static TextStyle section(BuildContext context) =>
+      AppTextStyle.headline.of(context, emphasized: true);
+
+  static TextStyle body(BuildContext context) => AppTextStyle.body.of(context);
+
+  static TextStyle secondary(BuildContext context) =>
+      AppTextStyle.subheadline.of(context);
+
+  static TextStyle caption(BuildContext context) =>
+      AppTextStyle.footnote.of(context);
+
+  static TextStyle micro(BuildContext context) =>
+      AppTextStyle.caption2.of(context);
+
+  static TextStyle nodeTitle(BuildContext context) =>
+      AppTextStyle.title1.of(context).copyWith(fontWeight: FontWeight.w600);
+
+  static TextStyle figure(
+    BuildContext context, {
+    AppTextStyle style = AppTextStyle.display,
+    Color? color,
+  }) => style
+      .of(context, emphasized: true)
+      .copyWith(
+        color: color,
+        fontFeatures: const [FontFeature.tabularFigures()],
+        letterSpacing: -0.02 * style.size,
+      );
+
+  static TextStyle tabular(BuildContext context, AppTextStyle style) => style
+      .of(context)
+      .copyWith(fontFeatures: const [FontFeature.tabularFigures()]);
+}
+
 ThemeData buildAppTheme(Brightness brightness, Color seed) {
   final scheme = seededColorScheme(seedColor: seed, brightness: brightness);
+  final fallback = appFontFamilyFallback(
+    platform: defaultTargetPlatform,
+    locales: WidgetsBinding.instance.platformDispatcher.locales,
+  );
+
   final base = ThemeData(
     useMaterial3: true,
     colorScheme: scheme,
-    scaffoldBackgroundColor: scheme.page,
-    canvasColor: scheme.surface,
-    dividerColor: scheme.onSurface.withValues(alpha: 0.14),
+    fontFamilyFallback: fallback,
     visualDensity: VisualDensity.standard,
-  ).withAppTypography;
+    pageTransitionsTheme: const PageTransitionsTheme(
+      builders: {
+        TargetPlatform.android: FadeForwardsPageTransitionsBuilder(),
+        TargetPlatform.iOS: FadeForwardsPageTransitionsBuilder(),
+        TargetPlatform.macOS: FadeForwardsPageTransitionsBuilder(),
+        TargetPlatform.windows: FadeForwardsPageTransitionsBuilder(),
+        TargetPlatform.linux: FadeForwardsPageTransitionsBuilder(),
+      },
+    ),
+  ).withAppShapes.withAppSurfaces.withAppTypography;
 
   final buttonText = appText(
     base,
     AppTextStyle.subheadline,
   ).copyWith(fontWeight: FontWeight.w600);
-  final pill = RoundedRectangleBorder(borderRadius: BorderRadius.circular(999));
+  final filled = FilledButton.styleFrom(
+    minimumSize: const Size(0, 40),
+    padding: const EdgeInsets.symmetric(horizontal: 16),
+    shape: AppShape.full,
+    textStyle: buttonText,
+  );
+  final outlined = OutlinedButton.styleFrom(
+    minimumSize: const Size(0, 40),
+    padding: const EdgeInsets.symmetric(horizontal: 16),
+    shape: AppShape.full,
+    side: BorderSide(color: scheme.outlineVariant),
+    textStyle: buttonText,
+  );
+  final text = TextButton.styleFrom(
+    minimumSize: const Size(0, 36),
+    padding: const EdgeInsets.symmetric(horizontal: 12),
+    shape: AppShape.full,
+    textStyle: buttonText,
+  );
+  final icon = IconButton.styleFrom(
+    minimumSize: const Size(40, 40),
+    padding: const EdgeInsets.all(8),
+    iconSize: 20,
+    shape: AppShape.full,
+  );
 
   return base.copyWith(
-    cardTheme: CardThemeData(
+    scaffoldBackgroundColor: scheme.page,
+    canvasColor: scheme.surface,
+    dividerTheme: DividerThemeData(
+      color: scheme.onSurface.withValues(alpha: 0.14),
+      thickness: 1,
+      space: 1,
+    ),
+    cardTheme: base.cardTheme.copyWith(
       color: scheme.card,
       elevation: 0,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       margin: EdgeInsets.zero,
     ),
     appBarTheme: AppBarTheme(
@@ -57,55 +148,35 @@ ThemeData buildAppTheme(Brightness brightness, Color seed) {
       titleTextStyle: appText(
         base,
         AppTextStyle.pageTitle,
-      ).copyWith(color: scheme.onSurface),
+      ).copyWith(fontWeight: FontWeight.w600, color: scheme.onSurface),
     ),
     filledButtonTheme: FilledButtonThemeData(
-      style: FilledButton.styleFrom(
-        minimumSize: const Size(0, 40),
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        shape: pill,
-        textStyle: buttonText,
-      ),
+      style: base.filledButtonTheme.style?.merge(filled) ?? filled,
     ),
     outlinedButtonTheme: OutlinedButtonThemeData(
-      style: OutlinedButton.styleFrom(
-        minimumSize: const Size(0, 40),
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        shape: pill,
-        side: BorderSide(color: scheme.outlineVariant),
-        textStyle: buttonText,
-      ),
+      style: base.outlinedButtonTheme.style?.merge(outlined) ?? outlined,
     ),
     textButtonTheme: TextButtonThemeData(
-      style: TextButton.styleFrom(
-        minimumSize: const Size(0, 32),
-        padding: const EdgeInsets.symmetric(horizontal: 12),
-        shape: pill,
-        textStyle: buttonText,
-      ),
+      style: base.textButtonTheme.style?.merge(text) ?? text,
     ),
     iconButtonTheme: IconButtonThemeData(
-      style: IconButton.styleFrom(
-        minimumSize: const Size(40, 40),
-        padding: const EdgeInsets.all(8),
-        iconSize: 20,
-      ),
+      style: base.iconButtonTheme.style?.merge(icon) ?? icon,
     ),
-    inputDecorationTheme: InputDecorationTheme(
+    inputDecorationTheme: base.inputDecorationTheme.copyWith(
       filled: true,
       fillColor: scheme.inset,
       contentPadding: const EdgeInsets.fromLTRB(16, 20, 16, 12),
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: BorderSide.none,
-      ),
-      enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: BorderSide.none,
-      ),
-      focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
+      border: AppShape.input.copyWith(borderSide: BorderSide.none),
+      enabledBorder: AppShape.input.copyWith(borderSide: BorderSide.none),
+      focusedBorder: AppShape.input.copyWith(
         borderSide: BorderSide(color: scheme.primary, width: 2),
+      ),
+      disabledBorder: AppShape.input.copyWith(borderSide: BorderSide.none),
+      errorBorder: AppShape.input.copyWith(
+        borderSide: BorderSide(color: scheme.error),
+      ),
+      focusedErrorBorder: AppShape.input.copyWith(
+        borderSide: BorderSide(color: scheme.error, width: 2),
       ),
       labelStyle: appText(
         base,
@@ -114,29 +185,57 @@ ThemeData buildAppTheme(Brightness brightness, Color seed) {
       floatingLabelStyle: appText(
         base,
         AppTextStyle.footnote,
-      ).copyWith(color: scheme.primary),
+      ).copyWith(color: scheme.onSurfaceVariant),
       hintStyle: appText(
         base,
         AppTextStyle.subheadline,
       ).copyWith(color: scheme.onSurfaceVariant.withValues(alpha: 0.7)),
     ),
-    dropdownMenuTheme: DropdownMenuThemeData(
+    dropdownMenuTheme: base.dropdownMenuTheme.copyWith(
       menuStyle: MenuStyle(
         backgroundColor: WidgetStatePropertyAll(scheme.floating),
         elevation: const WidgetStatePropertyAll(2),
-        shape: WidgetStatePropertyAll(
-          RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        ),
+        shape: const WidgetStatePropertyAll(AppShape.md),
       ),
     ),
-    snackBarTheme: SnackBarThemeData(
+    popupMenuTheme: base.popupMenuTheme.copyWith(
+      color: scheme.floating,
+      shape: AppShape.md,
+      elevation: 2,
+      textStyle: appText(base, AppTextStyle.subheadline),
+    ),
+    dialogTheme: base.dialogTheme.copyWith(
+      backgroundColor: scheme.floating,
+      shape: AppShape.all(AppCorner.alert),
+      titleTextStyle: appText(
+        base,
+        AppTextStyle.headline,
+      ).copyWith(color: scheme.onSurface),
+      contentTextStyle: appText(
+        base,
+        AppTextStyle.subheadline,
+      ).copyWith(color: scheme.onSurfaceVariant),
+    ),
+    bottomSheetTheme: base.bottomSheetTheme.copyWith(
+      backgroundColor: scheme.page,
+      modalBackgroundColor: scheme.page,
+      shape: AppShape.top(AppCorner.xxl),
+    ),
+    snackBarTheme: base.snackBarTheme.copyWith(
       backgroundColor: scheme.inverseSurface,
       contentTextStyle: appText(
         base,
         AppTextStyle.subheadline,
       ).copyWith(color: scheme.onInverseSurface),
       behavior: SnackBarBehavior.floating,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      elevation: 2,
+      shape: AppShape.xs,
+    ),
+    chipTheme: base.chipTheme.copyWith(
+      backgroundColor: scheme.inset,
+      side: BorderSide.none,
+      shape: AppShape.sm,
+      labelStyle: appText(base, AppTextStyle.footnote),
     ),
     switchTheme: SwitchThemeData(
       thumbColor: WidgetStateProperty.resolveWith((states) {
@@ -151,6 +250,17 @@ ThemeData buildAppTheme(Brightness brightness, Color seed) {
         if (states.contains(WidgetState.selected)) return scheme.primary;
         return scheme.outline;
       }),
+    ),
+    progressIndicatorTheme: base.progressIndicatorTheme.copyWith(
+      color: scheme.primary,
+      borderRadius: AppRadius.full,
+    ),
+    scrollbarTheme: base.scrollbarTheme.copyWith(
+      thickness: const WidgetStatePropertyAll(6),
+      radius: const Radius.circular(999),
+      thumbColor: WidgetStatePropertyAll(
+        scheme.onSurface.withValues(alpha: 0.22),
+      ),
     ),
   );
 }

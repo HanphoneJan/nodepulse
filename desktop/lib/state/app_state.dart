@@ -8,9 +8,12 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../api/api_client.dart';
 import '../platform/sidecar.dart';
+import '../update/update_checker.dart';
 
 const _seedKey = 'nodepulse.seed.v3';
 const _modeKey = 'nodepulse.themeMode.v3';
+const _updateCheckKey = 'nodepulse.updateCheck.v1';
+const _dismissedUpdateKey = 'nodepulse.dismissedUpdate.v1';
 const _defaultSeed = '#007aff';
 
 class AppState extends ChangeNotifier {
@@ -62,6 +65,13 @@ class AppState extends ChangeNotifier {
   String seed = _defaultSeed;
   ThemeMode themeMode = ThemeMode.system;
 
+  ReleaseInfo? update;
+  bool checkingUpdate = false;
+  String? updateError;
+  bool updateDialogPending = false;
+  String? _dismissedUpdate;
+  DateTime? _lastUpdateCheck;
+
   String downloadUrl = '';
   String search = '';
   bool exportMinimal = false;
@@ -99,6 +109,10 @@ class AppState extends ChangeNotifier {
     const debugTheme = String.fromEnvironment('START_THEME');
     if (debugTheme == 'dark') themeMode = ThemeMode.dark;
     if (debugTheme == 'light') themeMode = ThemeMode.light;
+    _dismissedUpdate = prefs.getString(_dismissedUpdateKey);
+    _lastUpdateCheck = DateTime.tryParse(
+      prefs.getString(_updateCheckKey) ?? '',
+    );
     try {
       try {
         launchAtStartup.setup(
@@ -124,6 +138,7 @@ class AppState extends ChangeNotifier {
       daemon = await api!.daemonStatus();
       await refreshStatus(notifyError: false);
       ready = true;
+      if (_shouldCheckForUpdate) unawaited(checkForUpdate());
       _historyTimer = Timer.periodic(const Duration(seconds: 6), (_) async {
         if (!ready || _sidecar == null) return;
         try {
@@ -204,6 +219,63 @@ class AppState extends ChangeNotifier {
       ThemeMode.dark => 'dark',
       _ => 'system',
     });
+    notifyListeners();
+  }
+
+  bool get _shouldCheckForUpdate {
+    if (version.isEmpty) return false;
+    final last = _lastUpdateCheck;
+    return last == null ||
+        DateTime.now().difference(last) > const Duration(hours: 24);
+  }
+
+  String get updateStatusText {
+    if (checkingUpdate) return '正在检查…';
+    final available = update;
+    if (available != null) return '发现新版本 v${available.version}';
+    if (updateError != null) return updateError!;
+    return '自动检查 GitHub Release';
+  }
+
+  Future<void> checkForUpdate({bool manual = false}) async {
+    if (checkingUpdate || version.isEmpty) return;
+    checkingUpdate = true;
+    updateError = null;
+    notifyListeners();
+    try {
+      final release = await UpdateChecker.latest();
+      _lastUpdateCheck = DateTime.now();
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(
+        _updateCheckKey,
+        _lastUpdateCheck!.toIso8601String(),
+      );
+      if (release != null && UpdateChecker.isNewer(release.version, version)) {
+        update = release;
+        if (manual || release.version != _dismissedUpdate) {
+          updateDialogPending = true;
+        }
+      } else {
+        update = null;
+        if (manual) updateError = '已是最新版本';
+      }
+    } catch (_) {
+      if (manual) updateError = '检查更新失败';
+    } finally {
+      checkingUpdate = false;
+      notifyListeners();
+    }
+  }
+
+  void consumeUpdateDialog() {
+    updateDialogPending = false;
+  }
+
+  Future<void> dismissUpdate(String version) async {
+    _dismissedUpdate = version;
+    updateDialogPending = false;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_dismissedUpdateKey, version);
     notifyListeners();
   }
 

@@ -4,6 +4,7 @@ import '../format.dart';
 import '../state/app_state.dart';
 import '../ui/app_theme.dart';
 import '../ui/flclash/color.dart';
+import '../ui/flclash/shape.dart';
 import '../ui/flclash/typography.dart';
 import '../ui/widgets.dart';
 import 'result_table.dart';
@@ -15,45 +16,99 @@ class DashboardView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      spacing: 16,
-      children: [
-        _Hero(state: state),
-        _TwoColumn(
-          left: _ConnectCard(state: state),
-          right: _DaemonCard(state: state),
-        ),
-        _DownloadCard(state: state),
-        _ResultsCard(state: state),
-      ],
-    );
-  }
-}
-
-class _TwoColumn extends StatelessWidget {
-  const _TwoColumn({required this.left, required this.right});
-
-  final Widget left;
-  final Widget right;
-
-  @override
-  Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        if (constraints.maxWidth < 760) {
+        final width = constraints.maxWidth;
+        final gap = width < 760 ? 8.0 : (width < 1040 ? 12.0 : 16.0);
+        if (width < 760) {
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
-            spacing: 16,
-            children: [left, right],
+            spacing: gap,
+            children: [
+              _CurrentNodeCard(state: state),
+              _ScoreCard(state: state),
+              _ConnectionCard(state: state),
+              _ControlBar(state: state),
+              _EnvironmentCard(state: state),
+              _LatestDecisionCard(state: state),
+              _ResultsSummaryCard(state: state),
+              _SubscribeCard(state: state),
+              _DownloadCard(state: state),
+              _ResultsCard(state: state),
+            ],
           );
         }
-        return Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          spacing: 16,
+        if (width < 900) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            spacing: gap,
+            children: [
+              _CurrentNodeCard(state: state),
+              IntrinsicHeight(
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  spacing: gap,
+                  children: [
+                    Expanded(child: _ScoreCard(state: state)),
+                    Expanded(child: _ConnectionCard(state: state)),
+                  ],
+                ),
+              ),
+              _ControlBar(state: state),
+              IntrinsicHeight(
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  spacing: gap,
+                  children: [
+                    Expanded(child: _EnvironmentCard(state: state)),
+                    Expanded(child: _LatestDecisionCard(state: state)),
+                    Expanded(child: _ResultsSummaryCard(state: state)),
+                  ],
+                ),
+              ),
+              _SubscribeCard(state: state),
+              _DownloadCard(state: state),
+              _ResultsCard(state: state),
+            ],
+          );
+        }
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          spacing: gap,
           children: [
-            Expanded(child: left),
-            Expanded(child: right),
+            SizedBox(
+              height: 216,
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                spacing: gap,
+                children: [
+                  Expanded(flex: 2, child: _CurrentNodeCard(state: state)),
+                  Expanded(child: _ScoreCard(state: state)),
+                  Expanded(child: _ConnectionCard(state: state)),
+                ],
+              ),
+            ),
+            _ControlBar(state: state),
+            IntrinsicHeight(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                spacing: gap,
+                children: [
+                  Expanded(child: _EnvironmentCard(state: state)),
+                  Expanded(child: _LatestDecisionCard(state: state)),
+                  Expanded(flex: 2, child: _ResultsSummaryCard(state: state)),
+                ],
+              ),
+            ),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              spacing: gap,
+              children: [
+                Expanded(child: _SubscribeCard(state: state)),
+                Expanded(child: _DownloadCard(state: state)),
+              ],
+            ),
+            _ResultsCard(state: state),
           ],
         );
       },
@@ -61,180 +116,126 @@ class _TwoColumn extends StatelessWidget {
   }
 }
 
-class _Hero extends StatelessWidget {
-  const _Hero({required this.state});
+class _CurrentNodeCard extends StatelessWidget {
+  const _CurrentNodeCard({required this.state});
 
   final AppState state;
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
+    final scheme = Theme.of(context).colorScheme;
+    final error = state.status['error'] != null;
     final busy = state.busy;
-    return CommonCard(
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final narrow = constraints.maxWidth < 620;
-          final main = Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+    return AppCard(
+      radius: AppCorner.dashboard,
+      shadow: true,
+      padding: const EdgeInsets.all(AppSpace.xl),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            spacing: AppSpace.sm,
             children: [
-              Row(
-                spacing: 8,
-                children: [
-                  Text(
-                    '当前节点',
-                    style: appText(
-                      theme,
-                      AppTextStyle.footnote,
-                    ).copyWith(color: scheme.onSurfaceVariant),
-                  ),
-                  StatusChip(
-                    label: state.status['error'] != null
-                        ? '连接失败'
-                        : state.connected
-                        ? '已连接'
-                        : '未连接',
-                    tone: state.status['error'] != null
-                        ? StatusTone.error
-                        : state.connected
-                        ? StatusTone.ok
-                        : StatusTone.warn,
-                  ),
-                ],
-              ),
-              const SizedBox(height: 4),
               Text(
-                state.connected ? cleanName(state.currentNode) : '—',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: appText(
-                  theme,
-                  AppTextStyle.title1,
-                ).copyWith(fontWeight: FontWeight.w600),
+                '当前节点',
+                style: AppType.caption(
+                  context,
+                ).copyWith(color: scheme.onSurfaceVariant),
               ),
-              if (state.groupName.isNotEmpty)
+              StatusChip(
+                label: error
+                    ? '连接失败'
+                    : state.connected
+                    ? '已连接'
+                    : '未连接',
+                tone: error
+                    ? StatusTone.error
+                    : state.connected
+                    ? StatusTone.ok
+                    : StatusTone.warn,
+                dot: true,
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpace.xs),
+          Text(
+            state.connected ? cleanName(state.currentNode) : '—',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: AppType.nodeTitle(context),
+          ),
+          if (state.groupName.isNotEmpty)
+            Text(
+              '${state.groupName} · ${state.memberCount} 个成员',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: AppType.secondary(
+                context,
+              ).copyWith(color: scheme.onSurfaceVariant),
+            ),
+          const SizedBox(height: AppSpace.lg),
+          Wrap(
+            spacing: AppSpace.sm,
+            runSpacing: AppSpace.sm,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              AppButton(
+                label: busy && state.busyKind == 'oneclick' ? '优化中…' : '一键优化',
+                icon: Glyphs.play,
+                loading: busy && state.busyKind == 'oneclick',
+                onPressed: state.oneClick,
+              ),
+              if (busy)
+                AppButton(
+                  label: '取消',
+                  variant: AppButtonVariant.ghost,
+                  onPressed: state.cancel,
+                ),
+            ],
+          ),
+          if (busy) ...[
+            const SizedBox(height: AppSpace.md),
+            Row(
+              spacing: AppSpace.sm,
+              children: [
+                SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    value: _progressRatio(state.progress),
+                  ),
+                ),
                 Text(
-                  '${state.groupName} · ${state.memberCount} 个成员',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: appText(
-                    theme,
-                    AppTextStyle.subheadline,
+                  '${state.busyLabel} ${state.progress['done'] ?? 0}/${state.progress['total'] ?? 0}',
+                  style: AppType.caption(
+                    context,
                   ).copyWith(color: scheme.onSurfaceVariant),
                 ),
-              const SizedBox(height: 16),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                crossAxisAlignment: WrapCrossAlignment.center,
-                children: [
-                  ActionPill(
-                    label: busy && state.busyKind == 'oneclick'
-                        ? '优化中…'
-                        : '一键优化',
-                    icon: Icons.play_arrow_rounded,
-                    filled: true,
-                    loading: busy && state.busyKind == 'oneclick',
-                    onPressed: state.oneClick,
-                  ),
-                  ActionPill(
-                    label: busy && state.busyKind == 'test' ? '测速中…' : '只测速',
-                    icon: Icons.refresh,
-                    loading: busy && state.busyKind == 'test',
-                    onPressed: state.testOnly,
-                  ),
-                  ActionPill(
-                    label: busy && state.busyKind == 'all' ? '联合测速中…' : '全部订阅',
-                    icon: Icons.format_list_bulleted,
-                    loading: busy && state.busyKind == 'all',
-                    onPressed: state.testAll,
-                  ),
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    spacing: 8,
-                    children: [
-                      Text(
-                        '强度',
-                        style: appText(
-                          theme,
-                          AppTextStyle.footnote,
-                        ).copyWith(color: scheme.onSurfaceVariant),
-                      ),
-                      SizedBox(
-                        width: 124,
-                        child: AppSelect<String>(
-                          value: '${state.settings['rounds'] ?? 5}',
-                          height: 40,
-                          items: const [
-                            (value: '3', label: '快速 3 轮'),
-                            (value: '5', label: '标准 5 轮'),
-                            (value: '10', label: '精确 10 轮'),
-                          ],
-                          onChanged: (value) => state.updateSetting(
-                            'rounds',
-                            int.tryParse(value) ?? 5,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  if (busy) GhostButton(label: '取消', onPressed: state.cancel),
-                ],
-              ),
-              if (busy) ...[
-                const SizedBox(height: 12),
-                Row(
-                  spacing: 8,
-                  children: [
-                    SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        value: _progressRatio(state.progress),
-                      ),
-                    ),
-                    Text(
-                      '${state.busyLabel} ${state.progress['done'] ?? 0}/${state.progress['total'] ?? 0}',
-                      style: appText(
-                        theme,
-                        AppTextStyle.footnote,
-                      ).copyWith(color: scheme.onSurfaceVariant),
-                    ),
-                  ],
+              ],
+            ),
+          ] else ...[
+            const SizedBox(height: AppSpace.sm),
+            Row(
+              spacing: 6,
+              children: [
+                Icon(Glyphs.timer, size: 15, color: scheme.onSurfaceVariant),
+                Text(
+                  '最近测速',
+                  style: AppType.caption(
+                    context,
+                  ).copyWith(color: scheme.onSurfaceVariant),
+                ),
+                Text(
+                  state.lastTestAt == null ? '尚未测速' : timeAgo(state.lastTestAt),
+                  style: AppType.caption(
+                    context,
+                  ).copyWith(fontWeight: FontWeight.w600),
                 ),
               ],
-            ],
-          );
-          final side = state.best != null
-              ? ScoreRing(
-                  value: (state.best!['score'] as num?)?.toDouble() ?? 0,
-                  bestName: cleanName((state.best!['name'] ?? '').toString()),
-                )
-              : _Pending(
-                  members: state.memberCount,
-                  rounds: state.settings['rounds'] ?? 5,
-                  concurrency: state.settings['concurrency'] ?? 8,
-                );
-          if (narrow) {
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              spacing: 16,
-              children: [
-                main,
-                Align(alignment: Alignment.centerLeft, child: side),
-              ],
-            );
-          }
-          return Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            spacing: 16,
-            children: [
-              Expanded(child: main),
-              SizedBox(width: 180, child: side),
-            ],
-          );
-        },
+            ),
+          ],
+        ],
       ),
     );
   }
@@ -247,80 +248,152 @@ class _Hero extends StatelessWidget {
   }
 }
 
-class _Pending extends StatelessWidget {
-  const _Pending({
-    required this.members,
-    required this.rounds,
-    required this.concurrency,
-  });
+class _ScoreCard extends StatelessWidget {
+  const _ScoreCard({required this.state});
 
-  final int members;
-  final dynamic rounds;
-  final dynamic concurrency;
+  final AppState state;
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
-    return SurfaceBox(
-      padding: const EdgeInsets.all(16),
+    final scheme = Theme.of(context).colorScheme;
+    final best = state.best;
+    return AppCard(
+      radius: AppCorner.dashboard,
+      shadow: true,
+      padding: const EdgeInsets.all(AppSpace.xl),
+      child: best == null
+          ? Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Row(
+                  spacing: 6,
+                  children: [
+                    Container(
+                      width: 6,
+                      height: 6,
+                      decoration: BoxDecoration(
+                        color: scheme.primary,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                    Text(
+                      '待测速',
+                      style: AppType.caption(
+                        context,
+                      ).copyWith(color: scheme.onSurfaceVariant),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: AppSpace.xs),
+                Text(
+                  '${state.memberCount}',
+                  style: AppType.figure(context, style: AppTextStyle.title1),
+                ),
+                Text(
+                  '个节点',
+                  style: AppType.caption(
+                    context,
+                  ).copyWith(color: scheme.onSurfaceVariant),
+                ),
+                const SizedBox(height: AppSpace.sm),
+                Text(
+                  '${state.settings['rounds'] ?? 5} 轮 · 并发 ${state.settings['concurrency'] ?? 8}',
+                  style: AppType.caption(
+                    context,
+                  ).copyWith(color: scheme.onSurfaceVariant),
+                ),
+              ],
+            )
+          : Center(
+              child: ScoreRing(
+                value: (best['score'] as num?)?.toDouble() ?? 0,
+                bestName: cleanName((best['name'] ?? '').toString()),
+              ),
+            ),
+    );
+  }
+}
+
+class _ConnectionCard extends StatelessWidget {
+  const _ConnectionCard({required this.state});
+
+  final AppState state;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final running = state.clients
+        .whereType<Map>()
+        .where((client) => client['running'] == true)
+        .toList();
+    return AppCard(
+      radius: AppCorner.dashboard,
+      shadow: true,
+      padding: const EdgeInsets.all(AppSpace.xl),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Row(
-            spacing: 6,
-            children: [
-              Container(
-                width: 6,
-                height: 6,
-                decoration: BoxDecoration(
-                  color: scheme.primary,
-                  shape: BoxShape.circle,
+          AppCardHeader(
+            title: '连接',
+            glyph: Glyphs.link,
+            padding: EdgeInsets.zero,
+            actions: [
+              AppButton(
+                label: state.detecting ? '检测中…' : '重新检测',
+                variant: AppButtonVariant.ghost,
+                enabled: !state.detecting,
+                onPressed: state.detect,
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpace.sm),
+          if (running.isEmpty)
+            Text(
+              '未检测到客户端。',
+              style: AppType.secondary(
+                context,
+              ).copyWith(color: scheme.onSurfaceVariant),
+            )
+          else
+            for (final client in running)
+              Padding(
+                padding: const EdgeInsets.only(bottom: AppSpace.xs),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 7,
+                      height: 7,
+                      decoration: BoxDecoration(
+                        color: scheme.success,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                    const SizedBox(width: AppSpace.sm),
+                    Expanded(
+                      child: Text(
+                        (client['name'] ?? '').toString(),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppType.secondary(context),
+                      ),
+                    ),
+                    Text(
+                      '运行中',
+                      style: AppType.caption(
+                        context,
+                      ).copyWith(color: scheme.success),
+                    ),
+                  ],
                 ),
               ),
-              Text(
-                '待测速',
-                style: appText(
-                  theme,
-                  AppTextStyle.footnote,
-                ).copyWith(color: scheme.onSurfaceVariant),
-              ),
-            ],
-          ),
-          const SizedBox(height: 4),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.baseline,
-            textBaseline: TextBaseline.alphabetic,
-            spacing: 6,
-            children: [
-              Text(
-                '$members',
-                style: appText(
-                  theme,
-                  AppTextStyle.title1,
-                ).copyWith(fontWeight: FontWeight.w700),
-              ),
-              Text(
-                '个节点',
-                style: appText(
-                  theme,
-                  AppTextStyle.footnote,
-                ).copyWith(color: scheme.onSurfaceVariant),
-              ),
-            ],
-          ),
+          const SizedBox(height: AppSpace.sm),
           Text(
-            '$rounds 轮 · 并发 $concurrency',
-            style: appText(
-              theme,
-              AppTextStyle.footnote,
-            ).copyWith(color: scheme.onSurfaceVariant),
-          ),
-          Text(
-            '尚未测速',
-            style: appText(
-              theme,
-              AppTextStyle.footnote,
+            (state.settings['api'] ?? '未配置控制口').toString(),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: AppType.micro(
+              context,
             ).copyWith(color: scheme.onSurfaceVariant),
           ),
         ],
@@ -329,16 +402,267 @@ class _Pending extends StatelessWidget {
   }
 }
 
-class _ConnectCard extends StatefulWidget {
-  const _ConnectCard({required this.state});
+class _ControlBar extends StatelessWidget {
+  const _ControlBar({required this.state});
 
   final AppState state;
 
   @override
-  State<_ConnectCard> createState() => _ConnectCardState();
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final busy = state.busy;
+    return AppCard(
+      radius: AppCorner.dashboard,
+      padding: const EdgeInsets.all(AppSpace.lg),
+      child: Wrap(
+        spacing: AppSpace.md,
+        runSpacing: AppSpace.md,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        children: [
+          Text(
+            '强度',
+            style: AppType.caption(
+              context,
+            ).copyWith(color: scheme.onSurfaceVariant),
+          ),
+          SizedBox(
+            width: 260,
+            child: SegmentedChoice<String>(
+              value: '${state.settings['rounds'] ?? 5}',
+              options: const [
+                (value: '3', label: '快速 3 轮', icon: null),
+                (value: '5', label: '标准 5 轮', icon: null),
+                (value: '10', label: '精确 10 轮', icon: null),
+              ],
+              onChanged: (value) =>
+                  state.updateSetting('rounds', int.tryParse(value) ?? 5),
+            ),
+          ),
+          AppButton(
+            label: busy && state.busyKind == 'test' ? '测速中…' : '只测速',
+            icon: Glyphs.refresh,
+            variant: AppButtonVariant.tonal,
+            loading: busy && state.busyKind == 'test',
+            onPressed: state.testOnly,
+          ),
+          AppButton(
+            label: busy && state.busyKind == 'all' ? '联合测速中…' : '全部订阅',
+            icon: Glyphs.nodes,
+            variant: AppButtonVariant.outline,
+            loading: busy && state.busyKind == 'all',
+            onPressed: state.testAll,
+          ),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            spacing: AppSpace.sm,
+            children: [
+              Text(
+                '自动优化',
+                style: AppType.caption(
+                  context,
+                ).copyWith(color: scheme.onSurfaceVariant),
+              ),
+              AppSwitch(value: state.daemon, onChanged: state.toggleDaemon),
+            ],
+          ),
+          SizedBox(
+            width: 116,
+            child: AppSelect<String>(
+              value: '${state.settings['daemon_interval'] ?? 300}',
+              height: 40,
+              items: const [
+                (value: '300', label: '5 分钟'),
+                (value: '600', label: '10 分钟'),
+                (value: '1800', label: '30 分钟'),
+              ],
+              onChanged: (value) => state.updateSetting(
+                'daemon_interval',
+                int.tryParse(value) ?? 300,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
-class _ConnectCardState extends State<_ConnectCard> {
+class _EnvironmentCard extends StatelessWidget {
+  const _EnvironmentCard({required this.state});
+
+  final AppState state;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final active = state.activeProfile;
+    return AppCard(
+      radius: AppCorner.dashboard,
+      padding: const EdgeInsets.all(AppSpace.lg),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          AppCardHeader(
+            title: '当前环境',
+            glyph: Glyphs.swap,
+            padding: EdgeInsets.zero,
+          ),
+          const SizedBox(height: AppSpace.sm),
+          Text(
+            (active['name'] ?? '默认环境').toString(),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: AppType.secondary(
+              context,
+            ).copyWith(fontWeight: FontWeight.w600),
+          ),
+          Text(
+            (active['api'] ?? '—').toString(),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: AppType.micro(
+              context,
+            ).copyWith(color: scheme.onSurfaceVariant),
+          ),
+          const SizedBox(height: AppSpace.sm),
+          Align(
+            alignment: AlignmentDirectional.centerStart,
+            child: AppButton(
+              label: '管理环境',
+              variant: AppButtonVariant.ghost,
+              onPressed: () => state.setView('settings'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _LatestDecisionCard extends StatelessWidget {
+  const _LatestDecisionCard({required this.state});
+
+  final AppState state;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    Map? latest;
+    for (final item in state.history.whereType<Map>()) {
+      latest = item;
+      break;
+    }
+    return AppCard(
+      radius: AppCorner.dashboard,
+      padding: const EdgeInsets.all(AppSpace.lg),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          AppCardHeader(
+            title: '最近自动选择',
+            glyph: Glyphs.timer,
+            padding: EdgeInsets.zero,
+          ),
+          const SizedBox(height: AppSpace.sm),
+          if (latest == null)
+            Text(
+              '还没有决策记录。',
+              style: AppType.secondary(
+                context,
+              ).copyWith(color: scheme.onSurfaceVariant),
+            )
+          else ...[
+            Text(
+              kindLabel(latest['kind']?.toString()),
+              style: AppType.secondary(
+                context,
+              ).copyWith(fontWeight: FontWeight.w600),
+            ),
+            Text(
+              '${latest['from'] ?? '—'}${(latest['to'] ?? '').toString().isEmpty ? '' : ' → ${latest['to']}'}',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: AppType.caption(
+                context,
+              ).copyWith(color: scheme.onSurfaceVariant),
+            ),
+            Text(
+              '${clockText(latest['time']?.toString())} · ${reasonLabel(latest['reason_code']?.toString())}',
+              style: AppType.micro(
+                context,
+              ).copyWith(color: scheme.onSurfaceVariant),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _ResultsSummaryCard extends StatelessWidget {
+  const _ResultsSummaryCard({required this.state});
+
+  final AppState state;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final best = state.best;
+    return AppCard(
+      radius: AppCorner.dashboard,
+      padding: const EdgeInsets.all(AppSpace.lg),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          AppCardHeader(
+            title: '结果摘要',
+            glyph: Glyphs.chart,
+            padding: EdgeInsets.zero,
+          ),
+          const SizedBox(height: AppSpace.sm),
+          Text(
+            '${state.results.length}',
+            style: AppType.figure(context, style: AppTextStyle.title2),
+          ),
+          Text(
+            '个节点有结果',
+            style: AppType.caption(
+              context,
+            ).copyWith(color: scheme.onSurfaceVariant),
+          ),
+          const SizedBox(height: AppSpace.sm),
+          Text(
+            best == null
+                ? '尚未测速'
+                : '最高分 ${((best['score'] as num?)?.toDouble() ?? 0).toStringAsFixed(3)}',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: AppType.caption(
+              context,
+            ).copyWith(color: scheme.onSurfaceVariant),
+          ),
+          Text(
+            state.lastTestAt == null ? '' : timeAgo(state.lastTestAt),
+            style: AppType.micro(
+              context,
+            ).copyWith(color: scheme.onSurfaceVariant),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SubscribeCard extends StatefulWidget {
+  const _SubscribeCard({required this.state});
+
+  final AppState state;
+
+  @override
+  State<_SubscribeCard> createState() => _SubscribeCardState();
+}
+
+class _SubscribeCardState extends State<_SubscribeCard> {
   final TextEditingController _subscription = TextEditingController();
 
   AppState get state => widget.state;
@@ -351,13 +675,7 @@ class _ConnectCardState extends State<_ConnectCard> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
-    final running = state.clients
-        .whereType<Map>()
-        .where((client) => client['running'] == true)
-        .toList();
-    final showControllers = state.controllers.length > 1 || running.isEmpty;
+    final scheme = Theme.of(context).colorScheme;
     final subscriptions = state.subscriptions.map((path) {
       final value = path.toString();
       return (value: value, label: baseName(value));
@@ -372,140 +690,18 @@ class _ConnectCardState extends State<_ConnectCard> {
         label: baseName(state.settings['config_path'] as String),
       ));
     }
-    return CommonCard(
+    return AppCard(
+      radius: AppCorner.dashboard,
+      padding: const EdgeInsets.all(AppSpace.lg),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          InfoHeader(
-            label: '连接',
-            glyph: Icons.link,
-            actions: [
-              GhostButton(
-                label: state.detecting ? '检测中…' : '重新检测',
-                onPressed: state.detecting ? null : state.detect,
-              ),
-            ],
+          AppCardHeader(
+            title: '订阅',
+            glyph: Glyphs.download,
+            padding: EdgeInsets.zero,
           ),
-          if (state.controllers.isEmpty)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: Text(
-                running.isEmpty ? '未检测到客户端。' : '控制口未开启，请到客户端打开外部控制。',
-                style: appText(
-                  theme,
-                  AppTextStyle.subheadline,
-                ).copyWith(color: scheme.onSurfaceVariant),
-              ),
-            ),
-          for (final client in running)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: SurfaceBox(
-                child: Row(
-                  children: [
-                    Container(
-                      width: 7,
-                      height: 7,
-                      decoration: BoxDecoration(
-                        color: scheme.success,
-                        shape: BoxShape.circle,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            (client['name'] ?? '').toString(),
-                            style: appText(theme, AppTextStyle.subheadline),
-                          ),
-                          Text(
-                            (client['hint'] ?? '控制口已就绪').toString(),
-                            style: appText(
-                              theme,
-                              AppTextStyle.footnote,
-                            ).copyWith(color: scheme.onSurfaceVariant),
-                          ),
-                        ],
-                      ),
-                    ),
-                    Text(
-                      '运行中',
-                      style: appText(
-                        theme,
-                        AppTextStyle.footnote,
-                      ).copyWith(color: scheme.success),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          if (showControllers)
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                for (final controller in state.controllers.whereType<Map>())
-                  InkWell(
-                    borderRadius: BorderRadius.circular(8),
-                    onTap: () {
-                      state.updateSetting('api', controller['url']);
-                      if ((controller['secret'] ?? '').toString().isNotEmpty) {
-                        state.updateSetting('secret', controller['secret']);
-                      }
-                      state.refreshStatus();
-                    },
-                    child: Container(
-                      height: 32,
-                      padding: const EdgeInsets.symmetric(horizontal: 12),
-                      decoration: BoxDecoration(
-                        color: state.settings['api'] == controller['url']
-                            ? scheme.secondaryContainer
-                            : null,
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(
-                          color: state.settings['api'] == controller['url']
-                              ? scheme.secondaryContainer
-                              : scheme.outlineVariant.withValues(alpha: 0.6),
-                        ),
-                      ),
-                      alignment: Alignment.center,
-                      child: Text(
-                        '${controller['url']}${(controller['version'] ?? '').toString().isEmpty ? '' : ' · ${controller['version']}'}',
-                        style: appText(theme, AppTextStyle.footnote).copyWith(
-                          color: state.settings['api'] == controller['url']
-                              ? scheme.onSecondaryContainer
-                              : scheme.onSurfaceVariant,
-                        ),
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-          const SizedBox(height: 16),
-          Divider(
-            height: 1,
-            color: scheme.outlineVariant.withValues(alpha: 0.4),
-          ),
-          const SizedBox(height: 12),
-          Row(
-            spacing: 8,
-            children: [
-              Icon(
-                Icons.download_outlined,
-                size: 20,
-                color: scheme.onSurfaceVariant,
-              ),
-              Text(
-                '订阅',
-                style: appText(theme, AppTextStyle.headline).copyWith(
-                  color: scheme.onSurfaceVariant.withValues(alpha: 0.8),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
+          const SizedBox(height: AppSpace.sm),
           AppSelect<String>(
             value: (state.settings['config_path'] ?? '').toString(),
             label: '选择订阅文件',
@@ -514,224 +710,113 @@ class _ConnectCardState extends State<_ConnectCard> {
                 : subscriptions,
             onChanged: (value) => state.updateSetting('config_path', value),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: AppSpace.sm),
           Row(
-            spacing: 8,
+            spacing: AppSpace.sm,
             children: [
               Expanded(
-                child: TextField(
+                child: AppTextField(
                   controller: _subscription,
-                  decoration: const InputDecoration(
-                    hintText: 'https://…/subscribe?token=…',
-                    isDense: true,
-                  ),
-                  style: appText(theme, AppTextStyle.subheadline),
+                  hint: 'https://…/subscribe?token=…',
                 ),
               ),
-              FilledButton(
+              AppButton(
+                label: '导入',
                 onPressed: state.busy
                     ? null
                     : () async {
                         await state.importSubscription(_subscription.text);
                         _subscription.clear();
                       },
-                child: const Text('导入'),
               ),
             ],
           ),
+          if (state.subscriptions.isEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: AppSpace.sm),
+              child: Text(
+                '也可以直接导入订阅链接。',
+                style: AppType.micro(
+                  context,
+                ).copyWith(color: scheme.onSurfaceVariant),
+              ),
+            ),
         ],
       ),
     );
   }
 }
 
-class _DaemonCard extends StatelessWidget {
-  const _DaemonCard({required this.state});
-
-  final AppState state;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
-    Map? latest;
-    for (final item in state.history.whereType<Map>()) {
-      latest = item;
-      break;
-    }
-    return CommonCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          const InfoHeader(label: '后台自动优化', glyph: Icons.settings),
-          Text(
-            '变差时切换，失败回滚。${state.settings['auto_confirm'] ?? 2} 次确认，余量 ${(((state.settings['auto_margin'] as num?) ?? 0.2) * 100).round()}%。',
-            style: appText(
-              theme,
-              AppTextStyle.subheadline,
-            ).copyWith(color: scheme.onSurfaceVariant),
-          ),
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  '自动优化',
-                  style: appText(theme, AppTextStyle.subheadline),
-                ),
-              ),
-              Switch(value: state.daemon, onChanged: state.toggleDaemon),
-            ],
-          ),
-          const SizedBox(height: 4),
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  '检查间隔',
-                  style: appText(
-                    theme,
-                    AppTextStyle.footnote,
-                  ).copyWith(color: scheme.onSurfaceVariant),
-                ),
-              ),
-              SizedBox(
-                width: 124,
-                child: AppSelect<String>(
-                  value: '${state.settings['daemon_interval'] ?? 300}',
-                  height: 40,
-                  items: const [
-                    (value: '300', label: '5 分钟'),
-                    (value: '600', label: '10 分钟'),
-                    (value: '1800', label: '30 分钟'),
-                  ],
-                  onChanged: (value) => state.updateSetting(
-                    'daemon_interval',
-                    int.tryParse(value) ?? 300,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          SurfaceBox(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  spacing: 6,
-                  children: [
-                    Icon(
-                      Icons.monitor_heart_outlined,
-                      size: 16,
-                      color: scheme.onSurfaceVariant,
-                    ),
-                    Text(
-                      '最近自动选择',
-                      style: appText(
-                        theme,
-                        AppTextStyle.footnote,
-                      ).copyWith(color: scheme.onSurfaceVariant),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 4),
-                if (latest == null)
-                  Text(
-                    '还没有决策记录。',
-                    style: appText(
-                      theme,
-                      AppTextStyle.subheadline,
-                    ).copyWith(color: scheme.onSurfaceVariant),
-                  )
-                else ...[
-                  Text(
-                    kindLabel(latest['kind']?.toString()),
-                    style: appText(
-                      theme,
-                      AppTextStyle.subheadline,
-                    ).copyWith(fontWeight: FontWeight.w600),
-                  ),
-                  Text(
-                    '${latest['from'] ?? '—'}${(latest['to'] ?? '').toString().isEmpty ? '' : ' → ${latest['to']}'}',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: appText(
-                      theme,
-                      AppTextStyle.footnote,
-                    ).copyWith(color: scheme.onSurfaceVariant),
-                  ),
-                  Text(
-                    '${clockText(latest['time']?.toString())} · ${reasonLabel(latest['reason_code']?.toString())}',
-                    style: appText(
-                      theme,
-                      AppTextStyle.footnote,
-                    ).copyWith(color: scheme.onSurfaceVariant),
-                  ),
-                ],
-              ],
-            ),
-          ),
-          if (state.daemon) ...[
-            const SizedBox(height: 8),
-            Text(
-              '每 ${((state.settings['daemon_interval'] as num?) ?? 300) < 60 ? '${state.settings['daemon_interval']} 秒' : '${(((state.settings['daemon_interval'] as num?) ?? 300) / 60).round()} 分钟'}检查',
-              style: appText(
-                theme,
-                AppTextStyle.footnote,
-              ).copyWith(color: scheme.onSurfaceVariant),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
-class _DownloadCard extends StatelessWidget {
+class _DownloadCard extends StatefulWidget {
   const _DownloadCard({required this.state});
 
   final AppState state;
 
   @override
+  State<_DownloadCard> createState() => _DownloadCardState();
+}
+
+class _DownloadCardState extends State<_DownloadCard> {
+  late final TextEditingController _url = TextEditingController(
+    text: widget.state.downloadUrl,
+  );
+
+  AppState get state => widget.state;
+
+  @override
+  void dispose() {
+    _url.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
-    return CommonCard(
+    final scheme = Theme.of(context).colorScheme;
+    return AppCard(
+      radius: AppCorner.dashboard,
+      padding: const EdgeInsets.all(AppSpace.lg),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const InfoHeader(label: '下载模式', glyph: Icons.download_outlined),
+          AppCardHeader(
+            title: '下载模式',
+            glyph: Glyphs.upload,
+            padding: EdgeInsets.zero,
+          ),
+          const SizedBox(height: AppSpace.sm),
           Text(
             '先测速选前 5 个，再小范围下载探测；只在开始前切换一次。',
-            style: appText(
-              theme,
-              AppTextStyle.subheadline,
+            style: AppType.caption(
+              context,
             ).copyWith(color: scheme.onSurfaceVariant),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: AppSpace.md),
           LayoutBuilder(
             builder: (context, constraints) {
-              final narrow = constraints.maxWidth < 560;
-              final field = _DownloadField(state: state);
-              final button = FilledButton.icon(
+              final narrow = constraints.maxWidth < 520;
+              final field = AppTextField(
+                controller: _url,
+                onChanged: state.setDownloadUrl,
+                label: '目标文件 URL',
+                hint: 'https://example.com/file.apk',
+              );
+              final button = AppButton(
+                label: state.busy && state.busyKind == 'download'
+                    ? '探测中…'
+                    : '测速并选节点',
+                icon: Glyphs.download,
+                loading: state.busy && state.busyKind == 'download',
                 onPressed: state.busy ? null : state.downloadMode,
-                icon: const Icon(Icons.download, size: 18),
-                label: Text(
-                  state.busy && state.busyKind == 'download'
-                      ? '探测中…'
-                      : '测速并选节点',
-                ),
               );
               if (narrow) {
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
-                  spacing: 8,
+                  spacing: AppSpace.sm,
                   children: [field, button],
                 );
               }
               return Row(
-                spacing: 8,
+                spacing: AppSpace.sm,
                 children: [
                   Expanded(child: field),
                   button,
@@ -740,45 +825,17 @@ class _DownloadCard extends StatelessWidget {
             },
           ),
           if (state.downloadResult != null) ...[
-            const SizedBox(height: 12),
+            const SizedBox(height: AppSpace.md),
             SurfaceBox(
               child: Text(
                 (state.downloadResult!['message'] ?? '').toString(),
-                style: appText(
-                  theme,
-                  AppTextStyle.footnote,
+                style: AppType.caption(
+                  context,
                 ).copyWith(color: scheme.onSurfaceVariant),
               ),
             ),
           ],
         ],
-      ),
-    );
-  }
-}
-
-class _DownloadField extends StatefulWidget {
-  const _DownloadField({required this.state});
-
-  final AppState state;
-
-  @override
-  State<_DownloadField> createState() => _DownloadFieldState();
-}
-
-class _DownloadFieldState extends State<_DownloadField> {
-  late final TextEditingController controller = TextEditingController(
-    text: widget.state.downloadUrl,
-  );
-
-  @override
-  Widget build(BuildContext context) {
-    return TextField(
-      controller: controller,
-      onChanged: widget.state.setDownloadUrl,
-      decoration: const InputDecoration(
-        labelText: '目标文件 URL',
-        hintText: 'https://example.com/file.apk',
       ),
     );
   }
@@ -791,27 +848,35 @@ class _ResultsCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
-    return CommonCard(
+    final scheme = Theme.of(context).colorScheme;
+    return AppCard(
+      radius: AppCorner.dashboard,
+      padding: const EdgeInsets.all(AppSpace.xl),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          InfoHeader(
-            label: '测速结果',
-            glyph: Icons.speed,
+          AppCardHeader(
+            title: '测速结果',
+            glyph: Glyphs.speed,
+            padding: EdgeInsets.zero,
             actions: [
               if (state.results.isNotEmpty)
-                GhostButton(
+                AppButton(
                   label: '查看全部',
+                  variant: AppButtonVariant.ghost,
                   onPressed: () => state.setView('nodes'),
                 ),
             ],
           ),
+          const SizedBox(height: AppSpace.sm),
           if (state.busy)
-            LoadingList(rows: 3)
+            const LoadingList(rows: 3)
           else if (state.results.isEmpty)
-            EmptyState(icon: Icons.speed, title: '还没有测速结果', body: '点「一键优化」开始。')
+            const EmptyState(
+              icon: Glyphs.speed,
+              title: '还没有测速结果',
+              body: '点「一键优化」开始。',
+            )
           else
             ResultTable(
               rows: state.results,
@@ -821,7 +886,7 @@ class _ResultsCard extends StatelessWidget {
               onSelect: state.selectNode,
             ),
           if (state.results.isNotEmpty && state.selected != null) ...[
-            const SizedBox(height: 8),
+            const SizedBox(height: AppSpace.sm),
             Row(
               children: [
                 Expanded(
@@ -829,15 +894,15 @@ class _ResultsCard extends StatelessWidget {
                     '已选择 ${state.selected}',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: appText(
-                      theme,
-                      AppTextStyle.footnote,
+                    style: AppType.caption(
+                      context,
                     ).copyWith(color: scheme.onSurfaceVariant),
                   ),
                 ),
-                FilledButton.tonal(
+                AppButton(
+                  label: '切换选中节点',
+                  variant: AppButtonVariant.tonal,
                   onPressed: state.busy ? null : state.switchSelected,
-                  child: const Text('切换选中节点'),
                 ),
               ],
             ),

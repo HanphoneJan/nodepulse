@@ -12,14 +12,14 @@ go install github.com/goreleaser/nfpm/v2/cmd/nfpm@latest
 ```
 
 ```bash
-VERSION=0.3.0 make build desktop deb
-VERSION=0.3.0 make appimage
+VERSION=0.3.1 make build desktop deb
+VERSION=0.3.1 make appimage
 ```
 
 产物：
 
-- `dist/NodePulse-linux-amd64-0.3.0.deb`
-- `dist/NodePulse-linux-amd64-0.3.0.AppImage`
+- `dist/NodePulse-linux-amd64-0.3.1.deb`
+- `dist/NodePulse-linux-amd64-0.3.1.AppImage`
 
 安装布局：
 
@@ -36,7 +36,7 @@ VERSION=0.3.0 make appimage
 在 Windows runner 上：
 
 ```powershell
-$env:VERSION = "0.3.0"
+$env:VERSION = "0.3.1"
 .\packaging\build-windows.ps1
 ```
 
@@ -46,6 +46,8 @@ $env:VERSION = "0.3.0"
 2. 构建 `bin/nodepulse.exe` 并复制成 `nodepulse-core.exe`；
 3. 生成便携 zip；
 4. 用 `packaging/nodepulse.nsi` 生成 NSIS 安装包。
+
+安装器会显示组件页：开始菜单快捷方式始终创建，桌面快捷方式默认勾选，用户可以取消。
 
 产物：
 
@@ -59,7 +61,7 @@ Flutter Windows 不能从 Linux 交叉构建。
 在 macOS runner 上：
 
 ```bash
-VERSION=0.3.0 bash packaging/build-macos.sh
+VERSION=0.3.1 bash packaging/build-macos.sh
 ```
 
 脚本会构建 `desktop/build/macos/Build/Products/Release/NodePulse.app`，把 amd64/arm64 的 Go sidecar 合并为 `Contents/MacOS/nodepulse-core`，生成 zip 和 dmg。

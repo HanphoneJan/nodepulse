@@ -1,8 +1,13 @@
 import 'package:material_ui/material_ui.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'state/app_state.dart';
 import 'ui/app_theme.dart';
+import 'update/update_checker.dart';
 import 'ui/flclash/color.dart';
+import 'ui/flclash/metrics.dart';
+import 'ui/flclash/shape.dart';
+import 'ui/flclash/surface.dart';
 import 'ui/flclash/typography.dart';
 import 'ui/widgets.dart';
 import 'views/dashboard.dart';
@@ -64,12 +69,11 @@ class _Splash extends StatelessWidget {
               height: 28,
               child: CircularProgressIndicator(strokeWidth: 2.5),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: AppSpace.lg),
             Text(
               '正在启动 NodePulse',
-              style: appText(
-                theme,
-                AppTextStyle.subheadline,
+              style: AppType.secondary(
+                context,
               ).copyWith(color: scheme.onSurfaceVariant),
             ),
           ],
@@ -87,39 +91,38 @@ class _StartupError extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
     return Scaffold(
       body: Center(
         child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 420),
-          child: Padding(
-            padding: const EdgeInsets.all(24),
+          constraints: const BoxConstraints(maxWidth: 440),
+          child: AppCard(
+            radius: AppCorner.alert,
+            padding: const EdgeInsets.all(AppSpace.xxl),
+            shadow: true,
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(
-                  Icons.error_outline,
-                  size: 36,
-                  color: theme.colorScheme.error,
-                ),
-                const SizedBox(height: 12),
-                Text('无法启动后端', style: appText(theme, AppTextStyle.headline)),
-                const SizedBox(height: 8),
+                Icon(Glyphs.error, size: 36, color: scheme.error),
+                const SizedBox(height: AppSpace.md),
+                Text('无法启动后端', style: AppType.section(context)),
+                const SizedBox(height: AppSpace.sm),
                 Text(
                   state.error ?? '未知错误',
                   textAlign: TextAlign.center,
-                  style: appText(
-                    theme,
-                    AppTextStyle.subheadline,
-                  ).copyWith(color: theme.colorScheme.onSurfaceVariant),
+                  style: AppType.secondary(
+                    context,
+                  ).copyWith(color: scheme.onSurfaceVariant),
                 ),
-                const SizedBox(height: 16),
-                FilledButton(
+                const SizedBox(height: AppSpace.lg),
+                AppButton(
+                  label: '重试',
+                  icon: Glyphs.refresh,
                   onPressed: () {
                     state.error = null;
                     state.ready = false;
                     state.init();
                   },
-                  child: const Text('重试'),
                 ),
               ],
             ),
@@ -130,60 +133,133 @@ class _StartupError extends StatelessWidget {
   }
 }
 
-class _Shell extends StatelessWidget {
+class _Shell extends StatefulWidget {
   const _Shell({required this.state});
 
   final AppState state;
 
+  @override
+  State<_Shell> createState() => _ShellState();
+}
+
+class _ShellState extends State<_Shell> {
   static const _items = [
     (
       view: 'dashboard',
       label: '仪表盘',
-      icon: Icons.dashboard_outlined,
-      selected: Icons.dashboard,
+      icon: Glyphs.dashboard,
+      selected: Glyphs.dashboardFill,
     ),
-    (
-      view: 'nodes',
-      label: '节点',
-      icon: Icons.format_list_bulleted,
-      selected: Icons.format_list_bulleted,
-    ),
+    (view: 'nodes', label: '节点', icon: Glyphs.nodes, selected: Glyphs.nodes),
     (
       view: 'settings',
       label: '设置',
-      icon: Icons.settings_outlined,
-      selected: Icons.settings,
+      icon: Glyphs.settings,
+      selected: Glyphs.settingsFill,
     ),
     (
       view: 'history',
       label: '历史',
-      icon: Icons.history,
-      selected: Icons.history,
+      icon: Glyphs.history,
+      selected: Glyphs.history,
     ),
   ];
+
+  AppState get state => widget.state;
+  bool _expanded = true;
+
+  @override
+  void initState() {
+    super.initState();
+    state.addListener(_handleState);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _maybeShowUpdate());
+    SharedPreferences.getInstance().then((prefs) {
+      final saved = prefs.getBool('nav_expanded');
+      if (mounted && saved != null) setState(() => _expanded = saved);
+    });
+  }
+
+  @override
+  void dispose() {
+    state.removeListener(_handleState);
+    super.dispose();
+  }
+
+  void _handleState() {
+    if (!mounted || !state.updateDialogPending) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) => _maybeShowUpdate());
+  }
+
+  void _maybeShowUpdate() {
+    if (!mounted) return;
+    final release = state.update;
+    if (!state.updateDialogPending || release == null) return;
+    state.consumeUpdateDialog();
+    _showUpdateDialog(release);
+  }
+
+  Future<void> _showUpdateDialog(ReleaseInfo release) async {
+    final go = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('发现新版本 v${release.version}'),
+        content: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 460, maxHeight: 360),
+          child: SingleChildScrollView(
+            child: Text(
+              release.notes.isEmpty ? '有新版本可用。' : release.notes,
+              style: AppType.secondary(context),
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('稍后'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('前往下载'),
+          ),
+        ],
+      ),
+    );
+    await state.dismissUpdate(release.version);
+    if (go != true) return;
+    final opened = await openExternalUrl(release.url);
+    if (!opened && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('无法打开浏览器，请手动访问 Release 页面。')),
+      );
+    }
+  }
+
+  void _toggleExpanded() {
+    setState(() => _expanded = !_expanded);
+    SharedPreferences.getInstance().then(
+      (prefs) => prefs.setBool('nav_expanded', _expanded),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final narrow = constraints.maxWidth < 760;
-        final content = Column(
-          children: [
-            _Toolbar(state: state, narrow: narrow),
-            Expanded(
-              child: narrow
-                  ? _Body(state: state, bottomInset: 64)
-                  : _Body(state: state, bottomInset: 0),
-            ),
-          ],
-        );
+        final narrow = constraints.maxWidth < 820;
         if (narrow) {
           return Scaffold(
             body: SafeArea(
               bottom: false,
               child: Column(
                 children: [
-                  Expanded(child: content),
+                  Expanded(
+                    child: Column(
+                      children: [
+                        _TopBar(state: state, narrow: true),
+                        Expanded(child: _Body(state: state, bottomInset: 88)),
+                      ],
+                    ),
+                  ),
                   _BottomDock(state: state, items: _items),
                 ],
               ),
@@ -194,8 +270,20 @@ class _Shell extends StatelessWidget {
           body: SafeArea(
             child: Row(
               children: [
-                _Rail(state: state, items: _items),
-                Expanded(child: content),
+                _Sidebar(
+                  state: state,
+                  items: _items,
+                  expanded: _expanded,
+                  onToggle: _toggleExpanded,
+                ),
+                Expanded(
+                  child: Column(
+                    children: [
+                      _TopBar(state: state, narrow: false),
+                      Expanded(child: _Body(state: state, bottomInset: 0)),
+                    ],
+                  ),
+                ),
               ],
             ),
           ),
@@ -205,48 +293,131 @@ class _Shell extends StatelessWidget {
   }
 }
 
-class _Rail extends StatelessWidget {
-  const _Rail({required this.state, required this.items});
+class _Sidebar extends StatelessWidget {
+  const _Sidebar({
+    required this.state,
+    required this.items,
+    required this.expanded,
+    required this.onToggle,
+  });
 
   final AppState state;
   final List<({String view, String label, IconData icon, IconData selected})>
   items;
+  final bool expanded;
+  final VoidCallback onToggle;
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
-    return Container(
-      width: 72,
+    final scheme = Theme.of(context).colorScheme;
+    final width = expanded ? 220.0 : 48.0;
+    final selectedSurface = SurfaceLevel.block.colorOf(scheme);
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 250),
+      curve: Curves.easeOutCubic,
+      width: width,
       color: scheme.page,
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          SizedBox(
+            height: 56,
+            child: Align(
+              alignment: expanded
+                  ? AlignmentDirectional.centerEnd
+                  : AlignmentDirectional.center,
+              child: Padding(
+                padding: EdgeInsets.symmetric(horizontal: expanded ? 8 : 0),
+                child: IconButton(
+                  tooltip: expanded ? '收起侧栏' : '展开侧栏',
+                  onPressed: onToggle,
+                  icon: Icon(
+                    expanded ? Glyphs.chevronLeft : Glyphs.chevronRight,
+                    size: 18,
+                  ),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: AppSpace.xs),
           for (final item in items)
             Padding(
-              padding: const EdgeInsets.only(bottom: 4),
+              padding: EdgeInsets.symmetric(
+                horizontal: expanded ? 8 : 4,
+                vertical: 2,
+              ),
               child: Tooltip(
-                message: item.label,
+                message: expanded ? '' : item.label,
                 child: InkWell(
-                  borderRadius: BorderRadius.circular(16),
+                  borderRadius: BorderRadius.circular(10),
                   onTap: () => state.setView(item.view),
                   child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 200),
-                    width: 56,
-                    height: 56,
-                    decoration: BoxDecoration(
-                      color: state.view == item.view ? scheme.inset : null,
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    child: Icon(
-                      state.view == item.view ? item.selected : item.icon,
-                      size: 24,
+                    duration: const Duration(milliseconds: 250),
+                    curve: Curves.easeOutCubic,
+                    height: 40,
+                    decoration: ShapeDecoration(
                       color: state.view == item.view
-                          ? scheme.primary
-                          : scheme.onSurfaceVariant,
+                          ? selectedSurface
+                          : Colors.transparent,
+                      shape: AppShape.all(10),
+                    ),
+                    child: Row(
+                      children: [
+                        if (state.view == item.view)
+                          Container(
+                            width: 3,
+                            height: 16,
+                            decoration: ShapeDecoration(
+                              color: scheme.primary,
+                              shape: AppShape.full,
+                            ),
+                          )
+                        else
+                          const SizedBox(width: 3),
+                        SizedBox(width: expanded ? 9 : 0),
+                        Icon(
+                          state.view == item.view ? item.selected : item.icon,
+                          size: 24,
+                          color: state.view == item.view
+                              ? scheme.primary
+                              : scheme.onSurfaceVariant,
+                        ),
+                        if (expanded) ...[
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              item.label,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: AppTextStyle.subheadline
+                                  .of(
+                                    context,
+                                    emphasized: state.view == item.view,
+                                  )
+                                  .copyWith(
+                                    color: state.view == item.view
+                                        ? scheme.primary
+                                        : scheme.onSurfaceVariant,
+                                  ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                        ],
+                      ],
                     ),
                   ),
                 ),
+              ),
+            ),
+          const Spacer(),
+          if (expanded)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+              child: Text(
+                'NodePulse',
+                style: AppType.caption(
+                  context,
+                ).copyWith(color: scheme.onSurfaceVariant),
               ),
             ),
         ],
@@ -265,63 +436,73 @@ class _BottomDock extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    return Container(
-      height: 64,
-      color: scheme.page,
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      child: Row(
-        children: [
-          for (final item in items)
-            Expanded(
-              child: InkWell(
-                borderRadius: BorderRadius.circular(12),
-                onTap: () => state.setView(item.view),
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: state.view == item.view ? scheme.inset : null,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        state.view == item.view ? item.selected : item.icon,
-                        size: 22,
-                        color: state.view == item.view
-                            ? scheme.primary
-                            : scheme.onSurfaceVariant,
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        item.label,
-                        style: appText(Theme.of(context), AppTextStyle.caption2)
-                            .copyWith(
-                              color: state.view == item.view
-                                  ? scheme.primary
-                                  : scheme.onSurfaceVariant,
-                            ),
-                      ),
-                    ],
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
+      child: Container(
+        height: 64,
+        padding: const EdgeInsets.all(4),
+        decoration: ShapeDecoration(
+          color: scheme.card,
+          shape: AppShape.all(AppCorner.xxl),
+          shadows: AppShadows.e1(scheme),
+        ),
+        child: Row(
+          children: [
+            for (final item in items)
+              Expanded(
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(18),
+                  onTap: () => state.setView(item.view),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    decoration: ShapeDecoration(
+                      color: state.view == item.view
+                          ? scheme.primaryContainer
+                          : Colors.transparent,
+                      shape: AppShape.all(18),
+                    ),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          state.view == item.view ? item.selected : item.icon,
+                          size: 22,
+                          color: state.view == item.view
+                              ? scheme.onPrimaryContainer
+                              : scheme.onSurfaceVariant,
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          item.label,
+                          style: AppTextStyle.caption2
+                              .of(context)
+                              .copyWith(
+                                color: state.view == item.view
+                                    ? scheme.onPrimaryContainer
+                                    : scheme.onSurfaceVariant,
+                              ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
-            ),
-        ],
+          ],
+        ),
       ),
     );
   }
 }
 
-class _Toolbar extends StatelessWidget {
-  const _Toolbar({required this.state, required this.narrow});
+class _TopBar extends StatelessWidget {
+  const _TopBar({required this.state, required this.narrow});
 
   final AppState state;
   final bool narrow;
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
+    final scheme = Theme.of(context).colorScheme;
     final title = switch (state.view) {
       'dashboard' => '仪表盘',
       'nodes' => '节点',
@@ -330,22 +511,16 @@ class _Toolbar extends StatelessWidget {
       _ => '仪表盘',
     };
     return Container(
-      height: 72,
+      height: pageToolbarHeight,
       color: scheme.page,
-      padding: EdgeInsets.symmetric(horizontal: narrow ? 16 : 20),
+      padding: EdgeInsets.symmetric(horizontal: narrow ? 16 : 24),
       child: Row(
         children: [
-          Text(
-            title,
-            style: appText(
-              theme,
-              AppTextStyle.pageTitle,
-            ).copyWith(fontWeight: FontWeight.w600),
-          ),
+          Text(title, style: AppType.pageTitle(context)),
           const Spacer(),
           if (!narrow) ...[
             _EnvironmentButton(state: state),
-            const SizedBox(width: 4),
+            const SizedBox(width: 8),
           ],
           StatusChip(
             label: state.connected
@@ -358,17 +533,8 @@ class _Toolbar extends StatelessWidget {
                 : state.clients.any((c) => c is Map && c['running'] == true)
                 ? StatusTone.warn
                 : StatusTone.neutral,
+            dot: true,
           ),
-          if (!narrow && state.version.isNotEmpty) ...[
-            const SizedBox(width: 8),
-            Text(
-              'v${state.version}',
-              style: appText(
-                theme,
-                AppTextStyle.caption2,
-              ).copyWith(color: scheme.onSurfaceVariant),
-            ),
-          ],
         ],
       ),
     );
@@ -403,42 +569,40 @@ class _EnvironmentButton extends StatelessWidget {
                     children: [
                       Text(
                         (profile['name'] ?? '').toString(),
-                        style: appText(theme, AppTextStyle.subheadline),
+                        style: AppType.secondary(context),
                       ),
                       Text(
                         (profile['api'] ?? '').toString(),
-                        style: appText(
-                          theme,
-                          AppTextStyle.footnote,
+                        style: AppType.caption(
+                          context,
                         ).copyWith(color: scheme.onSurfaceVariant),
                       ),
                     ],
                   ),
                 ),
                 if (profile['id'] == state.settings['active_profile'])
-                  Icon(Icons.check, size: 18, color: scheme.success),
+                  Icon(Glyphs.check, size: 18, color: scheme.success),
               ],
             ),
           ),
       ],
       child: Container(
         height: 40,
-        padding: const EdgeInsets.symmetric(horizontal: 8),
-        decoration: BoxDecoration(borderRadius: BorderRadius.circular(999)),
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        decoration: ShapeDecoration(color: scheme.inset, shape: AppShape.full),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           spacing: 6,
           children: [
-            Icon(Icons.swap_horiz, size: 18, color: scheme.onSurfaceVariant),
+            Icon(Glyphs.swap, size: 18, color: scheme.onSurfaceVariant),
             ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 140),
               child: Text(
                 name,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: appText(
-                  theme,
-                  AppTextStyle.subheadline,
+                style: AppType.secondary(
+                  context,
                 ).copyWith(color: scheme.onSurfaceVariant),
               ),
             ),
@@ -455,6 +619,13 @@ class _Body extends StatelessWidget {
   final AppState state;
   final double bottomInset;
 
+  double get _maxWidth => switch (state.view) {
+    'dashboard' => 1440,
+    'nodes' => 1280,
+    'settings' || 'history' => 960,
+    _ => 1080,
+  };
+
   @override
   Widget build(BuildContext context) {
     final child = switch (state.view) {
@@ -465,11 +636,17 @@ class _Body extends StatelessWidget {
     };
     return Scrollbar(
       child: SingleChildScrollView(
-        padding: EdgeInsets.fromLTRB(16, 0, 16, 24 + bottomInset),
+        key: PageStorageKey<String>(state.view),
+        padding: EdgeInsets.fromLTRB(16, 0, 24, 24 + bottomInset),
         child: Center(
           child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 1080),
-            child: child,
+            constraints: BoxConstraints(maxWidth: _maxWidth),
+            child: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 200),
+              switchInCurve: Curves.easeOutCubic,
+              switchOutCurve: Curves.easeInCubic,
+              child: KeyedSubtree(key: ValueKey(state.view), child: child),
+            ),
           ),
         ),
       ),

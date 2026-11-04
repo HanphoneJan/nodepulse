@@ -1,10 +1,10 @@
 import 'package:material_ui/material_ui.dart';
 
-import '../ui/app_theme.dart';
-import '../ui/flclash/color.dart';
-import '../ui/flclash/typography.dart';
 import '../format.dart';
+import '../ui/app_theme.dart';
+import '../ui/widgets.dart';
 
+/// A compact result table for the dashboard. The node page uses [NodeCard].
 class ResultTable extends StatelessWidget {
   const ResultTable({
     super.key,
@@ -25,8 +25,7 @@ class ResultTable extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
+    final scheme = Theme.of(context).colorScheme;
     final visible = rows.whereType<Map>().take(maxRows ?? rows.length).toList();
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -35,88 +34,48 @@ class ResultTable extends StatelessWidget {
           children: [
             Container(
               height: 32,
-              padding: const EdgeInsets.symmetric(horizontal: 10),
+              padding: const EdgeInsets.symmetric(horizontal: 12),
               child: Row(
                 children: [
                   SizedBox(
-                    width: 32,
+                    width: 28,
                     child: Text(
                       '#',
-                      style: appText(
-                        theme,
-                        AppTextStyle.footnote,
+                      style: AppType.caption(
+                        context,
                       ).copyWith(color: scheme.onSurfaceVariant),
                     ),
                   ),
                   Expanded(
                     child: Text(
                       '节点',
-                      style: appText(
-                        theme,
-                        AppTextStyle.footnote,
+                      style: AppType.caption(
+                        context,
                       ).copyWith(color: scheme.onSurfaceVariant),
                     ),
                   ),
                   if (wide) ...[
-                    SizedBox(
-                      width: 64,
-                      child: Text(
-                        '成功率',
-                        textAlign: TextAlign.right,
-                        style: appText(
-                          theme,
-                          AppTextStyle.footnote,
-                        ).copyWith(color: scheme.onSurfaceVariant),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    SizedBox(
-                      width: 64,
-                      child: Text(
-                        'P90',
-                        textAlign: TextAlign.right,
-                        style: appText(
-                          theme,
-                          AppTextStyle.footnote,
-                        ).copyWith(color: scheme.onSurfaceVariant),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    SizedBox(
-                      width: 64,
-                      child: Text(
-                        '抖动',
-                        textAlign: TextAlign.right,
-                        style: appText(
-                          theme,
-                          AppTextStyle.footnote,
-                        ).copyWith(color: scheme.onSurfaceVariant),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
+                    _HeaderCell(label: '成功率', width: 64),
+                    _HeaderCell(label: 'P90', width: 64),
+                    _HeaderCell(label: '抖动', width: 64),
                   ],
-                  SizedBox(
-                    width: 56,
-                    child: Text(
-                      '评分',
-                      textAlign: TextAlign.right,
-                      style: appText(
-                        theme,
-                        AppTextStyle.footnote,
-                      ).copyWith(color: scheme.onSurfaceVariant),
-                    ),
-                  ),
+                  _HeaderCell(label: '评分', width: 56),
                 ],
               ),
             ),
             for (var i = 0; i < visible.length; i++)
-              _ResultRow(
-                index: i + 1,
-                row: visible[i],
+              NodeRow(
+                rank: i + 1,
+                name: cleanName((visible[i]['name'] ?? '').toString()),
+                source: (visible[i]['source'] ?? '').toString(),
+                metrics: NodeMetrics.of(visible[i]),
+                successText: percent(visible[i]),
                 wide: wide,
-                compact: compact,
                 selected: visible[i]['name'] == selected,
                 best: visible[i]['name'] == bestName,
+                failed:
+                    ((visible[i]['success'] as num?)?.toInt() ?? 0) == 0 &&
+                    ((visible[i]['total'] as num?)?.toInt() ?? 0) > 0,
                 onTap: onSelect == null
                     ? null
                     : () => onSelect!(visible[i]['name'].toString()),
@@ -128,157 +87,22 @@ class ResultTable extends StatelessWidget {
   }
 }
 
-class _ResultRow extends StatelessWidget {
-  const _ResultRow({
-    required this.index,
-    required this.row,
-    required this.wide,
-    required this.compact,
-    required this.selected,
-    required this.best,
-    this.onTap,
-  });
+class _HeaderCell extends StatelessWidget {
+  const _HeaderCell({required this.label, required this.width});
 
-  final int index;
-  final Map row;
-  final bool wide;
-  final bool compact;
-  final bool selected;
-  final bool best;
-  final VoidCallback? onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
-    final source = (row['source'] ?? '').toString();
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(8),
-      child: Container(
-        constraints: BoxConstraints(minHeight: compact ? 48 : 56),
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-        decoration: BoxDecoration(
-          color: selected ? scheme.secondaryContainer : null,
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Row(
-          children: [
-            SizedBox(
-              width: 32,
-              child: Text(
-                '$index',
-                style: appText(
-                  theme,
-                  AppTextStyle.footnote,
-                ).copyWith(color: scheme.onSurfaceVariant),
-              ),
-            ),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Row(
-                    children: [
-                      if (best)
-                        Padding(
-                          padding: const EdgeInsets.only(right: 4),
-                          child: Icon(
-                            Icons.check_circle,
-                            size: 14,
-                            color: scheme.success,
-                          ),
-                        ),
-                      Expanded(
-                        child: Text(
-                          cleanName((row['name'] ?? '').toString()),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: appText(theme, AppTextStyle.subheadline)
-                              .copyWith(
-                                color: selected
-                                    ? scheme.onSecondaryContainer
-                                    : scheme.onSurface,
-                                fontWeight: FontWeight.w600,
-                              ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  if (source.isNotEmpty ||
-                      (row['type'] ?? '').toString().isNotEmpty)
-                    Text(
-                      source.isNotEmpty
-                          ? source
-                          : (row['type'] ?? '').toString(),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: appText(theme, AppTextStyle.footnote).copyWith(
-                        color: selected
-                            ? scheme.onSecondaryContainer.withValues(
-                                alpha: 0.75,
-                              )
-                            : scheme.onSurfaceVariant,
-                      ),
-                    ),
-                ],
-              ),
-            ),
-            if (wide) ...[
-              _Number(width: 64, text: percent(row), selected: selected),
-              const SizedBox(width: 12),
-              _Number(width: 64, text: ms(row['p90_ms']), selected: selected),
-              const SizedBox(width: 12),
-              _Number(
-                width: 64,
-                text: ms(row['jitter_ms']),
-                selected: selected,
-              ),
-              const SizedBox(width: 12),
-            ],
-            _Number(
-              width: 56,
-              text: scoreText(row['score']),
-              selected: selected,
-              bold: true,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _Number extends StatelessWidget {
-  const _Number({
-    required this.width,
-    required this.text,
-    required this.selected,
-    this.bold = false,
-  });
-
+  final String label;
   final double width;
-  final String text;
-  final bool selected;
-  final bool bold;
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
     return SizedBox(
       width: width,
       child: Text(
-        text,
+        label,
         textAlign: TextAlign.right,
-        style: appText(theme, AppTextStyle.footnote).copyWith(
-          color: selected
-              ? scheme.onSecondaryContainer
-              : scheme.onSurfaceVariant,
-          fontWeight: bold ? FontWeight.w700 : FontWeight.w400,
-          fontFeatures: const [FontFeature.tabularFigures()],
-        ),
+        style: AppType.caption(
+          context,
+        ).copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
       ),
     );
   }

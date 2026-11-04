@@ -8,8 +8,10 @@ import '../format.dart';
 import '../state/app_state.dart';
 import '../ui/app_theme.dart';
 import '../ui/flclash/color.dart';
+import '../ui/flclash/shape.dart';
 import '../ui/flclash/typography.dart';
 import '../ui/widgets.dart';
+import '../update/update_checker.dart';
 
 const _presets = <String>[
   '#007aff',
@@ -33,44 +35,42 @@ class SettingsView extends StatefulWidget {
 
 class _SettingsViewState extends State<SettingsView> {
   AppState get state => widget.state;
-  bool _confirmDelete = false;
 
   @override
   Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
-      spacing: 16,
+      spacing: AppSpace.lg,
       children: [
         _appearance(context),
         _environment(context),
         _autoSelection(context),
+        _connection(context),
         _health(context),
         _background(context),
         _backup(context),
-        _connection(context),
+        _about(context),
       ],
     );
   }
 
   Widget _appearance(BuildContext context) {
-    final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
-    return CommonCard(
+    final scheme = Theme.of(context).colorScheme;
+    return AppCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const InfoHeader(label: '外观', padding: EdgeInsets.only(bottom: 8)),
+          const AppCardHeader(title: '外观', glyph: Glyphs.settings),
           Text(
             '主题色',
-            style: appText(
-              theme,
-              AppTextStyle.footnote,
+            style: AppType.caption(
+              context,
             ).copyWith(color: scheme.onSurfaceVariant),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: AppSpace.sm),
           Wrap(
-            spacing: 8,
-            runSpacing: 8,
+            spacing: AppSpace.sm,
+            runSpacing: AppSpace.sm,
             crossAxisAlignment: WrapCrossAlignment.center,
             children: [
               for (final color in _presets)
@@ -79,43 +79,45 @@ class _SettingsViewState extends State<SettingsView> {
                   active: state.seed == color,
                   onTap: () => state.setSeed(color),
                 ),
-              GhostButton(
+              AppButton(
                 label: '恢复默认',
+                variant: AppButtonVariant.ghost,
                 onPressed: () => state.setSeed('#007aff'),
               ),
             ],
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: AppSpace.sm),
           Text(
             '当前：${state.seed}',
-            style: appText(
-              theme,
-              AppTextStyle.footnote,
+            style: AppType.caption(
+              context,
             ).copyWith(color: scheme.onSurfaceVariant),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: AppSpace.lg),
           Text(
             '主题模式',
-            style: appText(
-              theme,
-              AppTextStyle.footnote,
+            style: AppType.caption(
+              context,
             ).copyWith(color: scheme.onSurfaceVariant),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: AppSpace.sm),
           Align(
-            alignment: Alignment.centerLeft,
-            child: SegmentedChoice<ThemeMode>(
-              value: state.themeMode,
-              onChanged: state.setThemeMode,
-              options: const [
-                (
-                  value: ThemeMode.system,
-                  label: '跟随系统',
-                  icon: Icons.brightness_auto,
-                ),
-                (value: ThemeMode.light, label: '亮色', icon: Icons.light_mode),
-                (value: ThemeMode.dark, label: '暗色', icon: Icons.dark_mode),
-              ],
+            alignment: AlignmentDirectional.centerStart,
+            child: SizedBox(
+              width: 420,
+              child: SegmentedChoice<ThemeMode>(
+                value: state.themeMode,
+                onChanged: state.setThemeMode,
+                options: const [
+                  (
+                    value: ThemeMode.system,
+                    label: '跟随系统',
+                    icon: Glyphs.monitor,
+                  ),
+                  (value: ThemeMode.light, label: '亮色', icon: Glyphs.sun),
+                  (value: ThemeMode.dark, label: '暗色', icon: Glyphs.moon),
+                ],
+              ),
             ),
           ),
         ],
@@ -124,62 +126,66 @@ class _SettingsViewState extends State<SettingsView> {
   }
 
   Widget _environment(BuildContext context) {
-    final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
+    final scheme = Theme.of(context).colorScheme;
     final active = state.activeProfile;
     final activeId = (active['id'] ?? '').toString();
-    return CommonCard(
+    return AppCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const InfoHeader(label: '环境', glyph: Icons.swap_horiz),
+          const AppCardHeader(title: '环境', glyph: Glyphs.swap),
           Text(
             '同时切换控制口、订阅和测速参数。',
-            style: appText(
-              theme,
-              AppTextStyle.subheadline,
+            style: AppType.secondary(
+              context,
             ).copyWith(color: scheme.onSurfaceVariant),
           ),
-          const SizedBox(height: 8),
-          _SettingField(
+          const SizedBox(height: AppSpace.md),
+          AppTextField(
             key: ValueKey('profile-name-$activeId'),
             label: '环境名称',
-            value: (active['name'] ?? '').toString(),
+            initialValue: (active['name'] ?? '').toString(),
             onChanged: state.renameProfile,
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: AppSpace.md),
           Wrap(
-            spacing: 8,
-            runSpacing: 8,
+            spacing: AppSpace.sm,
+            runSpacing: AppSpace.sm,
             children: [
-              FilledButton.icon(
+              AppButton(
+                label: '保存当前设置',
+                icon: Glyphs.check,
                 onPressed: state.saveSettings,
-                icon: const Icon(Icons.check, size: 18),
-                label: const Text('保存当前设置'),
               ),
-              OutlinedButton(
+              AppButton(
+                label: '新建环境',
+                icon: Glyphs.plus,
+                variant: AppButtonVariant.outline,
                 onPressed: state.newProfile,
-                child: const Text('新建环境'),
               ),
-              TextButton(
+              AppButton(
+                label: '删除当前环境',
+                icon: Glyphs.trash,
+                variant: AppButtonVariant.ghost,
                 onPressed: state.profiles.length <= 1
                     ? null
-                    : () {
-                        if (!_confirmDelete) {
-                          setState(() => _confirmDelete = true);
-                          return;
-                        }
-                        setState(() => _confirmDelete = false);
-                        state.deleteProfile();
+                    : () async {
+                        final confirmed = await showAppConfirm(
+                          context,
+                          title: '删除当前环境？',
+                          message: '这会移除该环境及其本地设置，且无法撤销。',
+                          confirmLabel: '删除',
+                          destructive: true,
+                        );
+                        if (confirmed) await state.deleteProfile();
                       },
-                child: Text(_confirmDelete ? '确认删除？' : '删除当前环境'),
               ),
             ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: AppSpace.lg),
           for (final profile in state.profiles.whereType<Map>())
             Padding(
-              padding: const EdgeInsets.only(bottom: 8),
+              padding: const EdgeInsets.only(bottom: AppSpace.sm),
               child: _ProfileRow(
                 profile: profile,
                 active: profile['id'] == state.settings['active_profile'],
@@ -192,37 +198,35 @@ class _SettingsViewState extends State<SettingsView> {
   }
 
   Widget _autoSelection(BuildContext context) {
-    final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
-    return CommonCard(
+    final scheme = Theme.of(context).colorScheme;
+    return AppCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const InfoHeader(label: '自动选择', glyph: Icons.monitor_heart_outlined),
+          const AppCardHeader(title: '测速与自动选择', glyph: Glyphs.signal),
           Text(
             '余量越大越保守，重启自动优化后生效。',
-            style: appText(
-              theme,
-              AppTextStyle.subheadline,
+            style: AppType.secondary(
+              context,
             ).copyWith(color: scheme.onSurfaceVariant),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: AppSpace.md),
           LayoutBuilder(
             builder: (context, constraints) {
               final columns = constraints.maxWidth > 620 ? 2 : 1;
               final width = columns == 2
-                  ? (constraints.maxWidth - 12) / 2
+                  ? (constraints.maxWidth - AppSpace.md) / 2
                   : constraints.maxWidth;
               return Wrap(
-                spacing: 12,
-                runSpacing: 12,
+                spacing: AppSpace.md,
+                runSpacing: AppSpace.md,
                 children: [
                   SizedBox(
                     width: width,
-                    child: _SettingField(
+                    child: AppTextField(
                       key: const ValueKey('auto-margin'),
                       label: '切换余量 (%)',
-                      value:
+                      initialValue:
                           (((state.settings['auto_margin'] as num?) ?? 0.2) *
                                   100)
                               .round()
@@ -236,10 +240,10 @@ class _SettingsViewState extends State<SettingsView> {
                   ),
                   SizedBox(
                     width: width,
-                    child: _SettingField(
+                    child: AppTextField(
                       key: const ValueKey('auto-confirm'),
                       label: '连续确认 (轮)',
-                      value: '${state.settings['auto_confirm'] ?? 2}',
+                      initialValue: '${state.settings['auto_confirm'] ?? 2}',
                       keyboardType: TextInputType.number,
                       onChanged: (value) => state.updateSetting(
                         'auto_confirm',
@@ -249,10 +253,10 @@ class _SettingsViewState extends State<SettingsView> {
                   ),
                   SizedBox(
                     width: width,
-                    child: _SettingField(
+                    child: AppTextField(
                       key: const ValueKey('auto-min'),
                       label: '最低成功率 (%)',
-                      value:
+                      initialValue:
                           (((state.settings['auto_min_success'] as num?) ??
                                       0.8) *
                                   100)
@@ -267,10 +271,11 @@ class _SettingsViewState extends State<SettingsView> {
                   ),
                   SizedBox(
                     width: width,
-                    child: _SettingField(
+                    child: AppTextField(
                       key: const ValueKey('daemon-interval'),
                       label: '检查间隔 (秒)',
-                      value: '${state.settings['daemon_interval'] ?? 300}',
+                      initialValue:
+                          '${state.settings['daemon_interval'] ?? 300}',
                       keyboardType: TextInputType.number,
                       onChanged: (value) => state.updateSetting(
                         'daemon_interval',
@@ -288,45 +293,54 @@ class _SettingsViewState extends State<SettingsView> {
   }
 
   Widget _health(BuildContext context) {
-    final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
+    final scheme = Theme.of(context).colorScheme;
     final report = state.settings['_health'];
     final checks = report is Map
         ? (report['checks'] as List?) ?? const []
         : const [];
-    return CommonCard(
+    return AppCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const InfoHeader(label: '环境检查', glyph: Icons.check_circle_outline),
+          AppCardHeader(
+            title: '环境检查',
+            glyph: Glyphs.checkCircleOutline,
+            actions: [
+              AppButton(
+                label: '重新检查',
+                icon: Glyphs.refresh,
+                variant: AppButtonVariant.ghost,
+                onPressed: state.refreshHealth,
+              ),
+            ],
+          ),
           Text(
             '只读检查，不会修改配置。',
-            style: appText(
-              theme,
-              AppTextStyle.subheadline,
+            style: AppType.secondary(
+              context,
             ).copyWith(color: scheme.onSurfaceVariant),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: AppSpace.md),
           if (checks.isEmpty)
             Text(
               '尚未检查',
-              style: appText(
-                theme,
-                AppTextStyle.subheadline,
+              style: AppType.secondary(
+                context,
               ).copyWith(color: scheme.onSurfaceVariant),
             )
           else
             for (final check in checks.whereType<Map>())
               Padding(
-                padding: const EdgeInsets.only(bottom: 8),
+                padding: const EdgeInsets.only(bottom: AppSpace.sm),
                 child: SurfaceBox(
+                  padding: const EdgeInsets.all(AppSpace.md),
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Container(
                         width: 8,
                         height: 8,
-                        margin: const EdgeInsets.only(top: 6),
+                        margin: const EdgeInsets.only(top: 5),
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
                           color: switch (check['status']) {
@@ -336,7 +350,7 @@ class _SettingsViewState extends State<SettingsView> {
                           },
                         ),
                       ),
-                      const SizedBox(width: 8),
+                      const SizedBox(width: AppSpace.sm),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -346,10 +360,7 @@ class _SettingsViewState extends State<SettingsView> {
                                 Expanded(
                                   child: Text(
                                     (check['label'] ?? '').toString(),
-                                    style: appText(
-                                      theme,
-                                      AppTextStyle.subheadline,
-                                    ),
+                                    style: AppType.secondary(context),
                                   ),
                                 ),
                                 Text(
@@ -358,9 +369,8 @@ class _SettingsViewState extends State<SettingsView> {
                                     'warn' => '注意',
                                     _ => '异常',
                                   },
-                                  style: appText(
-                                    theme,
-                                    AppTextStyle.footnote,
+                                  style: AppType.caption(
+                                    context,
                                   ).copyWith(color: scheme.onSurfaceVariant),
                                 ),
                               ],
@@ -368,20 +378,18 @@ class _SettingsViewState extends State<SettingsView> {
                             if ((check['detail'] ?? '').toString().isNotEmpty)
                               Text(
                                 check['detail'].toString(),
-                                style: appText(
-                                  theme,
-                                  AppTextStyle.footnote,
+                                style: AppType.caption(
+                                  context,
                                 ).copyWith(color: scheme.onSurfaceVariant),
                               ),
                             if ((check['hint'] ?? '').toString().isNotEmpty)
                               Text(
                                 check['hint'].toString(),
-                                style: appText(theme, AppTextStyle.footnote)
-                                    .copyWith(
-                                      color: scheme.onSurfaceVariant.withValues(
-                                        alpha: 0.75,
-                                      ),
-                                    ),
+                                style: AppType.micro(context).copyWith(
+                                  color: scheme.onSurfaceVariant.withValues(
+                                    alpha: 0.75,
+                                  ),
+                                ),
                               ),
                           ],
                         ),
@@ -390,65 +398,41 @@ class _SettingsViewState extends State<SettingsView> {
                   ),
                 ),
               ),
-          const SizedBox(height: 4),
-          Align(
-            alignment: Alignment.centerLeft,
-            child: OutlinedButton.icon(
-              onPressed: state.refreshHealth,
-              icon: const Icon(Icons.refresh, size: 18),
-              label: const Text('重新检查'),
-            ),
-          ),
         ],
       ),
     );
   }
 
   Widget _background(BuildContext context) {
-    final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
-    return CommonCard(
+    final scheme = Theme.of(context).colorScheme;
+    return AppCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const InfoHeader(
-            label: '后台与通知',
-            glyph: Icons.desktop_windows_outlined,
-            padding: EdgeInsets.only(bottom: 4),
-          ),
-          SwitchListTile(
-            contentPadding: EdgeInsets.zero,
+          const AppCardHeader(title: '后台与通知', glyph: Glyphs.monitor),
+          _SettingSwitch(
+            title: '关闭窗口时驻留托盘',
             value: state.settings['close_to_tray'] != false,
             onChanged: (value) => state.updateSetting('close_to_tray', value),
-            title: Text(
-              '关闭窗口时驻留托盘',
-              style: appText(theme, AppTextStyle.subheadline),
-            ),
           ),
-          SwitchListTile(
-            contentPadding: EdgeInsets.zero,
+          _divider(scheme),
+          _SettingSwitch(
+            title: '开机自动启动',
             value: state.autostart,
             onChanged: state.toggleAutostart,
-            title: Text(
-              '开机自动启动',
-              style: appText(theme, AppTextStyle.subheadline),
-            ),
           ),
-          SwitchListTile(
-            contentPadding: EdgeInsets.zero,
+          _divider(scheme),
+          _SettingSwitch(
+            title: '切换、回滚时发送系统通知',
             value: state.settings['notify_on_switch'] != false,
             onChanged: (value) =>
                 state.updateSetting('notify_on_switch', value),
-            title: Text(
-              '切换、回滚时发送系统通知',
-              style: appText(theme, AppTextStyle.subheadline),
-            ),
           ),
+          const SizedBox(height: AppSpace.sm),
           Text(
             '关闭后从托盘退出。开机启动会静默拉起后端。',
-            style: appText(
-              theme,
-              AppTextStyle.footnote,
+            style: AppType.caption(
+              context,
             ).copyWith(color: scheme.onSurfaceVariant),
           ),
         ],
@@ -457,26 +441,27 @@ class _SettingsViewState extends State<SettingsView> {
   }
 
   Widget _backup(BuildContext context) {
-    final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
-    return CommonCard(
+    final scheme = Theme.of(context).colorScheme;
+    return AppCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const InfoHeader(label: '备份与迁移', glyph: Icons.archive_outlined),
+          const AppCardHeader(title: '备份与迁移', glyph: Glyphs.archive),
           Text(
             '覆盖前自动备份最近 20 次。',
-            style: appText(
-              theme,
-              AppTextStyle.subheadline,
+            style: AppType.secondary(
+              context,
             ).copyWith(color: scheme.onSurfaceVariant),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: AppSpace.md),
           Wrap(
-            spacing: 8,
-            runSpacing: 8,
+            spacing: AppSpace.sm,
+            runSpacing: AppSpace.sm,
             children: [
-              OutlinedButton.icon(
+              AppButton(
+                label: '导出设置备份',
+                icon: Glyphs.download,
+                variant: AppButtonVariant.outline,
                 onPressed: () async {
                   final data = await state.backupSettings();
                   if (data == null) return;
@@ -488,10 +473,11 @@ class _SettingsViewState extends State<SettingsView> {
                     await File(path).writeAsString(data);
                   }
                 },
-                icon: const Icon(Icons.download_outlined, size: 18),
-                label: const Text('导出设置备份'),
               ),
-              OutlinedButton.icon(
+              AppButton(
+                label: '从备份恢复',
+                icon: Glyphs.refresh,
+                variant: AppButtonVariant.outline,
                 onPressed: () async {
                   final result = await FilePicker.pickFiles(
                     type: FileType.custom,
@@ -505,18 +491,13 @@ class _SettingsViewState extends State<SettingsView> {
                       : await File(file.path!).readAsString();
                   await state.restoreSettings(text);
                 },
-                icon: const Icon(Icons.refresh, size: 18),
-                label: const Text('从备份恢复'),
               ),
             ],
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: AppSpace.sm),
           Text(
             '备份包含 secret，请妥善保管。',
-            style: appText(
-              theme,
-              AppTextStyle.footnote,
-            ).copyWith(color: scheme.warning),
+            style: AppType.caption(context).copyWith(color: scheme.warning),
           ),
         ],
       ),
@@ -524,41 +505,40 @@ class _SettingsViewState extends State<SettingsView> {
   }
 
   Widget _connection(BuildContext context) {
-    final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
+    final scheme = Theme.of(context).colorScheme;
     final impact = state.exportImpact;
     final profileKey = state.settings['active_profile'];
-    return CommonCard(
+    return AppCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const InfoHeader(label: '连接设置', glyph: Icons.tune),
+          const AppCardHeader(title: '连接设置', glyph: Glyphs.tune),
           LayoutBuilder(
             builder: (context, constraints) {
               final two = constraints.maxWidth > 620;
               final width = two
-                  ? (constraints.maxWidth - 12) / 2
+                  ? (constraints.maxWidth - AppSpace.md) / 2
                   : constraints.maxWidth;
               return Wrap(
-                spacing: 12,
-                runSpacing: 12,
+                spacing: AppSpace.md,
+                runSpacing: AppSpace.md,
                 children: [
                   SizedBox(
                     width: width,
-                    child: _SettingField(
+                    child: AppTextField(
                       key: ValueKey('api-$profileKey'),
                       label: 'Clash 控制口',
-                      value: (state.settings['api'] ?? '').toString(),
+                      initialValue: (state.settings['api'] ?? '').toString(),
                       hint: 'http://127.0.0.1:9090',
                       onChanged: (value) => state.updateSetting('api', value),
                     ),
                   ),
                   SizedBox(
                     width: width,
-                    child: _SettingField(
+                    child: AppTextField(
                       key: ValueKey('secret-$profileKey'),
                       label: 'Secret',
-                      value: (state.settings['secret'] ?? '').toString(),
+                      initialValue: (state.settings['secret'] ?? '').toString(),
                       obscure: true,
                       onChanged: (value) =>
                           state.updateSetting('secret', value),
@@ -566,49 +546,51 @@ class _SettingsViewState extends State<SettingsView> {
                   ),
                   SizedBox(
                     width: constraints.maxWidth,
-                    child: _SettingField(
+                    child: AppTextField(
                       key: ValueKey('config-$profileKey'),
                       label: '订阅配置',
-                      value: (state.settings['config_path'] ?? '').toString(),
+                      initialValue: (state.settings['config_path'] ?? '')
+                          .toString(),
                       onChanged: (value) =>
                           state.updateSetting('config_path', value),
                     ),
                   ),
                   SizedBox(
                     width: width,
-                    child: _SettingField(
+                    child: AppTextField(
                       key: ValueKey('group-$profileKey'),
                       label: 'Selector 组',
-                      value: (state.settings['group'] ?? '').toString(),
+                      initialValue: (state.settings['group'] ?? '').toString(),
                       hint: '留空自动选择',
                       onChanged: (value) => state.updateSetting('group', value),
                     ),
                   ),
                   SizedBox(
                     width: width,
-                    child: _SettingField(
+                    child: AppTextField(
                       key: ValueKey('mihomo-$profileKey'),
                       label: 'mihomo 路径',
-                      value: (state.settings['mihomo_path'] ?? '').toString(),
+                      initialValue: (state.settings['mihomo_path'] ?? '')
+                          .toString(),
                       onChanged: (value) =>
                           state.updateSetting('mihomo_path', value),
                     ),
                   ),
                   SizedBox(
                     width: constraints.maxWidth,
-                    child: _SettingField(
+                    child: AppTextField(
                       key: ValueKey('url-$profileKey'),
                       label: '测试 URL',
-                      value: (state.settings['url'] ?? '').toString(),
+                      initialValue: (state.settings['url'] ?? '').toString(),
                       onChanged: (value) => state.updateSetting('url', value),
                     ),
                   ),
                   SizedBox(
                     width: width,
-                    child: _SettingField(
+                    child: AppTextField(
                       key: ValueKey('concurrency-$profileKey'),
                       label: '并发节点',
-                      value: '${state.settings['concurrency'] ?? 8}',
+                      initialValue: '${state.settings['concurrency'] ?? 8}',
                       keyboardType: TextInputType.number,
                       onChanged: (value) => state.updateSetting(
                         'concurrency',
@@ -618,10 +600,10 @@ class _SettingsViewState extends State<SettingsView> {
                   ),
                   SizedBox(
                     width: width,
-                    child: _SettingField(
+                    child: AppTextField(
                       key: ValueKey('timeout-$profileKey'),
                       label: '单轮超时 (ms)',
-                      value: '${state.settings['timeout_ms'] ?? 5000}',
+                      initialValue: '${state.settings['timeout_ms'] ?? 5000}',
                       keyboardType: TextInputType.number,
                       onChanged: (value) => state.updateSetting(
                         'timeout_ms',
@@ -633,56 +615,52 @@ class _SettingsViewState extends State<SettingsView> {
               );
             },
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: AppSpace.lg),
           Wrap(
-            spacing: 8,
-            runSpacing: 8,
+            spacing: AppSpace.sm,
+            runSpacing: AppSpace.sm,
             children: [
-              FilledButton.icon(
+              AppButton(
+                label: '保存设置',
+                icon: Glyphs.check,
                 onPressed: state.saveSettings,
-                icon: const Icon(Icons.check, size: 18),
-                label: const Text('保存设置'),
               ),
-              FilledButton.tonal(
+              AppButton(
+                label: state.busy && state.busyKind == 'test' ? '测速中…' : '测速',
+                variant: AppButtonVariant.tonal,
                 onPressed: state.busy ? null : state.testOnly,
-                child: Text(
-                  state.busy && state.busyKind == 'test' ? '测速中…' : '测速',
-                ),
               ),
-              FilledButton.tonal(
+              AppButton(
+                label: '切换选中节点',
+                variant: AppButtonVariant.tonal,
                 onPressed: state.busy ? null : state.switchSelected,
-                child: const Text('切换选中节点'),
               ),
-              OutlinedButton(
+              AppButton(
+                label: '导出稳定配置',
+                variant: AppButtonVariant.outline,
                 onPressed: state.busy ? null : () => state.exportPreview(false),
-                child: const Text('导出稳定配置'),
               ),
             ],
           ),
           if (impact != null) ...[
-            const SizedBox(height: 12),
+            const SizedBox(height: AppSpace.lg),
             _ExportPreview(state: state, impact: impact),
           ],
-          const SizedBox(height: 12),
-          Divider(
-            height: 1,
-            color: scheme.outlineVariant.withValues(alpha: 0.4),
-          ),
-          const SizedBox(height: 12),
+          const SizedBox(height: AppSpace.lg),
+          Divider(color: scheme.outlineVariant.withValues(alpha: 0.5)),
+          const SizedBox(height: AppSpace.md),
           Text(
             '控制口状态',
-            style: appText(
-              theme,
-              AppTextStyle.headline,
-            ).copyWith(color: scheme.onSurfaceVariant.withValues(alpha: 0.8)),
+            style: AppType.caption(
+              context,
+            ).copyWith(color: scheme.onSurfaceVariant),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: AppSpace.xs),
           if (state.groups.isEmpty)
             Text(
               '控制口未连接',
-              style: appText(
-                theme,
-                AppTextStyle.subheadline,
+              style: AppType.secondary(
+                context,
               ).copyWith(color: scheme.onSurfaceVariant),
             )
           else
@@ -692,14 +670,115 @@ class _SettingsViewState extends State<SettingsView> {
                 subtitle: '${group['type']} · ${group['now'] ?? '—'}',
                 trailing: Text(
                   '${group['members'] ?? 0}',
-                  style: appText(
-                    theme,
-                    AppTextStyle.footnote,
+                  style: AppType.caption(
+                    context,
                   ).copyWith(color: scheme.onSurfaceVariant),
                 ),
               ),
         ],
       ),
+    );
+  }
+
+  Widget _about(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return AppCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const AppCardHeader(title: '关于', glyph: Glyphs.info),
+          SettingRow(
+            title: 'NodePulse',
+            subtitle: state.version.isEmpty ? '版本未知' : 'v${state.version}',
+          ),
+          _divider(scheme),
+          SettingRow(
+            title: '检查更新',
+            subtitle: state.updateStatusText,
+            trailing: AppButton(
+              label: state.checkingUpdate ? '检查中…' : '检查',
+              icon: Glyphs.refresh,
+              variant: AppButtonVariant.outline,
+              loading: state.checkingUpdate,
+              onPressed: () => state.checkForUpdate(manual: true),
+            ),
+          ),
+          if (state.update != null) ...[
+            const SizedBox(height: AppSpace.sm),
+            SurfaceBox(
+              padding: const EdgeInsets.all(AppSpace.md),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Row(
+                    spacing: AppSpace.sm,
+                    children: [
+                      Expanded(
+                        child: Text(
+                          '发现新版本 v${state.update!.version}',
+                          style: AppType.secondary(
+                            context,
+                          ).copyWith(fontWeight: FontWeight.w600),
+                        ),
+                      ),
+                      const StatusChip(label: '可更新', tone: StatusTone.warn),
+                    ],
+                  ),
+                  if (state.update!.notes.isNotEmpty) ...[
+                    const SizedBox(height: AppSpace.xs),
+                    Text(
+                      state.update!.notes,
+                      maxLines: 4,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppType.caption(
+                        context,
+                      ).copyWith(color: scheme.onSurfaceVariant),
+                    ),
+                  ],
+                  const SizedBox(height: AppSpace.sm),
+                  Align(
+                    alignment: AlignmentDirectional.centerStart,
+                    child: AppButton(
+                      label: '前往下载',
+                      icon: Glyphs.external,
+                      onPressed: () => openExternalUrl(state.update!.url),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+          _divider(scheme),
+          SettingRow(title: '许可证', subtitle: 'GPL-3.0'),
+          _divider(scheme),
+          SettingRow(title: '设计语言', subtitle: 'FlClash contributors · GPL-3.0'),
+        ],
+      ),
+    );
+  }
+
+  Widget _divider(ColorScheme scheme) => Padding(
+    padding: const EdgeInsets.symmetric(vertical: AppSpace.xs),
+    child: Divider(color: scheme.outlineVariant.withValues(alpha: 0.5)),
+  );
+}
+
+class _SettingSwitch extends StatelessWidget {
+  const _SettingSwitch({
+    required this.title,
+    required this.value,
+    required this.onChanged,
+  });
+
+  final String title;
+  final bool value;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return SettingRow(
+      title: title,
+      trailing: AppSwitch(value: value, onChanged: onChanged),
     );
   }
 }
@@ -720,6 +799,7 @@ class _SeedSwatch extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     final parsed =
         int.tryParse(color.replaceFirst('#', ''), radix: 16) ?? 0x007aff;
+    final parsedColor = Color(0xff000000 | parsed);
     return InkWell(
       onTap: onTap,
       customBorder: const CircleBorder(),
@@ -727,20 +807,19 @@ class _SeedSwatch extends StatelessWidget {
         width: 32,
         height: 32,
         decoration: BoxDecoration(
-          color: Color(0xff000000 | parsed),
+          color: parsedColor,
           shape: BoxShape.circle,
-          border: active
-              ? Border.all(color: scheme.onSurface, width: 2)
-              : Border.all(color: scheme.outlineVariant, width: 0.5),
+          border: Border.all(
+            color: active ? scheme.onSurface : scheme.outlineVariant,
+            width: active ? 2 : 0.5,
+          ),
         ),
         child: active
             ? Icon(
-                Icons.check,
+                Glyphs.check,
                 size: 16,
                 color:
-                    ThemeData.estimateBrightnessForColor(
-                          Color(0xff000000 | parsed),
-                        ) ==
+                    ThemeData.estimateBrightnessForColor(parsedColor) ==
                         Brightness.dark
                     ? Colors.white
                     : Colors.black,
@@ -764,17 +843,19 @@ class _ProfileRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
+    final scheme = Theme.of(context).colorScheme;
     return InkWell(
-      borderRadius: BorderRadius.circular(8),
+      borderRadius: BorderRadius.circular(AppCorner.md),
       onTap: onTap,
       child: Container(
         constraints: const BoxConstraints(minHeight: 56),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        decoration: BoxDecoration(
-          color: active ? scheme.secondaryContainer : scheme.inset,
-          borderRadius: BorderRadius.circular(8),
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpace.lg,
+          vertical: AppSpace.sm,
+        ),
+        decoration: ShapeDecoration(
+          color: active ? scheme.primaryContainer : scheme.inset,
+          shape: AppShape.all(AppCorner.md),
         ),
         child: Row(
           children: [
@@ -784,9 +865,9 @@ class _ProfileRow extends StatelessWidget {
                 children: [
                   Text(
                     (profile['name'] ?? '').toString(),
-                    style: appText(theme, AppTextStyle.subheadline).copyWith(
+                    style: AppType.secondary(context).copyWith(
                       color: active
-                          ? scheme.onSecondaryContainer
+                          ? scheme.onPrimaryContainer
                           : scheme.onSurface,
                       fontWeight: FontWeight.w600,
                     ),
@@ -795,49 +876,20 @@ class _ProfileRow extends StatelessWidget {
                     '${profile['api'] ?? ''} · ${baseName(profile['config_path']?.toString())}',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: appText(theme, AppTextStyle.footnote).copyWith(
+                    style: AppType.caption(context).copyWith(
                       color: active
-                          ? scheme.onSecondaryContainer.withValues(alpha: 0.8)
+                          ? scheme.onPrimaryContainer.withValues(alpha: 0.8)
                           : scheme.onSurfaceVariant,
                     ),
                   ),
                 ],
               ),
             ),
-            if (active) Icon(Icons.check, size: 18, color: scheme.success),
+            if (active)
+              Icon(Glyphs.checkCircle, size: 18, color: scheme.primary),
           ],
         ),
       ),
-    );
-  }
-}
-
-class _SettingField extends StatelessWidget {
-  const _SettingField({
-    super.key,
-    required this.label,
-    required this.value,
-    required this.onChanged,
-    this.hint,
-    this.keyboardType,
-    this.obscure = false,
-  });
-
-  final String label;
-  final String value;
-  final ValueChanged<String> onChanged;
-  final String? hint;
-  final TextInputType? keyboardType;
-  final bool obscure;
-
-  @override
-  Widget build(BuildContext context) {
-    return TextFormField(
-      initialValue: value,
-      onChanged: onChanged,
-      keyboardType: keyboardType,
-      obscureText: obscure,
-      decoration: InputDecoration(labelText: label, hintText: hint),
     );
   }
 }
@@ -850,10 +902,9 @@ class _ExportPreview extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
+    final scheme = Theme.of(context).colorScheme;
     return SurfaceBox(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(AppSpace.lg),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -862,25 +913,23 @@ class _ExportPreview extends StatelessWidget {
               Expanded(
                 child: Text(
                   '导出影响',
-                  style: appText(
-                    theme,
-                    AppTextStyle.subheadline,
+                  style: AppType.secondary(
+                    context,
                   ).copyWith(fontWeight: FontWeight.w600),
                 ),
               ),
               Text(
                 impact['preserve'] == true ? '保留原规则/分组' : '最小配置',
-                style: appText(
-                  theme,
-                  AppTextStyle.footnote,
+                style: AppType.caption(
+                  context,
                 ).copyWith(color: scheme.onSurfaceVariant),
               ),
             ],
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: AppSpace.md),
           Wrap(
-            spacing: 16,
-            runSpacing: 8,
+            spacing: AppSpace.lg,
+            runSpacing: AppSpace.sm,
             children: [
               _Impact(label: '保留节点', value: '${impact['included'] ?? 0}'),
               _Impact(
@@ -891,27 +940,27 @@ class _ExportPreview extends StatelessWidget {
               _Impact(label: '规则', value: '${impact['rules'] ?? 0}'),
             ],
           ),
-          const SizedBox(height: 8),
-          SwitchListTile(
-            contentPadding: EdgeInsets.zero,
-            value: state.exportMinimal,
-            onChanged: (value) => state.exportPreview(value),
-            title: Text(
-              '最小配置（替换规则、分组、DNS/TUN）',
-              style: appText(theme, AppTextStyle.footnote),
+          const SizedBox(height: AppSpace.md),
+          SettingRow(
+            title: '最小配置（替换规则、分组、DNS/TUN）',
+            trailing: AppSwitch(
+              value: state.exportMinimal,
+              onChanged: (value) => state.exportPreview(value),
             ),
           ),
+          const SizedBox(height: AppSpace.sm),
           Wrap(
-            spacing: 8,
+            spacing: AppSpace.sm,
             children: [
-              FilledButton.icon(
+              AppButton(
+                label: '确认导出',
+                icon: Glyphs.download,
                 onPressed: state.confirmExport,
-                icon: const Icon(Icons.download, size: 18),
-                label: const Text('确认导出'),
               ),
-              TextButton(
+              AppButton(
+                label: '取消',
+                variant: AppButtonVariant.ghost,
                 onPressed: state.cancelExport,
-                child: const Text('取消'),
               ),
             ],
           ),
@@ -929,23 +978,15 @@ class _Impact extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final scheme = theme.colorScheme;
+    final scheme = Theme.of(context).colorScheme;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          value,
-          style: appText(
-            theme,
-            AppTextStyle.title3,
-          ).copyWith(fontWeight: FontWeight.w600),
-        ),
+        Text(value, style: AppType.figure(context, style: AppTextStyle.title3)),
         Text(
           label,
-          style: appText(
-            theme,
-            AppTextStyle.footnote,
+          style: AppType.caption(
+            context,
           ).copyWith(color: scheme.onSurfaceVariant),
         ),
       ],

@@ -37,6 +37,7 @@ NodePulse **不代理流量**：它测试和管理已有的 Clash/mihomo 控制�
 - Flutter 桌面界面，配色与控件直接复用 FlClash 的设计系统（GPL-3.0）
 - 环境 profiles：客户端 + 订阅 + Selector 组 + 测速参数
 - 托盘驻留、可选开机自启
+- 启动后自动检查 GitHub Release，也可在设置里手动检查并打开下载页
 - 测速结果跨重启保留；设置自动备份，可导出/恢复
 - 多订阅联合测速：读取本地 profile，跨机场排名并标注来源
 - 下载模式：目标文件小范围吞吐探测、不可达淘汰、直连对比、只在下载前切换一次
@@ -59,7 +60,7 @@ NodePulse **不代理流量**：它测试和管理已有的 Clash/mihomo 控制�
 
 ```bash
 export PATH="$PATH:$(go env GOPATH)/bin"
-VERSION=0.3.0 make build desktop deb
+VERSION=0.3.1 make build desktop deb
 ```
 
 产物在 `dist/`。Linux 桌面端需要 Flutter 和 GTK3；Windows/macOS 安装包由对应平台的 CI 构建。
