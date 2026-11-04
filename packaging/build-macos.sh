@@ -5,14 +5,19 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 VERSION="${VERSION:-0.3.0}"
 APP="$ROOT/desktop/build/macos/Build/Products/Release/NodePulse.app"
-if [[ ! -d "$APP" ]]; then
-  APP="$(find "$ROOT/desktop/build/macos/Build/Products/Release" -maxdepth 1 -name '*.app' -print -quit)"
-fi
 OUT="$ROOT/dist/NodePulse-macos-universal-${VERSION}.zip"
 DMG_OUT="$ROOT/dist/NodePulse-macos-universal-${VERSION}.dmg"
 
 cd "$ROOT/desktop"
 flutter build macos --release --build-name="$VERSION"
+
+if [[ ! -d "$APP" ]]; then
+  APP="$(find "$ROOT/desktop/build/macos/Build/Products/Release" -maxdepth 1 -name '*.app' -print -quit 2>/dev/null || true)"
+fi
+if [[ ! -d "$APP" ]]; then
+  echo "macOS app bundle not found under $ROOT/desktop/build/macos/Build/Products/Release" >&2
+  exit 1
+fi
 
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
