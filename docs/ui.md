@@ -140,7 +140,7 @@ desktop/
 ## 平台能力
 
 - Android：Go sidecar 以 `libnodepulse_core.so` 打包，APK 需要连接开放的 Clash/mihomo 控制口；
-- `window_manager`：窗口尺寸、关闭到托盘、原生标题栏（桌面）；
+- `window_manager`：窗口尺寸、关闭到托盘；Windows 使用自定义标题栏（拖动/双击最大化/最小化/最大化/关闭），macOS 与 Linux 保留原生标题栏；
 - `tray_manager`：托盘菜单（显示/退出）；
 - `launch_at_startup`：开机自启；
 - 更新检查：启动后 24 小时内最多检查一次 GitHub Release，设置页可手动检查并打开下载页；

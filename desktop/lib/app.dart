@@ -1,5 +1,10 @@
+// ignore_for_file: deprecated_member_use
+
+import 'dart:io';
+
 import 'package:material_ui/material_ui.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:window_manager/legacy.dart';
 
 import 'state/app_state.dart';
 import 'ui/app_theme.dart';
@@ -510,30 +515,116 @@ class _TopBar extends StatelessWidget {
       'history' => '历史',
       _ => '仪表盘',
     };
+    final status = StatusChip(
+      label: state.connected
+          ? '已连接'
+          : state.clients.any((c) => c is Map && c['running'] == true)
+          ? '检测到客户端'
+          : '未连接',
+      tone: state.connected
+          ? StatusTone.ok
+          : state.clients.any((c) => c is Map && c['running'] == true)
+          ? StatusTone.warn
+          : StatusTone.neutral,
+      dot: true,
+    );
+    final bar = Row(
+      children: [
+        Text(title, style: AppType.pageTitle(context)),
+        const Spacer(),
+        if (!narrow) ...[
+          _EnvironmentButton(state: state),
+          const SizedBox(width: 8),
+        ],
+        status,
+      ],
+    );
     return Container(
       height: pageToolbarHeight,
       color: scheme.page,
-      padding: EdgeInsets.symmetric(horizontal: narrow ? 16 : 24),
+      padding: EdgeInsets.only(
+        left: narrow ? 16 : 24,
+        right: Platform.isWindows ? 0 : (narrow ? 16 : 24),
+      ),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text(title, style: AppType.pageTitle(context)),
-          const Spacer(),
-          if (!narrow) ...[
-            _EnvironmentButton(state: state),
-            const SizedBox(width: 8),
-          ],
-          StatusChip(
-            label: state.connected
-                ? '已连接'
-                : state.clients.any((c) => c is Map && c['running'] == true)
-                ? '检测到客户端'
-                : '未连接',
-            tone: state.connected
-                ? StatusTone.ok
-                : state.clients.any((c) => c is Map && c['running'] == true)
-                ? StatusTone.warn
-                : StatusTone.neutral,
-            dot: true,
+          Expanded(
+            child: Platform.isWindows
+                ? DragToMoveArea(
+                    child: SizedBox(height: double.infinity, child: bar),
+                  )
+                : bar,
+          ),
+          if (Platform.isWindows) const _WindowControls(),
+        ],
+      ),
+    );
+  }
+}
+
+/// Minimize, maximize/restore and close for the Windows custom title bar.
+class _WindowControls extends StatefulWidget {
+  const _WindowControls();
+
+  @override
+  State<_WindowControls> createState() => _WindowControlsState();
+}
+
+class _WindowControlsState extends State<_WindowControls> with WindowListener {
+  bool _maximized = false;
+
+  @override
+  void initState() {
+    super.initState();
+    windowManager.addListener(this);
+    windowManager.isMaximized().then((value) {
+      if (mounted) setState(() => _maximized = value);
+    });
+  }
+
+  @override
+  void dispose() {
+    windowManager.removeListener(this);
+    super.dispose();
+  }
+
+  @override
+  void onWindowMaximize() {
+    if (mounted) setState(() => _maximized = true);
+  }
+
+  @override
+  void onWindowUnmaximize() {
+    if (mounted) setState(() => _maximized = false);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final brightness = Theme.of(context).brightness;
+    return Padding(
+      padding: const EdgeInsets.only(left: 12),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          WindowCaptionButton.minimize(
+            brightness: brightness,
+            onPressed: () => windowManager.minimize(),
+          ),
+          if (_maximized)
+            WindowCaptionButton.unmaximize(
+              brightness: brightness,
+              onPressed: () => windowManager.unmaximize(),
+            )
+          else
+            WindowCaptionButton.maximize(
+              brightness: brightness,
+              onPressed: () => windowManager.maximize(),
+            ),
+          WindowCaptionButton.close(
+            brightness: brightness,
+            onPressed: () => windowManager.close(),
           ),
         ],
       ),
