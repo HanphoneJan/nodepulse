@@ -1,7 +1,7 @@
 name: nodepulse
 description: NodePulse desktop UI, built with Flutter and the FlClash design system.
 publish_to: "none"
-version: 0.3.5+5
+version: 0.3.6+6
 
 environment:
   sdk: ">=3.10.0 <4.0.0"

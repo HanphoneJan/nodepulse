@@ -3,4 +3,4 @@ package version
 
 // Version is overridden at build time with
 // -X github.com/HanphoneJan/nodepulse/internal/version.Version=<version>.
-var Version = "0.3.5"
+var Version = "0.3.6"

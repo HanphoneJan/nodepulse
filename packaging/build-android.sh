@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 # Build the Flutter Android app plus the Go sidecar for arm64.
 # Run from the repository root:
-#   VERSION=0.3.5 bash packaging/build-android.sh
+#   VERSION=0.3.6 bash packaging/build-android.sh
 #
 # Requires Flutter, Go and the Android SDK. The APK is signed with the debug
 # key; configure a release keystore before publishing to a store.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-VERSION="${VERSION:-0.3.5}"
+VERSION="${VERSION:-0.3.6}"
 FLUTTER="${FLUTTER:-flutter}"
 DIST="$ROOT/dist"
 BUNDLE="$ROOT/desktop"

@@ -1,7 +1,7 @@
 ﻿!include "MUI2.nsh"
 
 !ifndef VERSION
-  !define VERSION "0.3.5"
+  !define VERSION "0.3.6"
 !endif
 !ifndef SOURCE
   !error "SOURCE is required"

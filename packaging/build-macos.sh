@@ -3,7 +3,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-VERSION="${VERSION:-0.3.5}"
+VERSION="${VERSION:-0.3.6}"
 APP="$ROOT/desktop/build/macos/Build/Products/Release/NodePulse.app"
 OUT="$ROOT/dist/NodePulse-macos-universal-${VERSION}.zip"
 DMG_OUT="$ROOT/dist/NodePulse-macos-universal-${VERSION}.dmg"

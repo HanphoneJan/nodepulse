@@ -1,11 +1,11 @@
 # Build the Flutter desktop app and the Go sidecar for Windows.
 # Run from the repository root in PowerShell:
-#   $env:VERSION = "0.3.5"; .\packaging\build-windows.ps1
+#   $env:VERSION = "0.3.6"; .\packaging\build-windows.ps1
 #
 # Requires Flutter, Go and NSIS (makensis) on PATH.
 $ErrorActionPreference = "Stop"
 
-$Version = if ($env:VERSION) { $env:VERSION } else { "0.3.5" }
+$Version = if ($env:VERSION) { $env:VERSION } else { "0.3.6" }
 $Root = Resolve-Path (Join-Path $PSScriptRoot "..")
 $Dist = Join-Path $Root "dist"
 $Stage = Join-Path $Dist "NodePulse"
