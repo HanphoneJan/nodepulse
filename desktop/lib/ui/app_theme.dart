@@ -85,9 +85,11 @@ abstract final class AppType {
 
 ThemeData buildAppTheme(Brightness brightness, Color seed) {
   final scheme = seededColorScheme(seedColor: seed, brightness: brightness);
+  final fontFamily = appFontFamilyOf(defaultTargetPlatform);
   final fallback = appFontFamilyFallback(
     platform: defaultTargetPlatform,
     locales: WidgetsBinding.instance.platformDispatcher.locales,
+    fontFamily: fontFamily,
   );
 
   final desktop = switch (defaultTargetPlatform) {
@@ -100,6 +102,7 @@ ThemeData buildAppTheme(Brightness brightness, Color seed) {
   final base = ThemeData(
     useMaterial3: true,
     colorScheme: scheme,
+    fontFamily: fontFamily,
     fontFamilyFallback: fallback,
     visualDensity: desktop ? VisualDensity.compact : VisualDensity.standard,
     materialTapTargetSize: desktop

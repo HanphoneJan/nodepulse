@@ -10,8 +10,13 @@ enum _HanVariant { simplified, traditional, japanese, korean }
 // Chinese proxy names with Japanese forms under an English UI on Windows.
 const _hanFamilies = <TargetPlatform, Map<_HanVariant, List<String>>>{
   TargetPlatform.windows: {
-    _HanVariant.simplified: ['Microsoft YaHei UI'],
-    _HanVariant.traditional: ['Microsoft JhengHei UI'],
+    _HanVariant.simplified: [
+      'Microsoft YaHei UI',
+      'Microsoft YaHei',
+      'DengXian',
+      'SimHei',
+    ],
+    _HanVariant.traditional: ['Microsoft JhengHei UI', 'Microsoft JhengHei'],
     _HanVariant.japanese: ['Yu Gothic UI', 'Meiryo UI'],
     _HanVariant.korean: ['Malgun Gothic'],
   },
@@ -66,6 +71,16 @@ bool _isTraditional(Locale locale) => switch (locale.scriptCode) {
   'Hant' => true,
   'Hans' => false,
   _ => const {'TW', 'HK', 'MO'}.contains(locale.countryCode),
+};
+
+/// The CJK UI face is the primary font, not a fallback. Windows otherwise
+/// resolves a missing fallback to SimSun, whose thin horizontal strokes make
+/// dense characters such as 置 look cramped.
+String? appFontFamilyOf(TargetPlatform platform) => switch (platform) {
+  TargetPlatform.windows => 'Microsoft YaHei UI',
+  TargetPlatform.macOS => 'PingFang SC',
+  TargetPlatform.linux => 'Noto Sans CJK SC',
+  _ => null,
 };
 
 List<String> appFontFamilyFallback({

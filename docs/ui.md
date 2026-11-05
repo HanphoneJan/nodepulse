@@ -62,7 +62,8 @@ desktop/
 
 ### 字体
 
-- 主题设置 `fontFamilyFallback`：Linux 使用 `Noto Sans CJK SC` / `Noto Sans SC` / `Source Han Sans SC` / `WenQuanYi Micro Hei`；
+- Windows 主字体 `Microsoft YaHei UI`，Linux 主字体 `Noto Sans CJK SC`，macOS 主字体 `PingFang SC`；CJK 字体放在 primary 而不是只做 fallback，避免 Windows 回退到宋体后 `置` 这类多横字显得拥挤、横线过细；
+- fallback 再依次补 `Microsoft YaHei` / `DengXian` / `SimHei`、Linux CJK 字体与系统拉丁字体；
 - 内置 `Twemoji.Mozilla.ttf`，修复节点名 emoji 显示成方框；
 - 内置 `JetBrainsMono-Regular.ttf`，用于需要等宽的少量场景；
 - 数字统一 `FontFeature.tabularFigures()`，大数字加 `letterSpacing: -0.02 * size`；

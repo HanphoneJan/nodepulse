@@ -501,6 +501,7 @@ class _BottomDock extends StatelessWidget {
                           style: AppTextStyle.caption2
                               .of(context)
                               .copyWith(
+                                fontWeight: FontWeight.w500,
                                 color: state.view == item.view
                                     ? scheme.onPrimaryContainer
                                     : scheme.onSurfaceVariant,
