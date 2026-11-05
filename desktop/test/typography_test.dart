@@ -23,7 +23,7 @@ void main() {
     expect(style.textBaseline, TextBaseline.alphabetic);
   });
 
-  testWidgets('windows uses the CJK UI face as the primary font', (
+  testWidgets('windows keeps the FlClash Segoe UI primary font', (
     tester,
   ) async {
     debugDefaultTargetPlatformOverride = TargetPlatform.windows;
@@ -41,8 +41,8 @@ void main() {
       ),
     );
 
-    expect(style.fontFamily, 'Microsoft YaHei UI');
-    expect(style.fontFamilyFallback, contains('Microsoft YaHei'));
+    expect(style.fontFamily, 'Segoe UI');
+    expect(style.fontFamilyFallback, ['Microsoft YaHei UI', 'Twemoji']);
     debugDefaultTargetPlatformOverride = null;
   });
 

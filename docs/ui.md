@@ -62,9 +62,9 @@ desktop/
 
 ### 字体
 
-- Windows 主字体 `Microsoft YaHei UI`，Linux 主字体 `Noto Sans CJK SC`，macOS 主字体 `PingFang SC`；CJK 字体放在 primary 而不是只做 fallback，避免 Windows 回退到宋体后 `置` 这类多横字显得拥挤、横线过细；
-- fallback 再依次补 `Microsoft YaHei` / `DengXian` / `SimHei`、Linux CJK 字体与系统拉丁字体；
-- 内置 `Twemoji.Mozilla.ttf`，修复节点名 emoji 显示成方框；
+- 字体选择与 FlClash 保持一致：主字体使用平台 UI 字体（Windows `Segoe UI`、macOS `.AppleSystemUIFont`、Linux `Roboto`），CJK 只放在 `fontFamilyFallback`；
+- Windows 中文回退 `Microsoft YaHei UI`，macOS `PingFang SC`，Linux `Noto Sans CJK SC` / `Noto Sans SC` / `Source Han Sans SC` / `WenQuanYi Micro Hei`；
+- 内置 `Twemoji.Mozilla.ttf` 作为最后的 emoji 回退，修复节点名 emoji 显示成方框，不影响中英文字形；
 - 内置 `JetBrainsMono-Regular.ttf`，用于需要等宽的少量场景；
 - 数字统一 `FontFeature.tabularFigures()`，大数字加 `letterSpacing: -0.02 * size`；
 - 所有文字角色使用 `TextLeadingDistribution.even` 与字母基线，和 FlClash 的 `ThemeData._textStyle` 一致；行框内的文字不会上下偏。

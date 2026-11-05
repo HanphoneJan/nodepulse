@@ -10,13 +10,8 @@ enum _HanVariant { simplified, traditional, japanese, korean }
 // Chinese proxy names with Japanese forms under an English UI on Windows.
 const _hanFamilies = <TargetPlatform, Map<_HanVariant, List<String>>>{
   TargetPlatform.windows: {
-    _HanVariant.simplified: [
-      'Microsoft YaHei UI',
-      'Microsoft YaHei',
-      'DengXian',
-      'SimHei',
-    ],
-    _HanVariant.traditional: ['Microsoft JhengHei UI', 'Microsoft JhengHei'],
+    _HanVariant.simplified: ['Microsoft YaHei UI'],
+    _HanVariant.traditional: ['Microsoft JhengHei UI'],
     _HanVariant.japanese: ['Yu Gothic UI', 'Meiryo UI'],
     _HanVariant.korean: ['Malgun Gothic'],
   },
@@ -73,26 +68,10 @@ bool _isTraditional(Locale locale) => switch (locale.scriptCode) {
   _ => const {'TW', 'HK', 'MO'}.contains(locale.countryCode),
 };
 
-/// The CJK UI face is the primary font, not a fallback. Windows otherwise
-/// resolves a missing fallback to SimSun, whose thin horizontal strokes make
-/// dense characters such as 置 look cramped.
-String? appFontFamilyOf(TargetPlatform platform) => switch (platform) {
-  TargetPlatform.windows => 'Microsoft YaHei UI',
-  TargetPlatform.macOS => 'PingFang SC',
-  TargetPlatform.linux => 'Noto Sans CJK SC',
-  _ => null,
-};
-
+/// FlClash keeps the platform UI font as the primary face and only falls back
+/// to the matching CJK UI family. Twemoji stays last so node-name emoji still
+/// render; it has no effect on Latin or Han glyphs.
 List<String> appFontFamilyFallback({
   required TargetPlatform platform,
   required Iterable<Locale> locales,
-  String? fontFamily,
-}) {
-  final base = Typography.material2021(platform: platform).black.bodyMedium!;
-  return [
-    if (fontFamily != null) ?base.fontFamily,
-    ...?base.fontFamilyFallback,
-    ...?_hanFamilies[platform]?[_hanVariantOf(locales)],
-    'Twemoji',
-  ];
-}
+}) => [...?_hanFamilies[platform]?[_hanVariantOf(locales)], 'Twemoji'];
