@@ -54,7 +54,10 @@ $env:VERSION = "0.3.6"
 - `packaging/nodepulse.nsi` 必须保存为 **UTF-8 with BOM**，`makensis` 调用带 `-INPUTCHARSET UTF8`；否则 Windows runner 会按本地代码页解释脚本里的中文，组件名显示为乱码；
 - 声明 `ManifestDPIAware true` 与 `ManifestDPIAwareness "PerMonitorV2,System"`，避免 Windows 在 125% / 150% 下把整个安装器当位图拉伸；
 - `MUI_ICON` / `MUI_UNICON` 使用 `packaging/nodepulse.ico`（16–256 多尺寸）；
-- `MUI_HEADERIMAGE_BITMAP` 使用 `packaging/nodepulse-header.bmp`（300×114，2x），由 `go run packaging/genicon.go` 生成。
+- `MUI_HEADERIMAGE_BITMAP` 使用 `packaging/nodepulse-header.bmp`（300×114，2x），由 `go run packaging/genicon.go` 生成；
+- 安装路径写入 `HKCU\Software\NodePulse\InstallDir`，并用 `InstallDirRegKey` 作为下次安装的默认目录；升级时不再回到默认路径；
+- 桌面快捷方式的选择写入 `HKCU\Software\NodePulse\DesktopShortcut`，下次升级沿用；全新安装或卸载后默认勾选；
+- 安装时写入标准的卸载项（`HKCU\Software\Microsoft\Windows\CurrentVersion\Uninstall\NodePulse`），卸载时清理两个键。
 
 产物：
 
