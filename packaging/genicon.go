@@ -9,6 +9,7 @@ import (
 	"encoding/binary"
 	"image"
 	"image/color"
+	"image/draw"
 	"image/png"
 	"math"
 	"os"
@@ -29,6 +30,71 @@ func main() {
 	icon := render(1024, 4)
 	writePNG("packaging/nodepulse-1024.png", icon)
 	writeICO("packaging/nodepulse.ico", []int{16, 24, 32, 48, 64, 128, 256})
+	writeHeaderBMP("packaging/nodepulse-header.bmp")
+}
+
+// writeHeaderBMP draws the NSIS MUI header at 2x (300x114) so the wizard does
+// not have to upscale it on a high-DPI display.
+func writeHeaderBMP(path string) {
+	const width, height, logoSize = 300, 114, 64
+	canvas := image.NewRGBA(image.Rect(0, 0, width, height))
+	draw.Draw(
+		canvas,
+		canvas.Bounds(),
+		&image.Uniform{color.RGBA{R: 0xFF, G: 0xFF, B: 0xFF, A: 0xFF}},
+		image.Point{},
+		draw.Src,
+	)
+	logo := render(logoSize, 8)
+	left := (width - logoSize) / 2
+	top := (height - logoSize) / 2
+	draw.Draw(
+		canvas,
+		image.Rect(left, top, left+logoSize, top+logoSize),
+		logo,
+		image.Point{},
+		draw.Over,
+	)
+	writeBMP(path, canvas)
+}
+
+// writeBMP writes an uncompressed 24-bit bottom-up bitmap, the format the
+// NSIS Modern UI header image control accepts.
+func writeBMP(path string, img image.Image) {
+	b := img.Bounds()
+	width, height := b.Dx(), b.Dy()
+	rowSize := (width*3 + 3) &^ 3
+	pixelSize := rowSize * height
+	fileSize := 54 + pixelSize
+
+	var out bytes.Buffer
+	_ = binary.Write(&out, binary.LittleEndian, uint16(0x4D42))
+	_ = binary.Write(&out, binary.LittleEndian, uint32(fileSize))
+	_ = binary.Write(&out, binary.LittleEndian, uint32(0))
+	_ = binary.Write(&out, binary.LittleEndian, uint32(54))
+	_ = binary.Write(&out, binary.LittleEndian, uint32(40))
+	_ = binary.Write(&out, binary.LittleEndian, int32(width))
+	_ = binary.Write(&out, binary.LittleEndian, int32(height))
+	_ = binary.Write(&out, binary.LittleEndian, uint16(1))
+	_ = binary.Write(&out, binary.LittleEndian, uint16(24))
+	_ = binary.Write(&out, binary.LittleEndian, uint32(0))
+	_ = binary.Write(&out, binary.LittleEndian, uint32(pixelSize))
+	_ = binary.Write(&out, binary.LittleEndian, int32(2835))
+	_ = binary.Write(&out, binary.LittleEndian, int32(2835))
+	_ = binary.Write(&out, binary.LittleEndian, uint32(0))
+	_ = binary.Write(&out, binary.LittleEndian, uint32(0))
+
+	padding := make([]byte, rowSize-width*3)
+	for y := b.Max.Y - 1; y >= b.Min.Y; y-- {
+		for x := b.Min.X; x < b.Max.X; x++ {
+			r, g, bl, _ := img.At(x, y).RGBA()
+			out.Write([]byte{byte(bl >> 8), byte(g >> 8), byte(r >> 8)})
+		}
+		out.Write(padding)
+	}
+	if err := os.WriteFile(path, out.Bytes(), 0o644); err != nil {
+		panic(err)
+	}
 }
 
 func writePNG(path string, img image.Image) {

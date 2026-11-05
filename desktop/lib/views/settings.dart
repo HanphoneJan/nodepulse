@@ -60,7 +60,11 @@ class _SettingsViewState extends State<SettingsView> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const AppCardHeader(title: '外观', glyph: Glyphs.settings),
+          const AppCardHeader(
+            title: '外观',
+            glyph: Glyphs.settings,
+            section: true,
+          ),
           Text(
             '主题色',
             style: AppType.caption(
@@ -133,7 +137,7 @@ class _SettingsViewState extends State<SettingsView> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const AppCardHeader(title: '环境', glyph: Glyphs.swap),
+          const AppCardHeader(title: '环境', glyph: Glyphs.swap, section: true),
           Text(
             '同时切换控制口、订阅和测速参数。',
             style: AppType.secondary(
@@ -203,7 +207,11 @@ class _SettingsViewState extends State<SettingsView> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const AppCardHeader(title: '测速与自动选择', glyph: Glyphs.signal),
+          const AppCardHeader(
+            title: '测速与自动选择',
+            glyph: Glyphs.signal,
+            section: true,
+          ),
           Text(
             '余量越大越保守，重启自动优化后生效。',
             style: AppType.secondary(
@@ -305,6 +313,7 @@ class _SettingsViewState extends State<SettingsView> {
           AppCardHeader(
             title: '环境检查',
             glyph: Glyphs.checkCircleOutline,
+            section: true,
             actions: [
               AppButton(
                 label: '重新检查',
@@ -409,7 +418,11 @@ class _SettingsViewState extends State<SettingsView> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const AppCardHeader(title: '后台与通知', glyph: Glyphs.monitor),
+          const AppCardHeader(
+            title: '后台与通知',
+            glyph: Glyphs.monitor,
+            section: true,
+          ),
           _SettingSwitch(
             title: '关闭窗口时驻留托盘',
             value: state.settings['close_to_tray'] != false,
@@ -446,7 +459,11 @@ class _SettingsViewState extends State<SettingsView> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const AppCardHeader(title: '备份与迁移', glyph: Glyphs.archive),
+          const AppCardHeader(
+            title: '备份与迁移',
+            glyph: Glyphs.archive,
+            section: true,
+          ),
           Text(
             '覆盖前自动备份最近 20 次。',
             style: AppType.secondary(
@@ -512,7 +529,7 @@ class _SettingsViewState extends State<SettingsView> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const AppCardHeader(title: '连接设置', glyph: Glyphs.tune),
+          const AppCardHeader(title: '连接设置', glyph: Glyphs.tune, section: true),
           LayoutBuilder(
             builder: (context, constraints) {
               final two = constraints.maxWidth > 620;
@@ -686,7 +703,7 @@ class _SettingsViewState extends State<SettingsView> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const AppCardHeader(title: '关于', glyph: Glyphs.info),
+          const AppCardHeader(title: '关于', glyph: Glyphs.info, section: true),
           SettingRow(
             title: 'NodePulse',
             subtitle: state.version.isEmpty ? '版本未知' : 'v${state.version}',

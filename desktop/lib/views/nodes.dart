@@ -50,19 +50,11 @@ class _NodesViewState extends State<NodesView> {
         LayoutBuilder(
           builder: (context, constraints) {
             final narrow = constraints.maxWidth < 760;
-            final title = Row(
-              crossAxisAlignment: CrossAxisAlignment.baseline,
-              textBaseline: TextBaseline.alphabetic,
-              spacing: AppSpace.sm,
-              children: [
-                Text('节点', style: AppType.section(context)),
-                Text(
-                  '${filtered.length}',
-                  style: AppType.caption(
-                    context,
-                  ).copyWith(color: scheme.onSurfaceVariant),
-                ),
-              ],
+            final count = Text(
+              '${filtered.length} 个节点',
+              style: AppType.secondary(
+                context,
+              ).copyWith(color: scheme.onSurfaceVariant),
             );
             final search = _SearchField(
               width: narrow ? double.infinity : 280,
@@ -91,7 +83,7 @@ class _NodesViewState extends State<NodesView> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 spacing: AppSpace.md,
                 children: [
-                  Row(children: [title, const Spacer(), refresh]),
+                  Row(children: [count, const Spacer(), refresh]),
                   search,
                   filter,
                 ],
@@ -99,7 +91,7 @@ class _NodesViewState extends State<NodesView> {
             }
             return Row(
               spacing: AppSpace.md,
-              children: [title, const Spacer(), search, filter, refresh],
+              children: [count, const Spacer(), search, filter, refresh],
             );
           },
         ),

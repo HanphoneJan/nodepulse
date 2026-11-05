@@ -69,6 +69,8 @@ abstract final class Glyphs {
   static const tune = CupertinoIcons.slider_horizontal_3;
   static const external = CupertinoIcons.arrow_up_right_square;
   static const server = CupertinoIcons.tray_full;
+  static const pin = CupertinoIcons.pin;
+  static const pinFill = CupertinoIcons.pin_fill;
 }
 
 abstract final class AppSpace {
@@ -79,6 +81,13 @@ abstract final class AppSpace {
   static const double xl = 20;
   static const double xxl = 24;
 }
+
+/// The physical height a text role needs after the system text scale is
+/// applied. Fixed-height controls use it as a floor so Windows text scaling
+/// never clips a label.
+double _scaledLineHeight(BuildContext context, AppTextStyle style) =>
+    MediaQuery.textScalerOf(context).scale(style.size) *
+    (style.leading / style.size);
 
 abstract final class AppShadows {
   static List<BoxShadow> e1(ColorScheme scheme) {
@@ -184,6 +193,7 @@ class AppCardHeader extends StatelessWidget {
     this.actions = const [],
     this.padding = const EdgeInsets.only(bottom: AppSpace.md),
     this.trailing,
+    this.section = false,
   });
 
   final String title;
@@ -192,24 +202,39 @@ class AppCardHeader extends StatelessWidget {
   final EdgeInsetsGeometry padding;
   final Widget? trailing;
 
+  /// Settings groups use FlClash's 17px card header; dashboard cards keep the
+  /// 13px label above a figure.
+  final bool section;
+
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final style = section
+        ? AppType.cardSectionTitle(context)
+        : AppType.cardTitle(context);
     return Padding(
       padding: padding,
       child: ConstrainedBox(
-        constraints: const BoxConstraints(minHeight: 24),
+        constraints: BoxConstraints(
+          minHeight: section
+              ? math.max(26, _scaledLineHeight(context, AppTextStyle.headline))
+              : 24,
+        ),
         child: Row(
           spacing: AppSpace.sm,
           children: [
             if (glyph != null)
-              Icon(glyph, size: 18, color: scheme.onSurfaceVariant),
+              Icon(
+                glyph,
+                size: section ? 20 : 18,
+                color: scheme.onSurfaceVariant,
+              ),
             Expanded(
               child: Text(
                 title,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: AppType.cardTitle(context),
+                style: style,
               ),
             ),
             ?trailing,
@@ -277,7 +302,10 @@ class StatusChip extends StatelessWidget {
       ),
     };
     return Container(
-      height: 26,
+      height: math.max(
+        26,
+        _scaledLineHeight(context, AppTextStyle.caption1) + 10,
+      ),
       padding: const EdgeInsets.symmetric(horizontal: 10),
       decoration: ShapeDecoration(color: background, shape: AppShape.full),
       child: Row(
@@ -353,7 +381,15 @@ class AppButton extends StatelessWidget {
       ],
     );
     final style = ButtonStyle(
-      minimumSize: const WidgetStatePropertyAll(Size(0, 40)),
+      minimumSize: WidgetStatePropertyAll(
+        Size(
+          0,
+          math.max(
+            40,
+            _scaledLineHeight(context, AppTextStyle.subheadline) + 20,
+          ),
+        ),
+      ),
       padding: const WidgetStatePropertyAll(
         EdgeInsets.symmetric(horizontal: 16),
       ),
@@ -468,7 +504,10 @@ class SegmentedChoice<T> extends StatelessWidget {
     final index = options.indexWhere((option) => option.value == value);
     final count = options.length;
     return Container(
-      height: 44,
+      height: math.max(
+        44,
+        _scaledLineHeight(context, AppTextStyle.subheadline) + 24,
+      ),
       padding: const EdgeInsets.all(4),
       decoration: ShapeDecoration(
         color: context.raisedSurfaceLevel.colorOf(scheme),
@@ -786,7 +825,16 @@ class SettingRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final content = ConstrainedBox(
-      constraints: BoxConstraints(minHeight: height),
+      constraints: BoxConstraints(
+        minHeight: math.max(
+          height,
+          _scaledLineHeight(context, AppTextStyle.body) +
+              (subtitle == null
+                  ? 0
+                  : _scaledLineHeight(context, AppTextStyle.subheadline)) +
+              16,
+        ),
+      ),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         child: Row(
@@ -807,7 +855,7 @@ class SettingRow extends StatelessWidget {
                       subtitle!,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: AppType.caption(
+                      style: AppType.secondary(
                         context,
                       ).copyWith(color: scheme.onSurfaceVariant),
                     ),

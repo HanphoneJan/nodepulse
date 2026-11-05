@@ -53,6 +53,8 @@ enum AppTextStyle {
       height: leading / size,
       fontWeight: weight,
       letterSpacing: 0,
+      textBaseline: TextBaseline.alphabetic,
+      leadingDistribution: TextLeadingDistribution.even,
     );
   }
 
@@ -76,6 +78,8 @@ enum AppTextStyle {
     height: leading / size,
     fontWeight: emphasized ? emphasizedWeight : weight,
     letterSpacing: 0,
+    textBaseline: TextBaseline.alphabetic,
+    leadingDistribution: TextLeadingDistribution.even,
   );
 
   TextStyle? _on(TextStyle? base, {bool emphasized = false}) =>

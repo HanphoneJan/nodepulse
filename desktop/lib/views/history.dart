@@ -49,19 +49,11 @@ class _HistoryViewState extends State<HistoryView> {
         LayoutBuilder(
           builder: (context, constraints) {
             final narrow = constraints.maxWidth < 760;
-            final title = Row(
-              crossAxisAlignment: CrossAxisAlignment.baseline,
-              textBaseline: TextBaseline.alphabetic,
-              spacing: AppSpace.sm,
-              children: [
-                Text('历史', style: AppType.section(context)),
-                Text(
-                  '${events.length}',
-                  style: AppType.caption(
-                    context,
-                  ).copyWith(color: scheme.onSurfaceVariant),
-                ),
-              ],
+            final count = Text(
+              '${events.length} 条记录',
+              style: AppType.secondary(
+                context,
+              ).copyWith(color: scheme.onSurfaceVariant),
             );
             final filter = SizedBox(
               width: narrow ? double.infinity : 360,
@@ -80,12 +72,12 @@ class _HistoryViewState extends State<HistoryView> {
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 spacing: AppSpace.md,
-                children: [title, filter],
+                children: [count, filter],
               );
             }
             return Row(
               spacing: AppSpace.md,
-              children: [title, const Spacer(), filter],
+              children: [count, const Spacer(), filter],
             );
           },
         ),

@@ -1,7 +1,7 @@
-!include "MUI2.nsh"
+﻿!include "MUI2.nsh"
 
 !ifndef VERSION
-  !define VERSION "0.3.3"
+  !define VERSION "0.3.4"
 !endif
 !ifndef SOURCE
   !error "SOURCE is required"
@@ -15,6 +15,18 @@ OutFile "${OUT}"
 InstallDir "$LOCALAPPDATA\Programs\NodePulse"
 RequestExecutionLevel user
 Unicode true
+
+; DPI virtualization stretches the whole wizard as a bitmap at 125% and above.
+ManifestDPIAware true
+ManifestDPIAwareness "PerMonitorV2,System"
+ManifestSupportedOS all
+
+!define MUI_ABORTWARNING
+!define MUI_ICON "${__FILEDIR__}\nodepulse.ico"
+!define MUI_UNICON "${__FILEDIR__}\nodepulse.ico"
+!define MUI_HEADERIMAGE
+!define MUI_HEADERIMAGE_BITMAP "${__FILEDIR__}\nodepulse-header.bmp"
+!define MUI_HEADERIMAGE_BITMAP_STRETCH FitControl
 
 !insertmacro MUI_PAGE_DIRECTORY
 !insertmacro MUI_PAGE_COMPONENTS
@@ -55,3 +67,8 @@ Section "Uninstall"
   RMDir "$SMPROGRAMS\NodePulse"
   RMDir /r "$INSTDIR"
 SectionEnd
+
+!insertmacro MUI_FUNCTION_DESCRIPTION_BEGIN
+  !insertmacro MUI_DESCRIPTION_TEXT ${SEC_MAIN} "安装 NodePulse 桌面端和本机后端。"
+  !insertmacro MUI_DESCRIPTION_TEXT ${SEC_DESKTOP} "在桌面创建 NodePulse 快捷方式。"
+!insertmacro MUI_FUNCTION_DESCRIPTION_END

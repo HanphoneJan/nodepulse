@@ -1,10 +1,7 @@
 // ignore_for_file: deprecated_member_use
 
-import 'dart:io';
-
 import 'package:material_ui/material_ui.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:window_manager/legacy.dart';
 
 import 'state/app_state.dart';
 import 'ui/app_theme.dart';
@@ -15,6 +12,7 @@ import 'ui/flclash/shape.dart';
 import 'ui/flclash/surface.dart';
 import 'ui/flclash/typography.dart';
 import 'ui/widgets.dart';
+import 'ui/window_header.dart';
 import 'views/dashboard.dart';
 import 'views/history.dart';
 import 'views/nodes.dart';
@@ -38,11 +36,13 @@ class NodePulseApp extends StatelessWidget {
           theme: buildAppTheme(Brightness.light, seed),
           darkTheme: buildAppTheme(Brightness.dark, seed),
           themeMode: state.themeMode,
-          home: state.ready
-              ? (state.error == null
-                    ? _Shell(state: state)
-                    : _StartupError(state: state))
-              : _Splash(state: state),
+          home: _DesktopFrame(
+            child: state.ready
+                ? (state.error == null
+                      ? _Shell(state: state)
+                      : _StartupError(state: state))
+                : _Splash(state: state),
+          ),
         );
       },
     );
@@ -52,6 +52,25 @@ class NodePulseApp extends StatelessWidget {
     final hex = value.replaceFirst('#', '');
     final parsed = int.tryParse(hex, radix: 16);
     return Color(0xff000000 | (parsed ?? 0x007aff));
+  }
+}
+
+/// Windows has no native caption, so the FlClash-style 32px header sits above
+/// the whole app, including the splash and startup error screens.
+class _DesktopFrame extends StatelessWidget {
+  const _DesktopFrame({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    if (!usesCustomWindowHeader) return child;
+    return Column(
+      children: [
+        const AppWindowHeader(),
+        Expanded(child: child),
+      ],
+    );
   }
 }
 
@@ -542,92 +561,8 @@ class _TopBar extends StatelessWidget {
     return Container(
       height: pageToolbarHeight,
       color: scheme.page,
-      padding: EdgeInsets.only(
-        left: narrow ? 16 : 24,
-        right: Platform.isWindows ? 0 : (narrow ? 16 : 24),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Expanded(
-            child: Platform.isWindows
-                ? DragToMoveArea(
-                    child: SizedBox(height: double.infinity, child: bar),
-                  )
-                : bar,
-          ),
-          if (Platform.isWindows) const _WindowControls(),
-        ],
-      ),
-    );
-  }
-}
-
-/// Minimize, maximize/restore and close for the Windows custom title bar.
-class _WindowControls extends StatefulWidget {
-  const _WindowControls();
-
-  @override
-  State<_WindowControls> createState() => _WindowControlsState();
-}
-
-class _WindowControlsState extends State<_WindowControls> with WindowListener {
-  bool _maximized = false;
-
-  @override
-  void initState() {
-    super.initState();
-    windowManager.addListener(this);
-    windowManager.isMaximized().then((value) {
-      if (mounted) setState(() => _maximized = value);
-    });
-  }
-
-  @override
-  void dispose() {
-    windowManager.removeListener(this);
-    super.dispose();
-  }
-
-  @override
-  void onWindowMaximize() {
-    if (mounted) setState(() => _maximized = true);
-  }
-
-  @override
-  void onWindowUnmaximize() {
-    if (mounted) setState(() => _maximized = false);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final brightness = Theme.of(context).brightness;
-    return Padding(
-      padding: const EdgeInsets.only(left: 12),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          WindowCaptionButton.minimize(
-            brightness: brightness,
-            onPressed: () => windowManager.minimize(),
-          ),
-          if (_maximized)
-            WindowCaptionButton.unmaximize(
-              brightness: brightness,
-              onPressed: () => windowManager.unmaximize(),
-            )
-          else
-            WindowCaptionButton.maximize(
-              brightness: brightness,
-              onPressed: () => windowManager.maximize(),
-            ),
-          WindowCaptionButton.close(
-            brightness: brightness,
-            onPressed: () => windowManager.close(),
-          ),
-        ],
-      ),
+      padding: EdgeInsets.symmetric(horizontal: narrow ? 16 : 24),
+      child: bar,
     );
   }
 }

@@ -30,8 +30,7 @@ Future<void> main() async {
     center: true,
     title: 'NodePulse',
     backgroundColor: Colors.transparent,
-    // Windows draws its own title bar in the app shell, with the window
-    // controls at the right end of the top bar.
+    // Windows draws a FlClash-style 32px window header above the app shell.
     titleBarStyle: Platform.isWindows ? TitleBarStyle.hidden : null,
   );
 

@@ -39,6 +39,16 @@ abstract final class AppType {
       .of(context, emphasized: true)
       .copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant);
 
+  /// FlClash's settings card header: a 17px headline over the card.
+  static TextStyle cardSectionTitle(BuildContext context) => AppTextStyle
+      .headline
+      .of(context)
+      .copyWith(
+        color: Theme.of(
+          context,
+        ).colorScheme.onSurfaceVariant.withValues(alpha: 0.8),
+      );
+
   static TextStyle section(BuildContext context) =>
       AppTextStyle.headline.of(context, emphasized: true);
 
@@ -51,7 +61,7 @@ abstract final class AppType {
       AppTextStyle.footnote.of(context);
 
   static TextStyle micro(BuildContext context) =>
-      AppTextStyle.caption2.of(context);
+      AppTextStyle.caption1.of(context);
 
   static TextStyle nodeTitle(BuildContext context) =>
       AppTextStyle.title1.of(context).copyWith(fontWeight: FontWeight.w600);
@@ -80,11 +90,21 @@ ThemeData buildAppTheme(Brightness brightness, Color seed) {
     locales: WidgetsBinding.instance.platformDispatcher.locales,
   );
 
+  final desktop = switch (defaultTargetPlatform) {
+    TargetPlatform.windows ||
+    TargetPlatform.macOS ||
+    TargetPlatform.linux => true,
+    _ => false,
+  };
+
   final base = ThemeData(
     useMaterial3: true,
     colorScheme: scheme,
     fontFamilyFallback: fallback,
-    visualDensity: VisualDensity.standard,
+    visualDensity: desktop ? VisualDensity.compact : VisualDensity.standard,
+    materialTapTargetSize: desktop
+        ? MaterialTapTargetSize.shrinkWrap
+        : MaterialTapTargetSize.padded,
     pageTransitionsTheme: const PageTransitionsTheme(
       builders: {
         TargetPlatform.android: FadeForwardsPageTransitionsBuilder(),

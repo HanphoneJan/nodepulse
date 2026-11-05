@@ -12,14 +12,14 @@ go install github.com/goreleaser/nfpm/v2/cmd/nfpm@latest
 ```
 
 ```bash
-VERSION=0.3.3 make build desktop deb
-VERSION=0.3.3 make appimage
+VERSION=0.3.4 make build desktop deb
+VERSION=0.3.4 make appimage
 ```
 
 产物：
 
-- `dist/NodePulse-linux-amd64-0.3.3.deb`
-- `dist/NodePulse-linux-amd64-0.3.3.AppImage`
+- `dist/NodePulse-linux-amd64-0.3.4.deb`
+- `dist/NodePulse-linux-amd64-0.3.4.AppImage`
 
 安装布局：
 
@@ -36,7 +36,7 @@ VERSION=0.3.3 make appimage
 在 Windows runner 上：
 
 ```powershell
-$env:VERSION = "0.3.3"
+$env:VERSION = "0.3.4"
 .\packaging\build-windows.ps1
 ```
 
@@ -48,6 +48,13 @@ $env:VERSION = "0.3.3"
 4. 用 `packaging/nodepulse.nsi` 生成 NSIS 安装包。
 
 安装器会显示组件页：开始菜单快捷方式始终创建，桌面快捷方式默认勾选，用户可以取消。
+
+安装器细节：
+
+- `packaging/nodepulse.nsi` 必须保存为 **UTF-8 with BOM**，`makensis` 调用带 `-INPUTCHARSET UTF8`；否则 Windows runner 会按本地代码页解释脚本里的中文，组件名显示为乱码；
+- 声明 `ManifestDPIAware true` 与 `ManifestDPIAwareness "PerMonitorV2,System"`，避免 Windows 在 125% / 150% 下把整个安装器当位图拉伸；
+- `MUI_ICON` / `MUI_UNICON` 使用 `packaging/nodepulse.ico`（16–256 多尺寸）；
+- `MUI_HEADERIMAGE_BITMAP` 使用 `packaging/nodepulse-header.bmp`（300×114，2x），由 `go run packaging/genicon.go` 生成。
 
 产物：
 
@@ -61,7 +68,7 @@ Flutter Windows 不能从 Linux 交叉构建。
 在 Linux 或 CI runner 上：
 
 ```bash
-VERSION=0.3.3 make android
+VERSION=0.3.4 make android
 ```
 
 脚本会：
@@ -80,7 +87,7 @@ Android 构建目前固定 Flutter 3.47.9、Gradle 8.14.3、AGP 8.13.0、Kotlin 
 在 macOS runner 上：
 
 ```bash
-VERSION=0.3.3 bash packaging/build-macos.sh
+VERSION=0.3.4 bash packaging/build-macos.sh
 ```
 
 脚本会构建 `desktop/build/macos/Build/Products/Release/NodePulse.app`，把 amd64/arm64 的 Go sidecar 合并为 `Contents/MacOS/nodepulse-core`，生成 zip 和 dmg。
@@ -101,4 +108,5 @@ VERSION=0.3.3 bash packaging/build-macos.sh
 
 - 源图标：`packaging/nodepulse-1024.png`，生成器：`go run packaging/genicon.go`；
 - Windows 图标：`packaging/nodepulse.ico`；
+- Windows 安装器页眉：`packaging/nodepulse-header.bmp`（同样由 `genicon.go` 生成）；
 - 每个安装包都带 `LICENSE`（GPL-3.0）和 `THIRD_PARTY_NOTICES.md`（含 FlClash 归属）。

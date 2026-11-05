@@ -61,7 +61,7 @@ NodePulse **不代理流量**：它测试和管理已有的 Clash/mihomo 控制�
 
 ```bash
 export PATH="$PATH:$(go env GOPATH)/bin"
-VERSION=0.3.3 make build desktop deb
+VERSION=0.3.4 make build desktop deb
 make android
 ```
 
