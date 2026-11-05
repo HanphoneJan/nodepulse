@@ -12,14 +12,14 @@ go install github.com/goreleaser/nfpm/v2/cmd/nfpm@latest
 ```
 
 ```bash
-VERSION=0.3.6 make build desktop deb
-VERSION=0.3.6 make appimage
+VERSION=0.3.7 make build desktop deb
+VERSION=0.3.7 make appimage
 ```
 
 产物：
 
-- `dist/NodePulse-linux-amd64-0.3.6.deb`
-- `dist/NodePulse-linux-amd64-0.3.6.AppImage`
+- `dist/NodePulse-linux-amd64-0.3.7.deb`
+- `dist/NodePulse-linux-amd64-0.3.7.AppImage`
 
 安装布局：
 
@@ -36,7 +36,7 @@ VERSION=0.3.6 make appimage
 在 Windows runner 上：
 
 ```powershell
-$env:VERSION = "0.3.6"
+$env:VERSION = "0.3.7"
 .\packaging\build-windows.ps1
 ```
 
@@ -71,7 +71,7 @@ Flutter Windows 不能从 Linux 交叉构建。
 在 Linux 或 CI runner 上：
 
 ```bash
-VERSION=0.3.6 make android
+VERSION=0.3.7 make android
 ```
 
 脚本会：
@@ -90,7 +90,7 @@ Android 构建目前固定 Flutter 3.47.9、Gradle 8.14.3、AGP 8.13.0、Kotlin 
 在 macOS runner 上：
 
 ```bash
-VERSION=0.3.6 bash packaging/build-macos.sh
+VERSION=0.3.7 bash packaging/build-macos.sh
 ```
 
 脚本会构建 `desktop/build/macos/Build/Products/Release/NodePulse.app`，把 amd64/arm64 的 Go sidecar 合并为 `Contents/MacOS/nodepulse-core`，生成 zip 和 dmg。

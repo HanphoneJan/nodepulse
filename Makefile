@@ -1,5 +1,5 @@
 BIN := nodepulse
-VERSION ?= 0.3.6
+VERSION ?= 0.3.7
 LDFLAGS := -s -w -X github.com/HanphoneJan/nodepulse/internal/version.Version=$(VERSION)
 FLUTTER ?= flutter
 DESKTOP := desktop

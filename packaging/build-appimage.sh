@@ -4,7 +4,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-VERSION="${VERSION:-0.3.6}"
+VERSION="${VERSION:-0.3.7}"
 BUNDLE="$ROOT/desktop/build/linux/x64/release/bundle"
 APPDIR="$ROOT/dist/NodePulse.AppDir"
 OUT="$ROOT/dist/NodePulse-linux-amd64-${VERSION}.AppImage"

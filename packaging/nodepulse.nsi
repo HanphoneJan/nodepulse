@@ -2,7 +2,7 @@
 !include "Sections.nsh"
 
 !ifndef VERSION
-  !define VERSION "0.3.6"
+  !define VERSION "0.3.7"
 !endif
 !ifndef SOURCE
   !error "SOURCE is required"
@@ -87,7 +87,7 @@ Section "Uninstall"
   RMDir /r "$INSTDIR"
 SectionEnd
 
-; NodePulse 0.3.6 and earlier did not persist this choice, so a missing value
+; NodePulse 0.3.7 and earlier did not persist this choice, so a missing value
 ; means "fresh install" and keeps the default selected state.
 Function .onInit
   SetShellVarContext current
