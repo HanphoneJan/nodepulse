@@ -184,19 +184,32 @@ ThemeData buildAppTheme(Brightness brightness, Color seed) {
     ),
     inputDecorationTheme: base.inputDecorationTheme.copyWith(
       filled: true,
-      fillColor: scheme.inset,
-      contentPadding: const EdgeInsets.fromLTRB(16, 20, 16, 12),
-      border: AppShape.input.copyWith(borderSide: BorderSide.none),
-      enabledBorder: AppShape.input.copyWith(borderSide: BorderSide.none),
-      focusedBorder: AppShape.input.copyWith(
-        borderSide: BorderSide(color: scheme.primary, width: 2),
+      fillColor: scheme.block,
+      isDense: true,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      border: AppShape.input.copyWith(
+        borderSide: BorderSide(
+          color: scheme.outlineVariant.withValues(alpha: 0.45),
+        ),
       ),
-      disabledBorder: AppShape.input.copyWith(borderSide: BorderSide.none),
+      enabledBorder: AppShape.input.copyWith(
+        borderSide: BorderSide(
+          color: scheme.outlineVariant.withValues(alpha: 0.45),
+        ),
+      ),
+      focusedBorder: AppShape.input.copyWith(
+        borderSide: BorderSide(color: scheme.primary, width: 1.5),
+      ),
+      disabledBorder: AppShape.input.copyWith(
+        borderSide: BorderSide(
+          color: scheme.outlineVariant.withValues(alpha: 0.25),
+        ),
+      ),
       errorBorder: AppShape.input.copyWith(
         borderSide: BorderSide(color: scheme.error),
       ),
       focusedErrorBorder: AppShape.input.copyWith(
-        borderSide: BorderSide(color: scheme.error, width: 2),
+        borderSide: BorderSide(color: scheme.error, width: 1.5),
       ),
       labelStyle: appText(
         base,
@@ -209,7 +222,7 @@ ThemeData buildAppTheme(Brightness brightness, Color seed) {
       hintStyle: appText(
         base,
         AppTextStyle.subheadline,
-      ).copyWith(color: scheme.onSurfaceVariant.withValues(alpha: 0.7)),
+      ).copyWith(color: scheme.onSurfaceVariant.withValues(alpha: 0.65)),
     ),
     dropdownMenuTheme: base.dropdownMenuTheme.copyWith(
       menuStyle: MenuStyle(

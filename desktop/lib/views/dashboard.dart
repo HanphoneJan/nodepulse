@@ -704,7 +704,8 @@ class _SubscribeCardState extends State<_SubscribeCard> {
           const SizedBox(height: AppSpace.sm),
           AppSelect<String>(
             value: (state.settings['config_path'] ?? '').toString(),
-            label: '选择订阅文件',
+            label: '订阅文件',
+            hint: '选择订阅文件',
             items: subscriptions.isEmpty
                 ? const [(value: '', label: '没有自动找到订阅文件')]
                 : subscriptions,

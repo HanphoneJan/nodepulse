@@ -91,7 +91,7 @@ desktop/
 - 桌面卡片间距 16，笔记本 12，窄屏 8；
 - 仪表盘卡内边距 22/20（普通卡 20），窄屏 20/18；
 - 页面内边距 16 / 24 / 24；
-- 行高 56，控件高 40 / 44，字段高 56，工具栏 72；
+- 行高 56，控件高 40 / 44，字段高 48，工具栏 72；
 - 桌面使用 `VisualDensity.compact` + `MaterialTapTargetSize.shrinkWrap`，Android 保持标准密度；
 - 固定高度控件按 `MediaQuery.textScaler` 计算最小高度，Windows 文本大小调到 125% / 150% 时不裁剪；
 - 页面最大宽度：仪表盘 1440，节点 1280，设置/历史 960，结果表 1080；
@@ -119,8 +119,8 @@ desktop/
 - `AppButton` / `ActionPill` / `GhostButton`：40px 胶囊，filled/tonal/outline/ghost；
 - `SegmentedChoice`：44px、4px inset、primary 滑块、250ms 动画；
 - `AppSwitch`：52×32 自绘轨道，替换 Material `Switch`；
-- `AppTextField`：56px、超椭圆、焦点主色描边、密码显隐；
-- `AppSelect`：40/56px、超椭圆、16px 菜单；
+- `AppTextField`：48px、标签在字段上方（15/20 `onSurfaceVariant`）、字段内 15/20 正文、1px 细边 + 焦点主色 1.5px、密码显隐；
+- `AppSelect`：48px、同样的标签/描边/菜单样式；
 - `SettingRow`：56px 行高、15/20 副标题、右 trailing；
 - `NodeCard` / `NodeRow`：节点卡片与紧凑结果行，共用评分/P90/抖动/成功率；
 - `SurfaceBox`：自动递进的内容块；

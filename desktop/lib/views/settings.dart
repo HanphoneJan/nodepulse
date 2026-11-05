@@ -66,6 +66,13 @@ class _SettingsViewState extends State<SettingsView> {
             section: true,
           ),
           Text(
+            '主题色和明暗模式只影响界面，不改测速参数。',
+            style: AppType.secondary(
+              context,
+            ).copyWith(color: scheme.onSurfaceVariant),
+          ),
+          const SizedBox(height: AppSpace.md),
+          Text(
             '主题色',
             style: AppType.caption(
               context,
@@ -145,11 +152,17 @@ class _SettingsViewState extends State<SettingsView> {
             ).copyWith(color: scheme.onSurfaceVariant),
           ),
           const SizedBox(height: AppSpace.md),
-          AppTextField(
-            key: ValueKey('profile-name-$activeId'),
-            label: '环境名称',
-            initialValue: (active['name'] ?? '').toString(),
-            onChanged: state.renameProfile,
+          Align(
+            alignment: AlignmentDirectional.centerStart,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 420),
+              child: AppTextField(
+                key: ValueKey('profile-name-$activeId'),
+                label: '环境名称',
+                initialValue: (active['name'] ?? '').toString(),
+                onChanged: state.renameProfile,
+              ),
+            ),
           ),
           const SizedBox(height: AppSpace.md),
           Wrap(
@@ -423,6 +436,13 @@ class _SettingsViewState extends State<SettingsView> {
             glyph: Glyphs.monitor,
             section: true,
           ),
+          Text(
+            '关闭窗口后是否继续在后台运行，以及何时发送系统通知。',
+            style: AppType.secondary(
+              context,
+            ).copyWith(color: scheme.onSurfaceVariant),
+          ),
+          const SizedBox(height: AppSpace.sm),
           _SettingSwitch(
             title: '关闭窗口时驻留托盘',
             value: state.settings['close_to_tray'] != false,
@@ -530,6 +550,13 @@ class _SettingsViewState extends State<SettingsView> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           const AppCardHeader(title: '连接设置', glyph: Glyphs.tune, section: true),
+          Text(
+            '控制口、订阅与测速参数保存在当前环境。',
+            style: AppType.secondary(
+              context,
+            ).copyWith(color: scheme.onSurfaceVariant),
+          ),
+          const SizedBox(height: AppSpace.md),
           LayoutBuilder(
             builder: (context, constraints) {
               final two = constraints.maxWidth > 620;
@@ -882,18 +909,17 @@ class _ProfileRow extends StatelessWidget {
                 children: [
                   Text(
                     (profile['name'] ?? '').toString(),
-                    style: AppType.secondary(context).copyWith(
+                    style: AppType.body(context).copyWith(
                       color: active
                           ? scheme.onPrimaryContainer
                           : scheme.onSurface,
-                      fontWeight: FontWeight.w600,
                     ),
                   ),
                   Text(
                     '${profile['api'] ?? ''} · ${baseName(profile['config_path']?.toString())}',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: AppType.caption(context).copyWith(
+                    style: AppType.secondary(context).copyWith(
                       color: active
                           ? scheme.onPrimaryContainer.withValues(alpha: 0.8)
                           : scheme.onSurfaceVariant,

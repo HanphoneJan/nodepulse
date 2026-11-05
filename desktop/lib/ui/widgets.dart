@@ -167,7 +167,12 @@ class AppCard extends StatelessWidget {
             ? shape.copyWith(
                 side: BorderSide(color: scheme.primary, width: 1.5),
               )
-            : shape,
+            : shape.copyWith(
+                side: BorderSide(
+                  color: scheme.outlineVariant.withValues(alpha: 0.35),
+                  width: 0.5,
+                ),
+              ),
         shadows: shadow ? AppShadows.e1(scheme) : null,
       ),
       child: Material(
@@ -705,37 +710,85 @@ class _AppTextFieldState extends State<AppTextField> {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    return TextFormField(
-      controller: widget.controller,
-      initialValue: widget.controller == null ? widget.initialValue : null,
-      onChanged: widget.onChanged,
-      keyboardType: widget.keyboardType,
-      obscureText: _obscured,
-      maxLines: widget.obscure ? 1 : widget.maxLines,
-      enabled: widget.enabled,
-      decoration: InputDecoration(
-        labelText: widget.label,
-        hintText: widget.hint,
-        border: AppShape.input.copyWith(borderSide: BorderSide.none),
-        enabledBorder: AppShape.input.copyWith(borderSide: BorderSide.none),
-        disabledBorder: AppShape.input.copyWith(borderSide: BorderSide.none),
-        focusedBorder: AppShape.input.copyWith(
-          borderSide: BorderSide(color: scheme.primary, width: 2),
+    final border = BorderSide(
+      color: scheme.outlineVariant.withValues(alpha: 0.45),
+    );
+    final field = SizedBox(
+      height: widget.maxLines == 1
+          ? math.max(
+              48,
+              _scaledLineHeight(context, AppTextStyle.subheadline) + 26,
+            )
+          : null,
+      child: TextFormField(
+        controller: widget.controller,
+        initialValue: widget.controller == null ? widget.initialValue : null,
+        onChanged: widget.onChanged,
+        keyboardType: widget.keyboardType,
+        obscureText: _obscured,
+        maxLines: widget.obscure ? 1 : widget.maxLines,
+        enabled: widget.enabled,
+        style: AppType.secondary(context).copyWith(color: scheme.onSurface),
+        cursorColor: scheme.primary,
+        textAlignVertical: TextAlignVertical.center,
+        decoration: InputDecoration(
+          hintText: widget.hint,
+          hintStyle: AppType.secondary(
+            context,
+          ).copyWith(color: scheme.onSurfaceVariant.withValues(alpha: 0.65)),
+          filled: true,
+          fillColor: context.raisedSurfaceLevel.colorOf(scheme),
+          isDense: true,
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 14,
+            vertical: 12,
+          ),
+          border: AppShape.input.copyWith(borderSide: border),
+          enabledBorder: AppShape.input.copyWith(borderSide: border),
+          disabledBorder: AppShape.input.copyWith(
+            borderSide: border.copyWith(
+              color: scheme.outlineVariant.withValues(alpha: 0.25),
+            ),
+          ),
+          focusedBorder: AppShape.input.copyWith(
+            borderSide: BorderSide(color: scheme.primary, width: 1.5),
+          ),
+          errorBorder: AppShape.input.copyWith(
+            borderSide: BorderSide(color: scheme.error),
+          ),
+          focusedErrorBorder: AppShape.input.copyWith(
+            borderSide: BorderSide(color: scheme.error, width: 1.5),
+          ),
+          suffixIconConstraints: const BoxConstraints(
+            minWidth: 44,
+            minHeight: 44,
+          ),
+          suffixIcon: widget.obscure
+              ? IconButton(
+                  tooltip: _obscured ? '显示' : '隐藏',
+                  icon: Icon(Glyphs.eye, size: 18),
+                  onPressed: () => setState(() => _obscured = !_obscured),
+                )
+              : widget.suffix,
         ),
-        errorBorder: AppShape.input.copyWith(
-          borderSide: BorderSide(color: scheme.error),
-        ),
-        focusedErrorBorder: AppShape.input.copyWith(
-          borderSide: BorderSide(color: scheme.error, width: 2),
-        ),
-        suffixIcon: widget.obscure
-            ? IconButton(
-                tooltip: _obscured ? '显示' : '隐藏',
-                icon: Icon(Glyphs.eye, size: 18),
-                onPressed: () => setState(() => _obscured = !_obscured),
-              )
-            : widget.suffix,
       ),
+    );
+    if (widget.label == null) return field;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          widget.label!,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: AppType.secondary(
+            context,
+          ).copyWith(color: scheme.onSurfaceVariant),
+        ),
+        const SizedBox(height: 6),
+        field,
+      ],
     );
   }
 }
@@ -747,38 +800,45 @@ class AppSelect<T> extends StatelessWidget {
     required this.items,
     required this.onChanged,
     this.label,
-    this.height = 56,
+    this.hint,
+    this.height = 48,
   });
 
   final T value;
   final List<({T value, String label})> items;
   final ValueChanged<T> onChanged;
   final String? label;
+  final String? hint;
   final double height;
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final hasValue = items.any((item) => item.value == value);
-    return SizedBox(
+    final field = SizedBox(
       height: height,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16),
+        padding: const EdgeInsets.symmetric(horizontal: 14),
         decoration: ShapeDecoration(
-          color: scheme.inset,
-          shape: AppShape.all(AppCorner.md),
+          color: context.raisedSurfaceLevel.colorOf(scheme),
+          shape: AppShape.input.copyWith(
+            borderSide: BorderSide(
+              color: scheme.outlineVariant.withValues(alpha: 0.45),
+            ),
+          ),
         ),
         child: DropdownButtonHideUnderline(
           child: DropdownButton<T>(
             value: hasValue ? value : null,
             isExpanded: true,
-            hint: label == null
+            isDense: true,
+            hint: (hint ?? label) == null
                 ? null
                 : Text(
-                    label!,
-                    style: AppType.secondary(
-                      context,
-                    ).copyWith(color: scheme.onSurfaceVariant),
+                    (hint ?? label)!,
+                    style: AppType.secondary(context).copyWith(
+                      color: scheme.onSurfaceVariant.withValues(alpha: 0.65),
+                    ),
                   ),
             icon: Icon(
               Glyphs.chevronDown,
@@ -801,6 +861,23 @@ class AppSelect<T> extends StatelessWidget {
           ),
         ),
       ),
+    );
+    if (label == null) return field;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label!,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: AppType.secondary(
+            context,
+          ).copyWith(color: scheme.onSurfaceVariant),
+        ),
+        const SizedBox(height: 6),
+        field,
+      ],
     );
   }
 }
@@ -1168,9 +1245,7 @@ class NodeCard extends StatelessWidget {
                   name,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: AppType.secondary(
-                    context,
-                  ).copyWith(fontWeight: FontWeight.w600),
+                  style: AppType.secondary(context),
                 ),
               ),
               if (best) const StatusChip(label: '推荐', tone: StatusTone.ok),
